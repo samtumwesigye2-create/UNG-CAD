@@ -17,3 +17,23 @@ jobs:
         run: python -m pip install pytest
       - name: Run tests
         run: python -m pytest -q
+      - name: Install OpenSCAD
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openscad
+      - name: Render DRACO-Mini STL geometry
+        run: |
+          set -euo pipefail
+          mkdir -p build/draco-mini
+          openscad -o build/draco-mini/rotating_base.stl projects/draco-mini/parts/rotating_base.scad
+          openscad -o build/draco-mini/pan_tilt_cradle.stl projects/draco-mini/parts/pan_tilt_cradle.scad
+          openscad -o build/draco-mini/sensor_shell.stl projects/draco-mini/parts/sensor_shell.scad
+          openscad -o build/draco-mini/camera_insert.stl projects/draco-mini/parts/camera_insert.scad
+          openscad -o build/draco-mini/electronics_cartridge.stl projects/draco-mini/parts/electronics_cartridge.scad
+          openscad -o build/draco-mini/assembly.stl projects/draco-mini/assembly.scad
+          test -s build/draco-mini/rotating_base.stl
+          test -s build/draco-mini/pan_tilt_cradle.stl
+          test -s build/draco-mini/sensor_shell.stl
+          test -s build/draco-mini/camera_insert.stl
+          test -s build/draco-mini/electronics_cartridge.stl
+          test -s build/draco-mini/assembly.stl
