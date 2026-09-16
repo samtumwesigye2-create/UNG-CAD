@@ -27,5 +27,6 @@ def test_assembly_locks_envelope_and_interface_clearance():
     assert "base_z = 0" in text
     assert "cradle_z = 18" in text
     assert "shell_z = 52" in text
-    assert "camera_insert_y = -41" in text
-    assert "electronics_cartridge_y = 29" in text
+    # These offsets keep the rendered front/rear modules within ±55 mm Y.
+    assert "camera_insert_y = -39.65" in text
+    assert "electronics_cartridge_y = 28.8" in text
