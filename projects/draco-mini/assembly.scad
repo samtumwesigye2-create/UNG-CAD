@@ -16,8 +16,8 @@ fit_clearance = 0.35;
 base_z = 0;
 cradle_z = 18;
 shell_z = 52;
-camera_insert_y = -41;
-electronics_cartridge_y = 29;
+camera_insert_y = -39.65;
+electronics_cartridge_y = 28.8;
 
 module draco_mini_assembly() {
     // Pan base.
