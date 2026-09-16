@@ -1,0 +1,39 @@
+{
+  "format": "ung-cad-manufacturing/v1",
+  "project": "DRACO-Mini Gen-1",
+  "envelope_mm": {"x": 110, "y": 110, "z": 135},
+  "fit_clearance_mm": 0.35,
+  "windowless_camera_aperture": true,
+  "screwless_external_enclosure": true,
+  "printable_parts": [
+    "rotating_base",
+    "pan_tilt_cradle",
+    "sensor_shell",
+    "camera_insert",
+    "electronics_cartridge"
+  ],
+  "electronics": {
+    "compute": {
+      "name": "Raspberry Pi Zero 2 W",
+      "envelope_mm": [65, 30]
+    },
+    "camera": {
+      "name": "Raspberry Pi Camera Module 3 NoIR",
+      "envelope_mm": [25, 24, 11.5]
+    },
+    "servos": {
+      "class": "MG90S",
+      "quantity": 2,
+      "nominal_envelope_mm": [22.8, 12.2, 28.5]
+    }
+  },
+  "assembly": {
+    "external_fasteners": 0,
+    "joining_methods": ["keyed_slide_rails", "snap_fits", "bayonet_twist_locks"],
+    "electronics_cartridge_removable": true
+  },
+  "validation": {
+    "fit_coupon_required_before_full_print": true,
+    "production_geometry_status": "pending_fit_validation"
+  }
+}
