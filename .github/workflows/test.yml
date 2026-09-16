@@ -37,3 +37,9 @@ jobs:
           test -s build/draco-mini/camera_insert.stl
           test -s build/draco-mini/electronics_cartridge.stl
           test -s build/draco-mini/assembly.stl
+      - name: Publish DRACO-Mini STL bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: draco-mini-stl
+          path: build/draco-mini/*.stl
+          if-no-files-found: error
