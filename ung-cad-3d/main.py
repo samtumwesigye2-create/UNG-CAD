@@ -112,7 +112,7 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
     if not low.endswith(".stl"):
         raise HTTPException(400,"This build slices STL and sends pre-sliced G-code/GX/GCODE.3MF machine packages directly")
     try:
-        gcode,stats=slice_stl(data,Path(source_name).name,layer_height=layer_height,quality=quality,material=material,supports=supports,copies=copies)
+        gcode,stats=slice_stl(data,Path(source_name).name,layer_height=layer_height)
     except Exception as e:
         raise HTTPException(422,f"Slicing failed: {e}")
     out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
