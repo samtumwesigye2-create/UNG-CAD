@@ -7,6 +7,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from slicer import slice_stl
 from slicer_cnc import slice_shapes_to_gcode
+from operations import migrate, audit, create_revision
+from gcode_preview import analyze as analyze_gcode
 
 BASE_DIR=Path(__file__).resolve().parent
 DB_PATH=Path(os.getenv("UNG_CAD_3D_DB",str(BASE_DIR/"ung_cad_3d.db")))
@@ -20,7 +22,7 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS machines (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,kind TEXT NOT NULL,connection_type TEXT NOT NULL,config_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS jobs (id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,source_name TEXT NOT NULL,machine_file TEXT,status TEXT NOT NULL,error_message TEXT,stats_json TEXT,submitted_by TEXT,created_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS api_keys (id INTEGER PRIMARY KEY AUTOINCREMENT,key TEXT NOT NULL UNIQUE,owner_system TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL)")
-    c.commit(); c.close()
+    c.commit(); migrate(c); c.close()
 @app.on_event("startup")
 def startup(): init_db()
 
@@ -39,6 +41,13 @@ class CncSliceIn(BaseModel):
 class ApiKeyIn(BaseModel):
     owner_system:str
     admin_token:str
+class ProjectIn(BaseModel):
+    name:str
+    state:dict={}
+class RevisionIn(BaseModel):
+    state:dict
+class PreviewIn(BaseModel):
+    gcode:str
 
 def log_job(kind,source_name,machine_file,status,error_message,stats,submitted_by):
     c=get_connection()
@@ -216,6 +225,44 @@ def update_scene(scene_id:int,scene:SceneIn):
 @app.delete("/api/scenes/{scene_id}")
 def delete_scene(scene_id:int):
     c=get_connection(); c.execute("DELETE FROM scenes WHERE id=?",(scene_id,)); c.commit(); c.close(); return {"status":"deleted"}
+
+
+@app.post("/api/projects")
+def create_project(p:ProjectIn):
+    c=get_connection(); n=now_iso()
+    q=c.execute("INSERT INTO projects(name,state_json,created_at,updated_at) VALUES(?,?,?,?)",(p.name,json.dumps(p.state),n,n))
+    c.commit(); pid=q.lastrowid; create_revision(c,pid,p.state); audit(c,"dashboard","project.created","project",pid); c.close()
+    return {"id":pid,"status":"created"}
+
+@app.get("/api/projects")
+def list_projects():
+    c=get_connection(); rows=c.execute("SELECT id,name,created_at,updated_at FROM projects ORDER BY updated_at DESC").fetchall(); c.close()
+    return [dict(r) for r in rows]
+
+@app.put("/api/projects/{project_id}")
+def save_project(project_id:int,p:ProjectIn):
+    c=get_connection()
+    if not c.execute("SELECT id FROM projects WHERE id=?",(project_id,)).fetchone(): c.close(); raise HTTPException(404,"Project not found")
+    c.execute("UPDATE projects SET name=?,state_json=?,updated_at=? WHERE id=?",(p.name,json.dumps(p.state),now_iso(),project_id)); c.commit()
+    rev=create_revision(c,project_id,p.state); audit(c,"dashboard","project.saved","project",project_id,{"revision":rev}); c.close()
+    return {"status":"saved","revision":rev}
+
+@app.get("/api/projects/{project_id}/revisions")
+def revisions(project_id:int):
+    c=get_connection(); rows=c.execute("SELECT id,revision_no,created_at FROM revisions WHERE project_id=? ORDER BY revision_no DESC",(project_id,)).fetchall(); c.close()
+    return [dict(r) for r in rows]
+
+@app.post("/api/gcode/preview")
+def gcode_preview(payload:PreviewIn):
+    return analyze_gcode(payload.gcode)
+
+@app.get("/api/audit")
+def audit_log(limit:int=100):
+    c=get_connection(); rows=c.execute("SELECT * FROM audit_events ORDER BY created_at DESC LIMIT ?",(min(max(limit,1),500),)).fetchall(); c.close()
+    out=[]
+    for r in rows:
+        d=dict(r); d["details"]=json.loads(d.pop("details_json") or "{}"); out.append(d)
+    return out
 
 @app.get("/health")
 def health(): return {"system":"UNG-CAD-3D","status":"ok","ui":"/studio.html","manufacturing":"/manufacturing.html","drafting":"/drafting.html (now with CNC/laser G-code export)","ad5m_bridge":"/ung-cad-ad5m-bridge.py","external_api":"/api/v1/* (requires X-UNG-API-Key header)"}
