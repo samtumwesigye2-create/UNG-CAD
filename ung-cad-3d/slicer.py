@@ -22,6 +22,24 @@ def _emit_loop(lines, pts, xoff, yoff, z, e_state, feed=1800):
         px,py=x,y
     return e_state
 
+def _emit_prime_sequence(lines):
+    """Prime and wipe the nozzle before layer 1.
+
+    The slicer uses absolute extrusion (M82), so reset E before and after the
+    purge line. This guarantees the first model extrusion starts from E0.
+    """
+    lines += [
+        "; UNG-CAD nozzle prime",
+        "G92 E0",
+        "G1 Z0.28 F600",
+        "G1 X10 Y10 F6000",
+        "G1 X80 Y10 E8.0000 F600",
+        "G1 X80 Y10.4 F1800",
+        "G1 X10 Y10.4 E9.0000 F600",
+        "G92 E0",
+        "G1 Z0.20 F600",
+    ]
+
 def slice_stl(data: bytes, filename: str, layer_height=0.20, nozzle=0.40, wall_count=2, bed=220):
     mesh=trimesh.load_mesh(io.BytesIO(data), file_type="stl")
     if not isinstance(mesh,trimesh.Trimesh):
@@ -46,8 +64,8 @@ def slice_stl(data: bytes, filename: str, layer_height=0.20, nozzle=0.40, wall_c
         "; Profile: conservative 0.4mm nozzle / 0.20mm layers / PLA",
         "; NOTE: verify material, bed/nozzle temperature and first layer before production use",
         "G90","M82","M107","G28","M140 S55","M104 S200","M190 S55","M109 S200",
-        "G92 E0","G1 Z0.20 F600","G1 X10 Y10 F6000","G1 Z0.20 F600"
     ]
+    _emit_prime_sequence(lines)
     e=0.0; layer_count=0
     for z,path in zip(heights,paths):
         if path is None or len(path.entities)==0:
