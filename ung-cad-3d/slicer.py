@@ -41,7 +41,8 @@ def _emit_wall_shell(lines, shell, xoff, yoff, z, e_state):
             e_state=_emit_loop(lines,_loop_points(np.asarray(ring.coords),z),xoff,yoff,z,e_state)
     return e_state
 
-def slice_stl(data: bytes, filename: str, layer_height=0.20, nozzle=0.40, wall_count=2, bed=220):
+def slice_stl(data: bytes, filename: str, layer_height=0.20, nozzle=0.40, wall_count=2, bed=220,
+              quality="balanced", material="PLA", supports="auto", copies=1, **kwargs):
     mesh=trimesh.load_mesh(io.BytesIO(data), file_type='stl')
     if not isinstance(mesh,trimesh.Trimesh):
         raise ValueError("STL did not produce a mesh")
