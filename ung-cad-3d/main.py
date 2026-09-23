@@ -1,4 +1,4 @@
-import json, os, sqlite3, zipfile, io, re, secrets
+import json, os, sqlite3, zipfile, io, re, secrets, urllib.request, urllib.error, urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
@@ -46,6 +46,21 @@ class ApiKeyIn(BaseModel):
 def root(): return RedirectResponse(url="/studio.html")
 @app.get("/studio.html")
 def studio(): return FileResponse(BASE_DIR/"studio.html")
+
+@app.get("/api/data-twin/resolve")
+def resolve_data_twin(sku: str = "", device_id: str = ""):
+    out={"sku":sku or None,"device_id":device_id or None,"vector":None,"draco":None,"sources":{}}
+    vector=os.getenv("UNG_VECTOR_URL","https://ung-vector-production.up.railway.app").rstrip("/")
+    draco=os.getenv("UNG_DRACO_URL","https://ung-draco-production-9552.up.railway.app").rstrip("/")
+    def pull(label,url):
+        try:
+            with urllib.request.urlopen(url,timeout=4) as r:
+                out[label]=json.loads(r.read().decode()); out["sources"][label]={"url":url,"status":"connected"}
+        except Exception as e: out["sources"][label]={"url":url,"status":"unavailable","error":str(e)[:160]}
+    if sku: pull("vector",vector+"/v1/digital-twin/product/"+urllib.parse.quote(sku,safe=""))
+    if device_id: pull("draco",draco+"/api/draco/v1/device/"+urllib.parse.quote(device_id,safe=""))
+    return out
+
 @app.get("/data-twin")
 def data_twin_page(): return FileResponse(BASE_DIR/"data-twin.html")
 
