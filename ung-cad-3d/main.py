@@ -5,7 +5,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, F
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from slicer import slice_stl
+from orca_slicer import slice_stl_orca as slice_stl  # real AD5M slicing (fixed)
 from slicer_cnc import slice_shapes_to_gcode
 BASE_DIR=Path(__file__).resolve().parent
 DB_PATH=Path(os.getenv("UNG_CAD_3D_DB",str(BASE_DIR/"ung_cad_3d.db")))
@@ -31,14 +31,12 @@ def home_page():
 @app.on_event("startup")
 def startup(): init_db()
 
-
 class TwinBindingIn(BaseModel):
     object_key:str
     object_name:str
     vector_sku:str|None=None
     draco_device_id:str|None=None
     metadata:dict={}
-
 class SceneIn(BaseModel):
     name:str
     data:dict
@@ -59,7 +57,6 @@ class ApiKeyIn(BaseModel):
 def root(): return RedirectResponse(url="/studio.html")
 @app.get("/studio.html")
 def studio(): return FileResponse(BASE_DIR/"studio.html")
-
 
 @app.put("/api/data-twin/bindings/{object_key}")
 def put_twin_binding(object_key: str, body: TwinBindingIn):
@@ -97,17 +94,13 @@ def resolve_data_twin(sku: str = "", device_id: str = ""):
 
 @app.get("/data-twin")
 def data_twin_page(): return FileResponse(BASE_DIR/"data-twin.html")
-
 @app.get("/studio")
 def studio_short(): return FileResponse(BASE_DIR/"studio.html")
 @app.get("/viewer.html")
 def viewer(): return FileResponse(BASE_DIR/"viewer.html")
 @app.get("/manufacturing.html")
 def manufacturing():
-    return FileResponse(
-        BASE_DIR/"manufacturing.html",
-        headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache","Expires":"0"}
-    )
+    return FileResponse(BASE_DIR/"manufacturing.html",headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache","Expires":"0"})
 @app.get("/drafting.html")
 def drafting(): return FileResponse(BASE_DIR/"drafting.html")
 @app.get("/ung-cad-ad5m-bridge.py")
@@ -125,8 +118,7 @@ def printable_entries(names):
     out=[]
     for n in names:
         low=n.lower()
-        if low.endswith((".stl",".3mf",".gcode",".gx")) and not low.endswith("draco_gen1_full_assembly_reference.stl"):
-            out.append(n)
+        if low.endswith((".stl",".3mf",".gcode",".gx")) and not low.endswith("draco_gen1_full_assembly_reference.stl"): out.append(n)
     return out
 
 @app.post("/api/manufacturing/inspect")
@@ -134,18 +126,12 @@ async def inspect(file:UploadFile=File(...)):
     name=file.filename or "project"; data=await file.read(); entries=[]
     if name.lower().endswith(".zip"):
         try:
-            with zipfile.ZipFile(io.BytesIO(data)) as z:
-                entries=printable_entries([n for n in z.namelist() if not n.endswith("/")])
-        except zipfile.BadZipFile:
-            raise HTTPException(400,"Invalid ZIP")
-    elif name.lower().endswith((".stl",".3mf",".gcode",".gx")):
-        entries=[name]
-    else:
-        raise HTTPException(400,"Unsupported project type")
+            with zipfile.ZipFile(io.BytesIO(data)) as z: entries=printable_entries([n for n in z.namelist() if not n.endswith("/")])
+        except zipfile.BadZipFile: raise HTTPException(400,"Invalid ZIP")
+    elif name.lower().endswith((".stl",".3mf",".gcode",".gx")): entries=[name]
+    else: raise HTTPException(400,"Unsupported project type")
     if not entries: raise HTTPException(400,"No printable files found")
-    return {"ok":True,"part_count":len(entries),"parts":[Path(n).name for n in entries],
-            "printer_profile":"FlashForge Adventurer 5M",
-            "assembly_reference_excluded":True}
+    return {"ok":True,"part_count":len(entries),"parts":[Path(n).name for n in entries],"printer_profile":"FlashForge Adventurer 5M","assembly_reference_excluded":True}
 
 async def read_selected(file:UploadFile, selected:str):
     data=await file.read()
@@ -158,52 +144,32 @@ async def read_selected(file:UploadFile, selected:str):
                 target=next((n for n in names if Path(n).name==selected or n==selected),None)
                 if not target: raise HTTPException(404,"Selected part not found in package")
                 return target, z.read(target)
-        except zipfile.BadZipFile:
-            raise HTTPException(400,"Invalid ZIP")
-    if Path(file.filename).name==selected or not selected:
-        return file.filename,data
+        except zipfile.BadZipFile: raise HTTPException(400,"Invalid ZIP")
+    if Path(file.filename).name==selected or not selected: return file.filename,data
     raise HTTPException(404,"Selected part not found")
 
 @app.post("/api/manufacturing/slice")
 async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_height:float=Form(0.20), quality:str=Form("balanced"), material:str=Form("PLA"), supports:str=Form("auto"), copies:int=Form(1)):
     if not (0.08 <= layer_height <= 0.4): raise HTTPException(400,"Layer height must be 0.08–0.40 mm")
-    source_name, data=await read_selected(file,selected)
-    low=source_name.lower()
+    source_name, data=await read_selected(file,selected); low=source_name.lower()
     if low.endswith((".gcode",".gx")) or low.endswith(".gcode.3mf"):
         out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
-        safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).name)
-        target=out/safe; target.write_bytes(data)
-        return {"ok":True,"status":"machine_file_ready","source":Path(source_name).name,
-                "machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}",
-                "printer":"FlashForge Adventurer 5M","stats":{"pre_sliced":True,"machine_package":low.endswith(".gcode.3mf")},
-                "transmission":"local AD5M bridge required"}
-    if not low.endswith(".stl"):
-        raise HTTPException(400,"This build slices STL and sends pre-sliced G-code/GX/GCODE.3MF machine packages directly")
-    try:
-        gcode,stats=slice_stl(data,Path(source_name).name,layer_height=layer_height)
-    except Exception as e:
-        raise HTTPException(422,f"Slicing failed: {e}")
+        safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).name); target=out/safe; target.write_bytes(data)
+        return {"ok":True,"status":"machine_file_ready","source":Path(source_name).name,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","printer":"FlashForge Adventurer 5M","stats":{"pre_sliced":True,"machine_package":low.endswith(".gcode.3mf")},"transmission":"local AD5M bridge required"}
+    if not low.endswith(".stl"): raise HTTPException(400,"This build slices STL and sends pre-sliced G-code/GX/GCODE.3MF machine packages directly")
+    try: gcode,stats=slice_stl(data,Path(source_name).name,layer_height=layer_height)
+    except Exception as e: raise HTTPException(422,f"Slicing failed: {e}")
     out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
-    safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).stem)
-    target=out/(safe+"_AD5M.gcode")
-    target.write_bytes(gcode)
-    return {"ok":True,"status":"sliced","source":Path(source_name).name,
-            "machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}",
-            "printer":"FlashForge Adventurer 5M","stats":stats,
-            "transmission":"local AD5M bridge required"}
-
+    safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).stem); target=out/(safe+"_AD5M.gcode"); target.write_bytes(gcode)
+    return {"ok":True,"status":"sliced","source":Path(source_name).name,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","printer":"FlashForge Adventurer 5M","stats":stats,"transmission":"local AD5M bridge required"}
 
 def _save_gcode(source_name,gcode,suffix):
     out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
-    safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).stem)
-    target=out/(safe+suffix)
-    target.write_bytes(gcode if isinstance(gcode,bytes) else gcode.encode())
-    return target
+    safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).stem); target=out/(safe+suffix)
+    target.write_bytes(gcode if isinstance(gcode,bytes) else gcode.encode()); return target
 
 def log_job(kind,source_name,machine_file,status,error_message,stats,submitted_by):
-    c=get_connection()
-    q=c.execute("INSERT INTO jobs (kind,source_name,machine_file,status,error_message,stats_json,submitted_by,created_at) VALUES (?,?,?,?,?,?,?,?)",
-        (kind,source_name,machine_file,status,error_message,json.dumps(stats) if stats else None,submitted_by,now_iso()))
+    c=get_connection(); q=c.execute("INSERT INTO jobs (kind,source_name,machine_file,status,error_message,stats_json,submitted_by,created_at) VALUES (?,?,?,?,?,?,?,?)",(kind,source_name,machine_file,status,error_message,json.dumps(stats) if stats else None,submitted_by,now_iso()))
     c.commit(); job_id=q.lastrowid; c.close(); return job_id
 
 @app.post("/api/manufacturing/cnc-slice")
@@ -212,10 +178,8 @@ def cnc_slice(payload:CncSliceIn):
     if mode not in ("cnc","laser"): raise HTTPException(400,"settings.mode must be 'cnc' or 'laser'")
     try: gcode,count,seconds=slice_shapes_to_gcode(payload.shapes,payload.settings)
     except Exception as e:
-        log_job(mode,payload.drawing_name,None,"failed",str(e),None,"dashboard")
-        raise HTTPException(422,f"CNC/laser toolpath generation failed: {e}")
-    target=_save_gcode(payload.drawing_name,gcode,f"_{mode}.gcode")
-    stats={"paths":count,"estimated_seconds":seconds,"mode":mode}
+        log_job(mode,payload.drawing_name,None,"failed",str(e),None,"dashboard"); raise HTTPException(422,f"CNC/laser toolpath generation failed: {e}")
+    target=_save_gcode(payload.drawing_name,gcode,f"_{mode}.gcode"); stats={"paths":count,"estimated_seconds":seconds,"mode":mode}
     log_job(mode,payload.drawing_name,target.name,"sliced",None,stats,"dashboard")
     return {"ok":True,"status":"sliced","mode":mode,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","stats":stats}
 
@@ -223,28 +187,23 @@ def cnc_slice(payload:CncSliceIn):
 def create_machine(m:MachineIn):
     if m.kind not in ("3d_printer","cnc","laser"): raise HTTPException(400,"invalid machine kind")
     if m.connection_type not in ("bridge_lan","bridge_serial","manual"): raise HTTPException(400,"invalid connection type")
-    c=get_connection()
-    q=c.execute("INSERT INTO machines (name,kind,connection_type,config_json,created_at) VALUES (?,?,?,?,?)",(m.name,m.kind,m.connection_type,json.dumps(m.config),now_iso()))
-    c.commit(); mid=q.lastrowid; c.close()
-    return {"id":mid,"status":"created"}
+    c=get_connection(); q=c.execute("INSERT INTO machines (name,kind,connection_type,config_json,created_at) VALUES (?,?,?,?,?)",(m.name,m.kind,m.connection_type,json.dumps(m.config),now_iso()))
+    c.commit(); mid=q.lastrowid; c.close(); return {"id":mid,"status":"created"}
 
 @app.get("/api/machines")
 def list_machines():
-    c=get_connection(); rows=c.execute("SELECT * FROM machines ORDER BY created_at DESC").fetchall(); c.close()
-    out=[]
+    c=get_connection(); rows=c.execute("SELECT * FROM machines ORDER BY created_at DESC").fetchall(); c.close(); out=[]
     for r in rows:
         d=dict(r); d["config"]=json.loads(d.pop("config_json")); out.append(d)
     return out
 
 @app.delete("/api/machines/{machine_id}")
 def delete_machine(machine_id:int):
-    c=get_connection(); c.execute("DELETE FROM machines WHERE id=?",(machine_id,)); c.commit(); c.close()
-    return {"status":"deleted"}
+    c=get_connection(); c.execute("DELETE FROM machines WHERE id=?",(machine_id,)); c.commit(); c.close(); return {"status":"deleted"}
 
 @app.get("/api/jobs")
 def list_jobs(limit:int=100):
-    c=get_connection(); rows=c.execute("SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?",(limit,)).fetchall(); c.close()
-    out=[]
+    c=get_connection(); rows=c.execute("SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?",(limit,)).fetchall(); c.close(); out=[]
     for r in rows:
         d=dict(r); d["stats"]=json.loads(d.pop("stats_json")) if d.get("stats_json") else None; out.append(d)
     return out
@@ -259,8 +218,7 @@ def require_api_key(x_ung_api_key:str=Header(default=None)):
 def create_api_key(payload:ApiKeyIn):
     expected=os.getenv("UNG_CAD_ADMIN_TOKEN")
     if not expected or payload.admin_token!=expected: raise HTTPException(403,"Invalid admin token")
-    key=secrets.token_urlsafe(32)
-    c=get_connection(); c.execute("INSERT INTO api_keys (key,owner_system,active,created_at) VALUES (?,?,1,?)",(key,payload.owner_system,now_iso())); c.commit(); c.close()
+    key=secrets.token_urlsafe(32); c=get_connection(); c.execute("INSERT INTO api_keys (key,owner_system,active,created_at) VALUES (?,?,1,?)",(key,payload.owner_system,now_iso())); c.commit(); c.close()
     return {"api_key":key,"owner_system":payload.owner_system}
 
 @app.post("/api/v1/slice/3d")
@@ -269,10 +227,8 @@ async def api_slice_3d(file:UploadFile=File(...),layer_height:float=Form(0.20),o
     data=await file.read()
     try: gcode,stats=slice_stl(data,file.filename,layer_height=layer_height)
     except Exception as e:
-        log_job("3d_printer",file.filename,None,"failed",str(e),None,owner_system)
-        raise HTTPException(422,f"Slicing failed: {e}")
-    target=_save_gcode(file.filename,gcode,"_AD5M.gcode")
-    job_id=log_job("3d_printer",file.filename,target.name,"sliced",None,stats,owner_system)
+        log_job("3d_printer",file.filename,None,"failed",str(e),None,owner_system); raise HTTPException(422,f"Slicing failed: {e}")
+    target=_save_gcode(file.filename,gcode,"_AD5M.gcode"); job_id=log_job("3d_printer",file.filename,target.name,"sliced",None,stats,owner_system)
     return {"ok":True,"job_id":job_id,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","stats":stats}
 
 @app.post("/api/v1/slice/cnc")
@@ -281,17 +237,13 @@ def api_slice_cnc(payload:CncSliceIn,owner_system:str=Depends(require_api_key)):
     if mode not in ("cnc","laser"): raise HTTPException(400,"settings.mode must be 'cnc' or 'laser'")
     try: gcode,count,seconds=slice_shapes_to_gcode(payload.shapes,payload.settings)
     except Exception as e:
-        log_job(mode,payload.drawing_name,None,"failed",str(e),None,owner_system)
-        raise HTTPException(422,f"CNC/laser toolpath generation failed: {e}")
-    target=_save_gcode(payload.drawing_name,gcode,f"_{mode}.gcode")
-    stats={"paths":count,"estimated_seconds":seconds,"mode":mode}
-    job_id=log_job(mode,payload.drawing_name,target.name,"sliced",None,stats,owner_system)
+        log_job(mode,payload.drawing_name,None,"failed",str(e),None,owner_system); raise HTTPException(422,f"CNC/laser toolpath generation failed: {e}")
+    target=_save_gcode(payload.drawing_name,gcode,f"_{mode}.gcode"); stats={"paths":count,"estimated_seconds":seconds,"mode":mode}; job_id=log_job(mode,payload.drawing_name,target.name,"sliced",None,stats,owner_system)
     return {"ok":True,"job_id":job_id,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","stats":stats}
 
 @app.get("/api/manufacturing/toolpath/{name}")
 def toolpath_preview(name:str):
-    safe=Path(name).name
-    target=BASE_DIR/"generated"/safe
+    safe=Path(name).name; target=BASE_DIR/"generated"/safe
     if not target.exists(): raise HTTPException(404,"Machine file not found")
     if not safe.lower().endswith((".gcode",".gx")): raise HTTPException(400,"Toolpath preview requires G-code")
     layers=[]; current={"z":0.0,"segments":[]}; x=y=e=0.0
@@ -300,15 +252,13 @@ def toolpath_preview(name:str):
             line=raw.strip()
             if line.startswith(";LAYER:"):
                 if current["segments"]: layers.append(current)
-                current={"z":current["z"],"segments":[]}
-                continue
+                current={"z":current["z"],"segments":[]}; continue
             if not line.startswith(("G0 ","G1 ")): continue
             vals={k:float(v) for k,v in re.findall(r"([XYZE])(-?\d+(?:\.\d+)?)",line)}
             nx,ny,nz=vals.get("X",x),vals.get("Y",y),vals.get("Z",current["z"])
             if "Z" in vals: current["z"]=nz
             extruding="E" in vals and vals["E"]>e and (nx!=x or ny!=y)
-            if nx!=x or ny!=y:
-                current["segments"].append([round(x,3),round(y,3),round(nx,3),round(ny,3),1 if extruding else 0])
+            if nx!=x or ny!=y: current["segments"].append([round(x,3),round(y,3),round(nx,3),round(ny,3),1 if extruding else 0])
             x,y=nx,ny
             if "E" in vals:e=vals["E"]
         if current["segments"]:layers.append(current)
@@ -317,8 +267,7 @@ def toolpath_preview(name:str):
 
 @app.get("/api/manufacturing/download/{name}")
 def download_machine_file(name:str):
-    safe=Path(name).name
-    target=BASE_DIR/"generated"/safe
+    safe=Path(name).name; target=BASE_DIR/"generated"/safe
     if not target.exists(): raise HTTPException(404,"Machine file not found")
     return FileResponse(target,media_type="application/octet-stream",filename=safe)
 
@@ -328,19 +277,16 @@ class PrintJobIn(BaseModel):
 
 @app.post("/api/manufacturing/jobs")
 def create_print_job(job:PrintJobIn):
-    machine=Path(job.machine_file).name
-    target=BASE_DIR/"generated"/machine
+    machine=Path(job.machine_file).name; target=BASE_DIR/"generated"/machine
     if not target.exists(): raise HTTPException(404,"Machine file not found")
-    jid=secrets.token_urlsafe(12)
-    c=get_connection(); c.execute("INSERT INTO print_jobs (id,printer_id,machine_file,status,created_at) VALUES (?,?,?,?,?)",(jid,job.printer_id.strip(),machine,"queued",now_iso())); c.commit(); c.close()
+    jid=secrets.token_urlsafe(12); c=get_connection(); c.execute("INSERT INTO print_jobs (id,printer_id,machine_file,status,created_at) VALUES (?,?,?,?,?)",(jid,job.printer_id.strip(),machine,"queued",now_iso())); c.commit(); c.close()
     return {"ok":True,"job_id":jid,"status":"queued","printer_id":job.printer_id.strip(),"machine_file":machine}
 
 @app.get("/api/manufacturing/jobs/{job_id}")
 def get_print_job(job_id:str):
     c=get_connection(); row=c.execute("SELECT * FROM print_jobs WHERE id=?",(job_id,)).fetchone(); c.close()
     if not row: raise HTTPException(404,"Print job not found")
-    r=dict(row); r["result"]=json.loads(r.pop("result_json")) if r.get("result_json") else None
-    return r
+    r=dict(row); r["result"]=json.loads(r.pop("result_json")) if r.get("result_json") else None; return r
 
 class BridgeHeartbeat(BaseModel):
     printer_id:str
@@ -350,8 +296,7 @@ class BridgeHeartbeat(BaseModel):
 
 @app.post("/api/bridge/heartbeat")
 def bridge_heartbeat(body:BridgeHeartbeat):
-    c=get_connection(); c.execute("INSERT INTO bridge_status (printer_id,last_seen,version,printer_json,error) VALUES (?,?,?,?,?) ON CONFLICT(printer_id) DO UPDATE SET last_seen=excluded.last_seen,version=excluded.version,printer_json=excluded.printer_json,error=excluded.error",(body.printer_id,now_iso(),body.version,json.dumps(body.printer) if body.printer else None,body.error)); c.commit(); c.close()
-    return {"ok":True}
+    c=get_connection(); c.execute("INSERT INTO bridge_status (printer_id,last_seen,version,printer_json,error) VALUES (?,?,?,?,?) ON CONFLICT(printer_id) DO UPDATE SET last_seen=excluded.last_seen,version=excluded.version,printer_json=excluded.printer_json,error=excluded.error",(body.printer_id,now_iso(),body.version,json.dumps(body.printer) if body.printer else None,body.error)); c.commit(); c.close(); return {"ok":True}
 
 @app.get("/api/manufacturing/bridge-status")
 def manufacturing_bridge_status(printer_id:str="a51a5435"):
@@ -363,15 +308,8 @@ def manufacturing_bridge_status(printer_id:str="a51a5435"):
 
 @app.get("/api/bridge/jobs/next")
 def bridge_next(printer_id:str):
-    # The printer's Network Mode ID changed from the hardware serial routing key
-    # used by the already-running bridge. Treat both IDs as aliases so the
-    # installed bridge can claim jobs immediately without needing to be replaced.
-    aliases={"SNMTUF9100669","a51a5435"}
-    ids=aliases if printer_id in aliases else {printer_id}
-    marks=",".join("?" for _ in ids)
-    params=[*ids]
-    c=get_connection()
-    row=c.execute(f"SELECT * FROM print_jobs WHERE printer_id IN ({marks}) AND status='queued' ORDER BY created_at LIMIT 1",params).fetchone()
+    aliases={"SNMTUF9100669","a51a5435"}; ids=aliases if printer_id in aliases else {printer_id}; marks=",".join("?" for _ in ids); params=[*ids]
+    c=get_connection(); row=c.execute(f"SELECT * FROM print_jobs WHERE printer_id IN ({marks}) AND status='queued' ORDER BY created_at LIMIT 1",params).fetchone()
     if not row: c.close(); return {"job":None}
     c.execute("UPDATE print_jobs SET status='claimed',claimed_at=? WHERE id=? AND status='queued'",(now_iso(),row["id"])); c.commit()
     row=c.execute("SELECT * FROM print_jobs WHERE id=?",(row["id"],)).fetchone(); c.close()
@@ -385,13 +323,11 @@ class BridgeResult(BaseModel):
 @app.post("/api/bridge/jobs/{job_id}/complete")
 def bridge_complete(job_id:str, body:BridgeResult):
     c=get_connection(); status="completed" if body.ok else "failed"; result=body.result or {"error":body.error}
-    c.execute("UPDATE print_jobs SET status=?,completed_at=?,result_json=? WHERE id=?",(status,now_iso(),json.dumps(result),job_id)); c.commit(); c.close()
-    return {"ok":True,"status":status}
+    c.execute("UPDATE print_jobs SET status=?,completed_at=?,result_json=? WHERE id=?",(status,now_iso(),json.dumps(result),job_id)); c.commit(); c.close(); return {"ok":True,"status":status}
 
 @app.get("/api/manufacturing/health")
 def manufacturing_health():
-    return {"ok":True,"slicer":"UNG-CAD Native Slicer 2","printer_profile":"FlashForge Adventurer 5M",
-            "direct_railway_printer_connection":False,"local_bridge_required":True}
+    return {"ok":True,"slicer":"UNG-CAD Native Slicer 2","printer_profile":"FlashForge Adventurer 5M","direct_railway_printer_connection":False,"local_bridge_required":True}
 
 @app.get("/api/scenes")
 def list_scenes():
