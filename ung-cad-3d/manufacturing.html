@@ -11,7 +11,7 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 <div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-23.4</div>
 
 <h2><span class="step">1</span>Choose model</h2>
-<label class="btn" for="pkg" style="display:inline-block">Choose model or project</label><input id="pkg" type="file" multiple accept=".stl,.3mf,.gcode,.gx,.zip" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
+<label class="btn" style="display:inline-flex;position:relative;align-items:center;overflow:hidden;cursor:pointer">Choose model or project<input id="pkg" type="file" multiple accept=".stl,.3mf,.gcode,.gx,.zip" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"></label>
 <div id="meta" class="meta">Choose the actual printable files you want to use. Open folders normally in the picker, then select the files inside.</div>
 <div class="notice"><b>Automatic manufacturing</b><span id="engine"> Choose a model. UNG-CAD repairs, prepares, slices, validates and sends it to the printer automatically.</span></div>
 
