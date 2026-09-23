@@ -65,5 +65,6 @@ window.__checkAssemblyClearance=function(threshold){
  assemblyParts.forEach((part,i)=>{part.mesh.material.color.setHex(hitNames.has(part.name)?0xfacc15:palette[i%palette.length]);});
  return hits;
 };
+window.__assemblyFitReport=function(){return A.pairwiseDistances(assemblyParts);};
 window.__backSingle=function(){assemblyMode=false;for(const m of assemblyMeshes)clearMesh(m);assemblyMeshes=[];assemblyParts=[];if(current.tris)redraw();};
 resize();
