@@ -54,4 +54,5 @@ assert.equal(A.trianglesIntersect(ta,tb),true);
 let q1={name:'Q1',tris:box(10,10,10,{x:0,y:0,z:0})},q2={name:'Q2',tris:box(10,10,10,{x:10.3,y:0,z:0})},q3={name:'Q3',tris:box(10,10,10,{x:11,y:0,z:0})};
 close(A.triangleDistance(q1.tris[0],q1.tris[0]),0,1e-9);
 let clr=A.pairwiseClearances([q1,q2,q3],0.4);assert.equal(clr.length,1);close(clr[0].distance,0.3,1e-6);
+let report=A.pairwiseDistances([q1,q2,q3]);assert.equal(report.length,3);close(report[0].distance,0.3,1e-6);assert.ok(report[2].distance>=1);
 console.log('analyze-engine: all required tests passed');
