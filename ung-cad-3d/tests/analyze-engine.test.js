@@ -42,4 +42,7 @@ let frames={Joint:{parent:'F',z:40},Carrier:{parent:'Joint',x:10,rz:90}},wp=A.tr
 assert.throws(()=>A.worldMatrix({A:{parent:'B'},B:{parent:'A'}},'A'),/loop/i);
 
 let bin=A.toBinarySTL(base,'base'),round=tris(C.parseSTL(bin));assert.equal(round.length,base.length);close(A.volume(round),A.volume(base),1e-3);
+let c1={name:'A',tris:box(10,10,10,{x:0,y:0,z:0})},c2={name:'B',tris:box(10,10,10,{x:4,y:0,z:0})},c3={name:'C',tris:box(10,10,10,{x:30,y:0,z:0})};
+assert.equal(A.pairwiseClashes([c1,c2,c3]).length,1);
+assert.equal(A.pairwiseClashes([c1,c3]).length,0);
 console.log('analyze-engine: all required tests passed');
