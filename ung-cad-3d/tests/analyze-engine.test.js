@@ -45,4 +45,10 @@ let bin=A.toBinarySTL(base,'base'),round=tris(C.parseSTL(bin));assert.equal(roun
 let c1={name:'A',tris:box(10,10,10,{x:0,y:0,z:0})},c2={name:'B',tris:box(10,10,10,{x:4,y:0,z:0})},c3={name:'C',tris:box(10,10,10,{x:30,y:0,z:0})};
 assert.equal(A.pairwiseClashes([c1,c2,c3]).length,1);
 assert.equal(A.pairwiseClashes([c1,c3]).length,0);
+assert.equal(A.pairwiseGeometryClashes([c1,c2]).length,1);
+assert.equal(A.pairwiseGeometryClashes([c1,c3]).length,0);
+let inner={name:'Inner',tris:box(2,2,2,{x:0,y:0,z:0})},outer={name:'Outer',tris:box(20,20,20,{x:0,y:0,z:0})};
+assert.equal(A.pairwiseGeometryClashes([inner,outer]).length,1);
+let ta={a:{x:0,y:0,z:0},b:{x:3,y:0,z:0},c:{x:0,y:3,z:0}},tb={a:{x:1,y:1,z:-1},b:{x:1,y:1,z:1},c:{x:2,y:1,z:0}};
+assert.equal(A.trianglesIntersect(ta,tb),true);
 console.log('analyze-engine: all required tests passed');
