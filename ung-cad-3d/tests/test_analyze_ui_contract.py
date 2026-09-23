@@ -10,9 +10,9 @@ def test_analyze_ui_contract():
     assert "/static/analyze-engine.js" in html
     for label in ["Measure","Print estimate","Rotate & scale","Support check","Best position","Frames & assembly"]:
         assert label in html
-    for control in ["measureToggle","estimateAll","exactTurn","resizePart","checkSupports","bestPos","showAssembly","saveVersion","undoChanges"]:
+    for control in ["measureToggle","estimateAll","exactTurn","resizePart","checkSupports","bestPos","showAssembly","checkClashes","saveVersion","undoChanges"]:
         assert f'id="{control}"' in html
-    for hook in ["__previewSTL","__analyzeApplyMatrix","__analyzeSupport","__analyzeBestPosition","__showAssembly"]:
+    for hook in ["__previewSTL","__analyzeApplyMatrix","__analyzeSupport","__analyzeBestPosition","__showAssembly","__checkAssemblyClashes"]:
         assert hook in preview
     for api in ["measure","printEstimate","rotationX","rotationY","rotationZ","scaling","mirror","findOverhangs","autoOrient","worldMatrix","toBinarySTL"]:
         assert api in engine
