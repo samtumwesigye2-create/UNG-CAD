@@ -1,11 +1,12 @@
 import json, os, sqlite3, zipfile, io, re, secrets
 from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from slicer import slice_stl
+from slicer_cnc import slice_shapes_to_gcode
 BASE_DIR=Path(__file__).resolve().parent
 DB_PATH=Path(os.getenv("UNG_CAD_3D_DB",str(BASE_DIR/"ung_cad_3d.db")))
 app=FastAPI(title="UNG-CAD-3D",version="1.2.0")
@@ -18,6 +19,9 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS scenes (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,data_json TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS print_jobs (id TEXT PRIMARY KEY, printer_id TEXT NOT NULL, machine_file TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, claimed_at TEXT, completed_at TEXT, result_json TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS bridge_status (printer_id TEXT PRIMARY KEY, last_seen TEXT NOT NULL, version TEXT, printer_json TEXT, error TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS machines (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,kind TEXT NOT NULL,connection_type TEXT NOT NULL,config_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL)")
+    c.execute("CREATE TABLE IF NOT EXISTS jobs (id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,source_name TEXT NOT NULL,machine_file TEXT,status TEXT NOT NULL,error_message TEXT,stats_json TEXT,submitted_by TEXT,created_at TEXT NOT NULL)")
+    c.execute("CREATE TABLE IF NOT EXISTS api_keys (id INTEGER PRIMARY KEY AUTOINCREMENT,key TEXT NOT NULL UNIQUE,owner_system TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL)")
     c.commit(); c.close()
 @app.on_event("startup")
 def startup(): init_db()
@@ -25,6 +29,18 @@ def startup(): init_db()
 class SceneIn(BaseModel):
     name:str
     data:dict
+class MachineIn(BaseModel):
+    name:str
+    kind:str
+    connection_type:str
+    config:dict={}
+class CncSliceIn(BaseModel):
+    shapes:list
+    drawing_name:str="drawing"
+    settings:dict={}
+class ApiKeyIn(BaseModel):
+    owner_system:str
+    admin_token:str
 
 @app.get("/")
 def root(): return RedirectResponse(url="/studio.html")
@@ -126,6 +142,102 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
             "machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}",
             "printer":"FlashForge Adventurer 5M","stats":stats,
             "transmission":"local AD5M bridge required"}
+
+
+def _save_gcode(source_name,gcode,suffix):
+    out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
+    safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).stem)
+    target=out/(safe+suffix)
+    target.write_bytes(gcode if isinstance(gcode,bytes) else gcode.encode())
+    return target
+
+def log_job(kind,source_name,machine_file,status,error_message,stats,submitted_by):
+    c=get_connection()
+    q=c.execute("INSERT INTO jobs (kind,source_name,machine_file,status,error_message,stats_json,submitted_by,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (kind,source_name,machine_file,status,error_message,json.dumps(stats) if stats else None,submitted_by,now_iso()))
+    c.commit(); job_id=q.lastrowid; c.close(); return job_id
+
+@app.post("/api/manufacturing/cnc-slice")
+def cnc_slice(payload:CncSliceIn):
+    mode=payload.settings.get("mode","laser")
+    if mode not in ("cnc","laser"): raise HTTPException(400,"settings.mode must be 'cnc' or 'laser'")
+    try: gcode,count,seconds=slice_shapes_to_gcode(payload.shapes,payload.settings)
+    except Exception as e:
+        log_job(mode,payload.drawing_name,None,"failed",str(e),None,"dashboard")
+        raise HTTPException(422,f"CNC/laser toolpath generation failed: {e}")
+    target=_save_gcode(payload.drawing_name,gcode,f"_{mode}.gcode")
+    stats={"paths":count,"estimated_seconds":seconds,"mode":mode}
+    log_job(mode,payload.drawing_name,target.name,"sliced",None,stats,"dashboard")
+    return {"ok":True,"status":"sliced","mode":mode,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","stats":stats}
+
+@app.post("/api/machines")
+def create_machine(m:MachineIn):
+    if m.kind not in ("3d_printer","cnc","laser"): raise HTTPException(400,"invalid machine kind")
+    if m.connection_type not in ("bridge_lan","bridge_serial","manual"): raise HTTPException(400,"invalid connection type")
+    c=get_connection()
+    q=c.execute("INSERT INTO machines (name,kind,connection_type,config_json,created_at) VALUES (?,?,?,?,?)",(m.name,m.kind,m.connection_type,json.dumps(m.config),now_iso()))
+    c.commit(); mid=q.lastrowid; c.close()
+    return {"id":mid,"status":"created"}
+
+@app.get("/api/machines")
+def list_machines():
+    c=get_connection(); rows=c.execute("SELECT * FROM machines ORDER BY created_at DESC").fetchall(); c.close()
+    out=[]
+    for r in rows:
+        d=dict(r); d["config"]=json.loads(d.pop("config_json")); out.append(d)
+    return out
+
+@app.delete("/api/machines/{machine_id}")
+def delete_machine(machine_id:int):
+    c=get_connection(); c.execute("DELETE FROM machines WHERE id=?",(machine_id,)); c.commit(); c.close()
+    return {"status":"deleted"}
+
+@app.get("/api/jobs")
+def list_jobs(limit:int=100):
+    c=get_connection(); rows=c.execute("SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?",(limit,)).fetchall(); c.close()
+    out=[]
+    for r in rows:
+        d=dict(r); d["stats"]=json.loads(d.pop("stats_json")) if d.get("stats_json") else None; out.append(d)
+    return out
+
+def require_api_key(x_ung_api_key:str=Header(default=None)):
+    if not x_ung_api_key: raise HTTPException(401,"Missing X-UNG-API-Key header")
+    c=get_connection(); row=c.execute("SELECT * FROM api_keys WHERE key=? AND active=1",(x_ung_api_key,)).fetchone(); c.close()
+    if not row: raise HTTPException(401,"Invalid or inactive API key")
+    return row["owner_system"]
+
+@app.post("/api/admin/api-keys")
+def create_api_key(payload:ApiKeyIn):
+    expected=os.getenv("UNG_CAD_ADMIN_TOKEN")
+    if not expected or payload.admin_token!=expected: raise HTTPException(403,"Invalid admin token")
+    key=secrets.token_urlsafe(32)
+    c=get_connection(); c.execute("INSERT INTO api_keys (key,owner_system,active,created_at) VALUES (?,?,1,?)",(key,payload.owner_system,now_iso())); c.commit(); c.close()
+    return {"api_key":key,"owner_system":payload.owner_system}
+
+@app.post("/api/v1/slice/3d")
+async def api_slice_3d(file:UploadFile=File(...),layer_height:float=Form(0.20),owner_system:str=Depends(require_api_key)):
+    if not 0.08<=layer_height<=0.4: raise HTTPException(400,"Layer height must be 0.08–0.40 mm")
+    data=await file.read()
+    try: gcode,stats=slice_stl(data,file.filename,layer_height=layer_height)
+    except Exception as e:
+        log_job("3d_printer",file.filename,None,"failed",str(e),None,owner_system)
+        raise HTTPException(422,f"Slicing failed: {e}")
+    target=_save_gcode(file.filename,gcode,"_AD5M.gcode")
+    job_id=log_job("3d_printer",file.filename,target.name,"sliced",None,stats,owner_system)
+    return {"ok":True,"job_id":job_id,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","stats":stats}
+
+@app.post("/api/v1/slice/cnc")
+def api_slice_cnc(payload:CncSliceIn,owner_system:str=Depends(require_api_key)):
+    mode=payload.settings.get("mode","laser")
+    if mode not in ("cnc","laser"): raise HTTPException(400,"settings.mode must be 'cnc' or 'laser'")
+    try: gcode,count,seconds=slice_shapes_to_gcode(payload.shapes,payload.settings)
+    except Exception as e:
+        log_job(mode,payload.drawing_name,None,"failed",str(e),None,owner_system)
+        raise HTTPException(422,f"CNC/laser toolpath generation failed: {e}")
+    target=_save_gcode(payload.drawing_name,gcode,f"_{mode}.gcode")
+    stats={"paths":count,"estimated_seconds":seconds,"mode":mode}
+    job_id=log_job(mode,payload.drawing_name,target.name,"sliced",None,stats,owner_system)
+    return {"ok":True,"job_id":job_id,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","stats":stats}
 
 @app.get("/api/manufacturing/toolpath/{name}")
 def toolpath_preview(name:str):
