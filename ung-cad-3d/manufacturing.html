@@ -5,9 +5,10 @@
 *{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#172c85,#2945ad);font-family:Arial;color:#fff;min-height:100vh}.top{padding:18px 24px;border-bottom:1px solid #7288dc;display:flex;gap:10px}.top button{background:#eef3ff;color:#243a88;border:0;padding:8px 18px}.wrap{padding:28px;max-width:1100px;margin:auto}.box{background:#2943a5;border:1px solid #7188dd;border-radius:8px;padding:22px}h1{margin:0 0 18px;font-size:25px}h2{font-size:15px;margin:26px 0 10px;border-top:1px solid #6078ce;padding-top:18px;display:flex;align-items:center;gap:8px}h2 .step{background:#55c9ef;color:#12327f;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold}.meta,.status{font-size:13px;color:#dce4ff;white-space:pre-line}.notice{margin:16px 0;padding:14px;background:#1e347f;border-left:4px solid #55d7ff}.controls{display:grid;grid-template-columns:1fr 180px 150px;gap:10px;align-items:end;margin:15px 0}.field label{display:block;font-size:12px;margin-bottom:6px}.field input,.field select{width:100%;padding:10px;border:0;border-radius:5px}.btn{padding:11px 14px;border:0;border-radius:5px;background:#55c9ef;color:#12327f;font-weight:bold;cursor:pointer}.btn:disabled{opacity:.45;cursor:default}.part{display:grid;grid-template-columns:1fr 70px 160px;gap:8px;align-items:center;border-top:1px solid #6078ce;padding:10px 0;font-size:12px}.part.active{background:rgba(85,201,239,.12)}.tag{padding:7px;border-radius:5px;text-align:center;background:#3a539e;font-size:11px}.ready{background:#16835d}.link{color:#fff;text-decoration:underline}.small{font-size:11px;color:#c8d4ff}.machine{margin-top:0;padding:16px;background:#203a91;border-radius:6px}
 .preview-wrap{display:grid;grid-template-columns:1fr 260px;gap:14px;margin-top:6px}#preview3d{height:320px;background:#0f1b4d;border-radius:8px;overflow:hidden;position:relative}#preview3d canvas{display:block;width:100%;height:100%}#previewStats{font-size:12px;background:#1e347f;border-radius:8px;padding:14px;white-space:pre-line;line-height:1.6}#previewPlaceholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9fb0e8;font-size:13px;text-align:center;padding:20px}
 @media(max-width:820px){.preview-wrap{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.part{grid-template-columns:1fr auto auto}}
+.analyze{display:none;margin-top:16px;background:#1e347f;border:1px solid #6078ce;border-radius:8px;padding:14px}.an-tabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}.an-tabs button{background:#eef3ff;color:#243a88;border:0;border-radius:6px;padding:8px 10px;font-weight:bold;cursor:pointer}.an-tabs button.active{background:#55c9ef}.an-panel{display:none}.an-panel.active{display:block}.an-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}.an-row input,.an-row select{padding:8px;border:0;border-radius:5px;max-width:110px}.an-out{white-space:pre-line;background:#15296b;border-radius:6px;padding:10px;margin-top:8px;font-size:12px}.changedbar{display:none;margin-top:12px;padding:10px;border-left:4px solid #55c9ef;background:#15296b}.assembly-row{border-top:1px solid #6078ce;padding:9px 0}.assembly-row input,.assembly-row select{margin:3px;padding:6px;border-radius:4px;border:0;width:82px}button:focus,input:focus,select:focus,summary:focus{outline:3px solid #fff;outline-offset:2px}@media(max-width:600px){.an-row{align-items:stretch}.an-row input,.an-row select,.an-row button{max-width:none;flex:1 1 42%}}
 </style></head>
 <body><div class="top"><button onclick="location.href='/studio.html'">Home</button><button onclick="location.href='/viewer.html'">3D</button></div>
-<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-22.16</div>
+<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-23.3</div>
 
 <h2><span class="step">1</span>Choose model</h2>
 <label class="btn" for="pkg" style="display:inline-block">Choose model or project</label><input id="pkg" type="file" multiple accept=".stl,.3mf,.gcode,.gx,.zip" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
@@ -24,6 +25,32 @@
     <canvas id="toolpathCanvas" width="900" height="520" style="width:100%;max-height:420px;background:#0f1b4d;border-radius:6px;margin-top:10px"></canvas>
     <div class="controls"><div class="field"><label>Layer</label><input id="toolpathLayer" type="range" min="1" max="1" value="1"></div><div id="toolpathLabel" class="small">Layer 1</div></div>
   </div>
+</div>
+<div id="analyzeBox" class="analyze">
+<b>Analyze</b>
+<div class="an-tabs">
+<button data-an="measure" class="active">Measure</button><button data-an="estimate">Print estimate</button><button data-an="rotate">Rotate & scale</button><button data-an="support">Support check</button><button data-an="best">Best position</button><button data-an="frames">Frames & assembly</button>
+</div>
+<div id="an-measure" class="an-panel active"><div class="an-row"><button class="btn" id="measureToggle">Start measuring</button><button class="btn" id="measureClear">Clear</button></div><div id="measureOut" class="an-out">Tap two points on the 3D part.</div></div>
+<div id="an-estimate" class="an-panel"><div id="estimateOut" class="an-out">Preview a part to calculate an estimate.</div><div class="an-row"><button class="btn" id="estimateAll">Estimate all parts</button></div><div class="small">Rough guide only; the final numbers come from Auto Prepare.</div></div>
+<div id="an-rotate" class="an-panel">
+<div class="an-row"><button class="btn" data-turn="x">Around X</button><button class="btn" data-turn="y">Around Y</button><button class="btn" data-turn="z">Around Z</button></div>
+<div class="an-row">Exact turn <input id="exactDeg" type="number" value="0"><select id="exactAxis"><option>x</option><option>y</option><option>z</option></select><button class="btn" id="exactTurn">Turn</button></div>
+<div class="an-row">Size <input id="scalePct" type="number" value="100" min="1"> % <button class="btn" id="resizePart">Resize</button></div>
+<div class="an-row"><button class="btn" id="mirrorX">Left–right</button><button class="btn" id="mirrorY">Front–back</button></div><div id="rotateOut" class="an-out"></div></div>
+<div id="an-support" class="an-panel"><div class="an-row"><button class="btn" id="checkSupports">Check supports</button><button class="btn" id="hideRed">Hide red</button></div><div id="supportOut" class="an-out"></div></div>
+<div id="an-best" class="an-panel"><div class="an-row"><button class="btn" id="bestPos">Best position</button></div><div id="bestOut" class="an-out"></div></div>
+<div id="an-frames" class="an-panel">
+<div class="small">Point converter</div>
+<div class="an-row">Move d <input id="fx" type="number" value="0"><input id="fy" type="number" value="0"><input id="fz" type="number" value="0"></div>
+<div class="an-row">Turn <input id="frx" type="number" value="0"><input id="fry" type="number" value="0"><input id="frz" type="number" value="0"></div>
+<div class="an-row">Point <input id="px" type="number" value="0"><input id="py" type="number" value="0"><input id="pz" type="number" value="0"></div>
+<div class="an-row"><select id="frameDir"><option value="to">Point is in M → find it in F</option><option value="from">Point is in F → find it in M</option></select><button class="btn" id="convertPoint">Convert</button></div>
+<div class="an-row"><button class="btn" id="lessonTrans">Pure translation</button><button class="btn" id="lessonRot">Pure rotation</button><button class="btn" id="lessonBoth">Rotation + translation</button></div>
+<canvas id="frameCanvas" width="330" height="220" style="background:#fff;border-radius:6px;max-width:100%"></canvas><div id="frameOut" class="an-out"></div>
+<details><summary>Assembly placement</summary><div id="assemblyRows"></div><div class="an-row"><button class="btn" id="showAssembly">Show assembly</button><button class="btn" id="backSingle">Back to single part</button></div></details>
+</div>
+<div id="changedBar" class="changedbar">This part has been changed. Printing still uses the original until you save. <button class="btn" id="saveVersion">Use this version for printing</button> <button class="btn" id="undoChanges">Undo all changes</button></div>
 </div>
 
 <h2><span class="step">3</span>Auto Prepare</h2>
@@ -47,7 +74,7 @@
 
 </div></div>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="/static/csg-engine.js"></script>
+<script src="/static/csg-engine.js"></script>\n<script src="/static/analyze-engine.js"></script>
 <script>
 const f=document.getElementById('pkg'),meta=document.getElementById('meta'),parts=document.getElementById('parts'),status=document.getElementById('status'),part=document.getElementById('part'),sliceBtn=document.getElementById('slice'),sendBtn=document.getElementById('send'),previewStats=document.getElementById('previewStats');
 
@@ -63,7 +90,16 @@ async function extractPartBytes(file,partName){
   return await match.async('arraybuffer');
 }
 
-async function selectAndPreview(n,rowEl){
+window.__getPackage=()=>selectedFile;
+window.__replacePart=async(name,stlBuffer)=>{
+ if(!selectedFile)throw Error('No package loaded');
+ if(!selectedFile.name.toLowerCase().endsWith('.zip')){selectedFile=new File([stlBuffer],name,{type:'model/stl'});return;}
+ const z=await JSZip.loadAsync(selectedFile),out=new JSZip();let found=false;
+ const jobs=[];z.forEach((rel,e)=>{jobs.push((async()=>{if(e.dir)return;const data=rel.split('/').pop()===name?(found=true,stlBuffer):await e.async('arraybuffer');out.file(rel,data);})())});await Promise.all(jobs);
+ if(!found)throw Error('Part not found in package: '+name);const blob=await out.generateAsync({type:'blob'});selectedFile=new File([blob],selectedFile.name,{type:'application/zip'});
+};
+window.__partNames=()=>[...part.options].map(o=>o.value).filter(Boolean);
+\nasync function selectAndPreview(n,rowEl){
   part.value=n;sliceBtn.disabled=false;
   document.querySelectorAll('.part').forEach(r=>r.classList.remove('active'));
   if(rowEl)rowEl.classList.add('active');
