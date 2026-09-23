@@ -45,9 +45,57 @@
   function explainTransform(frame,x){const T=frameMatrix(frame),R=[T[0],T[1],T[2],T[4],T[5],T[6],T[8],T[9],T[10]],d=v(frame.x||0,frame.y||0,frame.z||0),X=transformPoint(T,x),moved=Math.abs(d.x)+Math.abs(d.y)+Math.abs(d.z)>EPS,rotated=Math.abs(frame.rx||0)+Math.abs(frame.ry||0)+Math.abs(frame.rz||0)>EPS;const kind=moved&&rotated?'both':moved?'translation':rotated?'rotation':'none',R2=(!frame.rx&&!frame.ry)?[R[0],R[1],R[3],R[4]]:null;return{kind,flat:[...T],R,R2,Rx:v(R[0]*x.x+R[1]*x.y+R[2]*x.z,R[3]*x.x+R[4]*x.y+R[5]*x.z,R[6]*x.x+R[7]*x.y+R[8]*x.z),d,X};}
   function boundsOverlap(a,b,tol=0){return !(a.max.x<=b.min.x+tol||b.max.x<=a.min.x+tol||a.max.y<=b.min.y+tol||b.max.y<=a.min.y+tol||a.max.z<=b.min.z+tol||b.max.z<=a.min.z+tol);}
   function pairwiseClashes(parts,tol=0){const out=[];for(let i=0;i<parts.length;i++)for(let j=i+1;j<parts.length;j++){const A=parts[i],B=parts[j],ba=bounds(A.tris),bb=bounds(B.tris);if(boundsOverlap(ba,bb,tol))out.push({a:A.name,b:B.name,boxA:ba,boxB:bb});}return out;}
+  function triBounds(t){const xs=[t.a.x,t.b.x,t.c.x],ys=[t.a.y,t.b.y,t.c.y],zs=[t.a.z,t.b.z,t.c.z];return{min:v(Math.min(...xs),Math.min(...ys),Math.min(...zs)),max:v(Math.max(...xs),Math.max(...ys),Math.max(...zs))};}
+  function mergeBox(a,b){return{min:v(Math.min(a.min.x,b.min.x),Math.min(a.min.y,b.min.y),Math.min(a.min.z,b.min.z)),max:v(Math.max(a.max.x,b.max.x),Math.max(a.max.y,b.max.y),Math.max(a.max.z,b.max.z))};}
+  function makeBVH(tris,items=null,leaf=16){
+    const arr=items||tris.map((t,i)=>({i,t,b:triBounds(t),c:v((t.a.x+t.b.x+t.c.x)/3,(t.a.y+t.b.y+t.c.y)/3,(t.a.z+t.b.z+t.c.z)/3)}));
+    if(!arr.length)return null;let box=arr[0].b;for(let k=1;k<arr.length;k++)box=mergeBox(box,arr[k].b);
+    if(arr.length<=leaf)return{box,items:arr};
+    const sx=box.max.x-box.min.x,sy=box.max.y-box.min.y,sz=box.max.z-box.min.z,axis=sx>=sy&&sx>=sz?'x':sy>=sz?'y':'z';
+    arr.sort((a,b)=>a.c[axis]-b.c[axis]);const mid=Math.floor(arr.length/2);
+    return{box,left:makeBVH(tris,arr.slice(0,mid),leaf),right:makeBVH(tris,arr.slice(mid),leaf)};
+  }
+  function proj3(t,axis){const p=[dot(t.a,axis),dot(t.b,axis),dot(t.c,axis)];return[Math.min(...p),Math.max(...p)];}
+  function sepIntervals(a,b,eps=1e-8){return a[1]<b[0]-eps||b[1]<a[0]-eps;}
+  function dominantDrop(n){const ax=Math.abs(n.x),ay=Math.abs(n.y),az=Math.abs(n.z);return ax>=ay&&ax>=az?'x':ay>=az?'y':'z';}
+  function to2(p,drop){return drop==='x'?[p.y,p.z]:drop==='y'?[p.x,p.z]:[p.x,p.y];}
+  function tri2Overlap(A,B,eps=1e-8){
+    const axes=[];for(const T of[A,B])for(let i=0;i<3;i++){const p=T[i],q=T[(i+1)%3],dx=q[0]-p[0],dy=q[1]-p[1],l=Math.hypot(dx,dy);if(l>eps)axes.push([-dy/l,dx/l]);}
+    for(const a of axes){const pa=A.map(p=>p[0]*a[0]+p[1]*a[1]),pb=B.map(p=>p[0]*a[0]+p[1]*a[1]);if(Math.max(...pa)<Math.min(...pb)-eps||Math.max(...pb)<Math.min(...pa)-eps)return false;}return true;
+  }
+  function trianglesIntersect(t1,t2,eps=1e-8){
+    if(!boundsOverlap(triBounds(t1),triBounds(t2),-eps))return false;
+    const e1=[sub(t1.b,t1.a),sub(t1.c,t1.b),sub(t1.a,t1.c)],e2=[sub(t2.b,t2.a),sub(t2.c,t2.b),sub(t2.a,t2.c)],n1=cross(e1[0],sub(t1.c,t1.a)),n2=cross(e2[0],sub(t2.c,t2.a));
+    if(len(n1)<eps||len(n2)<eps)return false;
+    const nn1=norm(n1),nn2=norm(n2),parallel=len(cross(nn1,nn2))<1e-7,planeGap=Math.abs(dot(sub(t2.a,t1.a),nn1));
+    if(parallel&&planeGap<1e-7){const d=dominantDrop(nn1);return tri2Overlap([to2(t1.a,d),to2(t1.b,d),to2(t1.c,d)],[to2(t2.a,d),to2(t2.b,d),to2(t2.c,d)],eps);}
+    const axes=[n1,n2];for(const a of e1)for(const b of e2){const x=cross(a,b);if(len(x)>eps)axes.push(x);}
+    for(const axis of axes)if(sepIntervals(proj3(t1,axis),proj3(t2,axis),eps))return false;
+    return true;
+  }
+  function bvhIntersections(a,b,limit=64,out=[]){
+    if(!a||!b||out.length>=limit||!boundsOverlap(a.box,b.box,0))return out;
+    if(a.items&&b.items){for(const x of a.items)for(const y of b.items){if(out.length>=limit)return out;if(boundsOverlap(x.b,y.b,0)&&trianglesIntersect(x.t,y.t))out.push([x.i,y.i]);}return out;}
+    if(a.items){bvhIntersections(a,b.left,limit,out);bvhIntersections(a,b.right,limit,out);return out;}
+    if(b.items){bvhIntersections(a.left,b,limit,out);bvhIntersections(a.right,b,limit,out);return out;}
+    bvhIntersections(a.left,b.left,limit,out);bvhIntersections(a.left,b.right,limit,out);bvhIntersections(a.right,b.left,limit,out);bvhIntersections(a.right,b.right,limit,out);return out;
+  }
+  function rayTri(p,dir,t,eps=1e-9){
+    const e1=sub(t.b,t.a),e2=sub(t.c,t.a),h=cross(dir,e2),a=dot(e1,h);if(Math.abs(a)<eps)return null;const inv=1/a,s=sub(p,t.a),u=inv*dot(s,h);if(u<-eps||u>1+eps)return null;const q=cross(s,e1),vv=inv*dot(dir,q);if(vv<-eps||u+vv>1+eps)return null;const d=inv*dot(e2,q);return d>eps?d:null;
+  }
+  function pointInMesh(point,tris){
+    const dir=norm(v(1,0.371390676,0.529));const hits=[];for(const t of tris){const d=rayTri(point,dir,t);if(d!==null)hits.push(d);}hits.sort((a,b)=>a-b);let unique=0,last=-Infinity;for(const d of hits){if(Math.abs(d-last)>1e-6){unique++;last=d;}}return unique%2===1;
+  }
+  function pairwiseGeometryClashes(parts,{limitPerPair=64}={}){
+    const out=[],prepared=parts.map(p=>({...p,box:bounds(p.tris),bvh:makeBVH(p.tris)}));
+    for(let i=0;i<prepared.length;i++)for(let j=i+1;j<prepared.length;j++){const A=prepared[i],B=prepared[j];if(!boundsOverlap(A.box,B.box,0))continue;const hits=bvhIntersections(A.bvh,B.bvh,limitPerPair,[]);let containment=null;
+      if(!hits.length&&A.tris.length&&B.tris.length){if(pointInMesh(A.tris[0].a,B.tris))containment='A-in-B';else if(pointInMesh(B.tris[0].a,A.tris))containment='B-in-A';}
+      if(hits.length||containment)out.push({a:A.name,b:B.name,trianglePairs:hits,intersectionCount:hits.length,containment});
+    }return out;
+  }
   function toBinarySTL(tris,name='UNG-CAD'){const buf=new ArrayBuffer(84+50*tris.length),dv=new DataView(buf),u8=new Uint8Array(buf),enc=new TextEncoder().encode(name.slice(0,80));u8.set(enc.slice(0,80));dv.setUint32(80,tris.length,true);let off=84;for(const t of tris){const n=triangleNormal(t);for(const q of[n.x,n.y,n.z]){dv.setFloat32(off,q,true);off+=4;}for(const p of[t.a,t.b,t.c])for(const q of[p.x,p.y,p.z]){dv.setFloat32(off,q,true);off+=4;}dv.setUint16(off,0,true);off+=2;}return buf;}
   function mat4TransformPoint(m,p){const q=[0,0,0,0],vv=[p[0],p[1],p[2],1];for(let i=0;i<4;i++)for(let j=0;j<4;j++)q[i]+=m[i][j]*vv[j];const w=q[3]||1;return[q[0]/w,q[1]/w,q[2]/w];}
   function composeMat4(a,b){return a.map((r,i)=>r.map((_,j)=>a[i].reduce((sum,__,k)=>sum+a[i][k]*b[k][j],0)));}
   function cadFrameProduct(position,transform,sourceFrame="part",destinationFrame="assembly"){return{position:mat4TransformPoint(transform,position),source_frame:sourceFrame,destination_frame:destinationFrame,provenance:"DERIVED"};}
-  return{trianglesFromPolygons,measure,bounds,volume,surfaceArea,printEstimate,identity,multiply,rotationX,rotationY,rotationZ,scaling,mirror,translation,determinant3,transformPoint,applyMatrix,placeOnBed,triangleNormal,findOverhangs,rotationBetween,fitsBed,autoOrient,frameMatrix,invertRigid,toParent,fromParent,worldMatrix,explainTransform,boundsOverlap,pairwiseClashes,toBinarySTL,mat4TransformPoint,composeMat4,cadFrameProduct};
+  return{trianglesFromPolygons,measure,bounds,volume,surfaceArea,printEstimate,identity,multiply,rotationX,rotationY,rotationZ,scaling,mirror,translation,determinant3,transformPoint,applyMatrix,placeOnBed,triangleNormal,findOverhangs,rotationBetween,fitsBed,autoOrient,frameMatrix,invertRigid,toParent,fromParent,worldMatrix,explainTransform,boundsOverlap,pairwiseClashes,trianglesIntersect,makeBVH,bvhIntersections,pointInMesh,pairwiseGeometryClashes,toBinarySTL,mat4TransformPoint,composeMat4,cadFrameProduct};
 });
