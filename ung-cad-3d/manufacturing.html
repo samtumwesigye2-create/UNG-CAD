@@ -74,7 +74,7 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 
 </div></div>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="/static/csg-engine.js"></script>\n<script src="/static/analyze-engine.js"></script>
+<script src="/static/csg-engine.js"></script><script src="/static/analyze-engine.js"></script>
 <script>
 const f=document.getElementById('pkg'),meta=document.getElementById('meta'),parts=document.getElementById('parts'),status=document.getElementById('status'),part=document.getElementById('part'),sliceBtn=document.getElementById('slice'),sendBtn=document.getElementById('send'),previewStats=document.getElementById('previewStats');
 
@@ -99,7 +99,7 @@ window.__replacePart=async(name,stlBuffer)=>{
  if(!found)throw Error('Part not found in package: '+name);const blob=await out.generateAsync({type:'blob'});selectedFile=new File([blob],selectedFile.name,{type:'application/zip'});
 };
 window.__partNames=()=>[...part.options].map(o=>o.value).filter(Boolean);
-\nasync function selectAndPreview(n,rowEl){
+async function selectAndPreview(n,rowEl){
   part.value=n;sliceBtn.disabled=false;
   document.querySelectorAll('.part').forEach(r=>r.classList.remove('active'));
   if(rowEl)rowEl.classList.add('active');
