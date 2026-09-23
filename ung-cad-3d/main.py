@@ -22,9 +22,18 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS machines (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,kind TEXT NOT NULL,connection_type TEXT NOT NULL,config_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS jobs (id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,source_name TEXT NOT NULL,machine_file TEXT,status TEXT NOT NULL,error_message TEXT,stats_json TEXT,submitted_by TEXT,created_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS api_keys (id INTEGER PRIMARY KEY AUTOINCREMENT,key TEXT NOT NULL UNIQUE,owner_system TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL)")
+    c.execute("CREATE TABLE IF NOT EXISTS twin_bindings (object_key TEXT PRIMARY KEY, object_name TEXT NOT NULL, vector_sku TEXT, draco_device_id TEXT, metadata_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL)")
     c.commit(); c.close()
 @app.on_event("startup")
 def startup(): init_db()
+
+
+class TwinBindingIn(BaseModel):
+    object_key:str
+    object_name:str
+    vector_sku:str|None=None
+    draco_device_id:str|None=None
+    metadata:dict={}
 
 class SceneIn(BaseModel):
     name:str
@@ -46,6 +55,27 @@ class ApiKeyIn(BaseModel):
 def root(): return RedirectResponse(url="/studio.html")
 @app.get("/studio.html")
 def studio(): return FileResponse(BASE_DIR/"studio.html")
+
+
+@app.put("/api/data-twin/bindings/{object_key}")
+def put_twin_binding(object_key: str, body: TwinBindingIn):
+    if object_key != body.object_key: raise HTTPException(400,"object_key mismatch")
+    c=get_connection(); ts=now_iso()
+    c.execute("""INSERT INTO twin_bindings(object_key,object_name,vector_sku,draco_device_id,metadata_json,updated_at)
+                 VALUES(?,?,?,?,?,?) ON CONFLICT(object_key) DO UPDATE SET object_name=excluded.object_name,vector_sku=excluded.vector_sku,draco_device_id=excluded.draco_device_id,metadata_json=excluded.metadata_json,updated_at=excluded.updated_at""",
+              (body.object_key,body.object_name,body.vector_sku,body.draco_device_id,json.dumps(body.metadata),ts))
+    c.commit(); c.close(); return {"status":"saved","object_key":object_key,"updated_at":ts}
+
+@app.get("/api/data-twin/bindings/{object_key}")
+def get_twin_binding(object_key: str):
+    c=get_connection(); r=c.execute("SELECT * FROM twin_bindings WHERE object_key=?",(object_key,)).fetchone(); c.close()
+    if not r: raise HTTPException(404,"binding not found")
+    return {"object_key":r["object_key"],"object_name":r["object_name"],"vector_sku":r["vector_sku"],"draco_device_id":r["draco_device_id"],"metadata":json.loads(r["metadata_json"] or "{}"),"updated_at":r["updated_at"]}
+
+@app.get("/api/data-twin/bindings")
+def list_twin_bindings():
+    c=get_connection(); rows=c.execute("SELECT * FROM twin_bindings ORDER BY updated_at DESC").fetchall(); c.close()
+    return [{"object_key":r["object_key"],"object_name":r["object_name"],"vector_sku":r["vector_sku"],"draco_device_id":r["draco_device_id"],"metadata":json.loads(r["metadata_json"] or "{}"),"updated_at":r["updated_at"]} for r in rows]
 
 @app.get("/api/data-twin/resolve")
 def resolve_data_twin(sku: str = "", device_id: str = ""):
