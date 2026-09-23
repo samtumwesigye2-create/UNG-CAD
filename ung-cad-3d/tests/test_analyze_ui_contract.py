@@ -10,11 +10,11 @@ def test_analyze_ui_contract():
     assert "/static/analyze-engine.js" in html
     for label in ["Measure","Print estimate","Rotate & scale","Support check","Best position","Frames & assembly"]:
         assert label in html
-    for control in ["measureToggle","estimateAll","exactTurn","resizePart","checkSupports","bestPos","showAssembly","checkClashes","checkGeometryClashes","saveVersion","undoChanges"]:
+    for control in ["measureToggle","estimateAll","exactTurn","resizePart","checkSupports","bestPos","showAssembly","checkClashes","checkGeometryClashes","checkClearance","saveVersion","undoChanges"]:
         assert f'id="{control}"' in html
-    for hook in ["__previewSTL","__analyzeApplyMatrix","__analyzeSupport","__analyzeBestPosition","__showAssembly","__checkAssemblyClashes","__checkAssemblyGeometryClashes"]:
+    for hook in ["__previewSTL","__analyzeApplyMatrix","__analyzeSupport","__analyzeBestPosition","__showAssembly","__checkAssemblyClashes","__checkAssemblyGeometryClashes","__checkAssemblyClearance"]:
         assert hook in preview
-    for api in ["measure","printEstimate","rotationX","rotationY","rotationZ","scaling","mirror","findOverhangs","autoOrient","worldMatrix","trianglesIntersect","pairwiseGeometryClashes","toBinarySTL"]:
+    for api in ["measure","printEstimate","rotationX","rotationY","rotationZ","scaling","mirror","findOverhangs","autoOrient","worldMatrix","trianglesIntersect","pairwiseGeometryClashes","pairwiseClearances","toBinarySTL"]:
         assert api in engine
 
 def test_recovered_manufacturing_routes_stay_present():
