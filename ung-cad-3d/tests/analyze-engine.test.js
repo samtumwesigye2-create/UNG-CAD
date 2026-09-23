@@ -51,4 +51,7 @@ let inner={name:'Inner',tris:box(2,2,2,{x:0,y:0,z:0})},outer={name:'Outer',tris:
 assert.equal(A.pairwiseGeometryClashes([inner,outer]).length,1);
 let ta={a:{x:0,y:0,z:0},b:{x:3,y:0,z:0},c:{x:0,y:3,z:0}},tb={a:{x:1,y:1,z:-1},b:{x:1,y:1,z:1},c:{x:2,y:1,z:0}};
 assert.equal(A.trianglesIntersect(ta,tb),true);
+let q1={name:'Q1',tris:box(10,10,10,{x:0,y:0,z:0})},q2={name:'Q2',tris:box(10,10,10,{x:10.3,y:0,z:0})},q3={name:'Q3',tris:box(10,10,10,{x:11,y:0,z:0})};
+close(A.triangleDistance(q1.tris[0],q1.tris[0]),0,1e-9);
+let clr=A.pairwiseClearances([q1,q2,q3],0.4);assert.equal(clr.length,1);close(clr[0].distance,0.3,1e-6);
 console.log('analyze-engine: all required tests passed');
