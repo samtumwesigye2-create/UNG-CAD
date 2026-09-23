@@ -46,3 +46,7 @@
   function toBinarySTL(tris,name='UNG-CAD'){const buf=new ArrayBuffer(84+50*tris.length),dv=new DataView(buf),u8=new Uint8Array(buf),enc=new TextEncoder().encode(name.slice(0,80));u8.set(enc.slice(0,80));dv.setUint32(80,tris.length,true);let off=84;for(const t of tris){const n=triangleNormal(t);for(const q of[n.x,n.y,n.z]){dv.setFloat32(off,q,true);off+=4;}for(const p of[t.a,t.b,t.c])for(const q of[p.x,p.y,p.z]){dv.setFloat32(off,q,true);off+=4;}dv.setUint16(off,0,true);off+=2;}return buf;}
   return{trianglesFromPolygons,measure,bounds,volume,surfaceArea,printEstimate,identity,multiply,rotationX,rotationY,rotationZ,scaling,mirror,translation,determinant3,transformPoint,applyMatrix,placeOnBed,triangleNormal,findOverhangs,rotationBetween,fitsBed,autoOrient,frameMatrix,invertRigid,toParent,fromParent,worldMatrix,explainTransform,toBinarySTL};
 });
+/* UNG shared frame integration: CAD part -> assembly -> machine/printer/world. */
+export function mat4TransformPoint(m,p){const v=[p[0],p[1],p[2],1],q=[0,0,0,0];for(let i=0;i<4;i++)for(let j=0;j<4;j++)q[i]+=m[i][j]*v[j];const w=q[3]||1;return [q[0]/w,q[1]/w,q[2]/w]}
+export function composeMat4(a,b){return a.map((r,i)=>r.map((_,j)=>a[i].reduce((s,__,k)=>s+a[i][k]*b[k][j],0)))}
+export function cadFrameProduct(position,transform,sourceFrame="part",destinationFrame="assembly"){return {position:mat4TransformPoint(transform,position),source_frame:sourceFrame,destination_frame:destinationFrame,provenance:"DERIVED"}}
