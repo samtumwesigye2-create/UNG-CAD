@@ -53,5 +53,11 @@ window.__checkAssemblyClashes=function(){
  assemblyParts.forEach((part,i)=>{part.mesh.material.color.setHex(hitNames.has(part.name)?0xef4444:palette[i%palette.length]);});
  return hits;
 };
+window.__checkAssemblyGeometryClashes=function(){
+ const hits=A.pairwiseGeometryClashes(assemblyParts,{limitPerPair:128});
+ const hitNames=new Set(hits.flatMap(h=>[h.a,h.b]));
+ assemblyParts.forEach((part,i)=>{part.mesh.material.color.setHex(hitNames.has(part.name)?0xff7a18:palette[i%palette.length]);});
+ return hits;
+};
 window.__backSingle=function(){assemblyMode=false;for(const m of assemblyMeshes)clearMesh(m);assemblyMeshes=[];assemblyParts=[];if(current.tris)redraw();};
 resize();
