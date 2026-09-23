@@ -30,6 +30,9 @@ class SceneIn(BaseModel):
 def root(): return RedirectResponse(url="/studio.html")
 @app.get("/studio.html")
 def studio(): return FileResponse(BASE_DIR/"studio.html")
+@app.get("/data-twin")
+def data_twin_page(): return FileResponse(BASE_DIR/"data-twin.html")
+
 @app.get("/studio")
 def studio_short(): return FileResponse(BASE_DIR/"studio.html")
 @app.get("/viewer.html")
