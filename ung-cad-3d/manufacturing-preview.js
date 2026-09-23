@@ -7,7 +7,7 @@ const renderer=new THREE.WebGLRenderer({antialias:true});previewEl.appendChild(r
 const controls=new OrbitControls(camera,renderer.domElement);
 scene.add(new THREE.AmbientLight(0xffffff,.75));const dl=new THREE.DirectionalLight(0xffffff,.9);dl.position.set(150,-180,220);scene.add(dl);
 const grid=new THREE.GridHelper(220,22,0x475569,0x1e293b);grid.rotation.x=Math.PI/2;scene.add(grid);scene.add(new THREE.AxesHelper(40));
-let current={label:null,original:null,tris:null,mesh:null,changed:false,overhangs:null},assemblyMeshes=[],assemblyMode=false,measureMode=false,picks=[],measureObjects=[];
+let current={label:null,original:null,tris:null,mesh:null,changed:false,overhangs:null},assemblyMeshes=[],assemblyParts=[],assemblyMode=false,measureMode=false,picks=[],measureObjects=[];
 const palette=[0x3b82f6,0x8b5cf6,0x10b981,0xf59e0b,0xec4899,0x22c55e];
 
 function resize(){const w=previewEl.clientWidth,h=previewEl.clientHeight||320;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);}
@@ -43,9 +43,15 @@ let pointerDown=null;renderer.domElement.addEventListener('pointerdown',e=>point
 renderer.domElement.addEventListener('pointerup',e=>{if(!measureMode||!pointerDown||Math.hypot(e.clientX-pointerDown.x,e.clientY-pointerDown.y)>6)return;const rect=renderer.domElement.getBoundingClientRect(),mouse=new THREE.Vector2((e.clientX-rect.left)/rect.width*2-1,-((e.clientY-rect.top)/rect.height)*2+1),ray=new THREE.Raycaster();ray.setFromCamera(mouse,camera);const targets=assemblyMode?assemblyMeshes:(current.mesh?[current.mesh]:[]),hit=ray.intersectObjects(targets,false)[0];if(!hit)return;picks.push(hit.point.clone());const dotg=new THREE.SphereGeometry(1.5,12,8),mat=new THREE.MeshBasicMaterial({color:0xfacc15}),dm=new THREE.Mesh(dotg,mat);dm.position.copy(hit.point);scene.add(dm);measureObjects.push(dm);if(picks.length===2){const pts=[picks[0],picks[1]],g=new THREE.BufferGeometry().setFromPoints(pts),line=new THREE.Line(g,new THREE.LineBasicMaterial({color:0xfacc15}));scene.add(line);measureObjects.push(line);const r=A.measure({x:pts[0].x,y:pts[0].y,z:pts[0].z},{x:pts[1].x,y:pts[1].y,z:pts[1].z});if(window.__measureResult)window.__measureResult(r);picks=[];}});
 
 window.__showAssembly=async function(parts,frames){
- assemblyMode=true;clearMesh(current.mesh);current.mesh=null;for(const m of assemblyMeshes)clearMesh(m);assemblyMeshes=[];clearMeasure();
- let all=[];for(let i=0;i<parts.length;i++){const p=parts[i],polys=window.CSGEngine.parseSTL(p.bytes),tris=A.trianglesFromPolygons(polys),M=A.worldMatrix(frames,p.name),world=A.applyMatrix(tris,M),m=meshFromTris(world,null,palette[i%palette.length]);scene.add(m);assemblyMeshes.push(m);all=all.concat(world);}
+ assemblyMode=true;clearMesh(current.mesh);current.mesh=null;for(const m of assemblyMeshes)clearMesh(m);assemblyMeshes=[];assemblyParts=[];clearMeasure();
+ let all=[];for(let i=0;i<parts.length;i++){const p=parts[i],polys=window.CSGEngine.parseSTL(p.bytes),tris=A.trianglesFromPolygons(polys),M=A.worldMatrix(frames,p.name),world=A.applyMatrix(tris,M),m=meshFromTris(world,null,palette[i%palette.length]);scene.add(m);assemblyMeshes.push(m);assemblyParts.push({name:p.name,tris:world,mesh:m});all=all.concat(world);}
  const b=A.bounds(all),d=Math.max(b.size.x,b.size.y,b.size.z,10)*1.6;camera.position.set(d,-d,d);controls.target.set((b.min.x+b.max.x)/2,(b.min.y+b.max.y)/2,(b.min.z+b.max.z)/2);controls.update();previewStats.textContent='Assembly view\n\nOverall size:\n'+b.size.x.toFixed(1)+' × '+b.size.y.toFixed(1)+' × '+b.size.z.toFixed(1)+' mm\n\n'+parts.map((p,i)=>'● '+p.name).join('\n');resize();return b;
 };
-window.__backSingle=function(){assemblyMode=false;for(const m of assemblyMeshes)clearMesh(m);assemblyMeshes=[];if(current.tris)redraw();};
+window.__checkAssemblyClashes=function(){
+ const hits=A.pairwiseClashes(assemblyParts);
+ const hitNames=new Set(hits.flatMap(h=>[h.a,h.b]));
+ assemblyParts.forEach((part,i)=>{part.mesh.material.color.setHex(hitNames.has(part.name)?0xef4444:palette[i%palette.length]);});
+ return hits;
+};
+window.__backSingle=function(){assemblyMode=false;for(const m of assemblyMeshes)clearMesh(m);assemblyMeshes=[];assemblyParts=[];if(current.tris)redraw();};
 resize();
