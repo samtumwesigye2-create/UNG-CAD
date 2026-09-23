@@ -110,6 +110,11 @@
     for(let i=0;i<prepared.length;i++)for(let j=i+1;j<prepared.length;j++){const A=prepared[i],B=prepared[j],lower=boxDistance(A.box,B.box);if(lower>threshold)continue;const d=bvhMinDistance(A.bvh,B.bvh,Infinity);if(d<=threshold+1e-9)out.push({a:A.name,b:B.name,distance:d,threshold});}
     return out.sort((x,y)=>x.distance-y.distance);
   }
+  function pairwiseDistances(parts){
+    const out=[],prepared=parts.map(p=>({...p,box:bounds(p.tris),bvh:makeBVH(p.tris)}));
+    for(let i=0;i<prepared.length;i++)for(let j=i+1;j<prepared.length;j++){const A=prepared[i],B=prepared[j],lower=boxDistance(A.box,B.box),d=bvhMinDistance(A.bvh,B.bvh,Infinity);out.push({a:A.name,b:B.name,distance:d,boundsDistance:lower});}
+    return out.sort((x,y)=>x.distance-y.distance);
+  }
   function rayTri(p,dir,t,eps=1e-9){
     const e1=sub(t.b,t.a),e2=sub(t.c,t.a),h=cross(dir,e2),a=dot(e1,h);if(Math.abs(a)<eps)return null;const inv=1/a,s=sub(p,t.a),u=inv*dot(s,h);if(u<-eps||u>1+eps)return null;const q=cross(s,e1),vv=inv*dot(dir,q);if(vv<-eps||u+vv>1+eps)return null;const d=inv*dot(e2,q);return d>eps?d:null;
   }
@@ -127,5 +132,5 @@
   function mat4TransformPoint(m,p){const q=[0,0,0,0],vv=[p[0],p[1],p[2],1];for(let i=0;i<4;i++)for(let j=0;j<4;j++)q[i]+=m[i][j]*vv[j];const w=q[3]||1;return[q[0]/w,q[1]/w,q[2]/w];}
   function composeMat4(a,b){return a.map((r,i)=>r.map((_,j)=>a[i].reduce((sum,__,k)=>sum+a[i][k]*b[k][j],0)));}
   function cadFrameProduct(position,transform,sourceFrame="part",destinationFrame="assembly"){return{position:mat4TransformPoint(transform,position),source_frame:sourceFrame,destination_frame:destinationFrame,provenance:"DERIVED"};}
-  return{trianglesFromPolygons,measure,bounds,volume,surfaceArea,printEstimate,identity,multiply,rotationX,rotationY,rotationZ,scaling,mirror,translation,determinant3,transformPoint,applyMatrix,placeOnBed,triangleNormal,findOverhangs,rotationBetween,fitsBed,autoOrient,frameMatrix,invertRigid,toParent,fromParent,worldMatrix,explainTransform,boundsOverlap,pairwiseClashes,trianglesIntersect,makeBVH,bvhIntersections,pointInMesh,pairwiseGeometryClashes,triangleDistance,boxDistance,bvhMinDistance,pairwiseClearances,toBinarySTL,mat4TransformPoint,composeMat4,cadFrameProduct};
+  return{trianglesFromPolygons,measure,bounds,volume,surfaceArea,printEstimate,identity,multiply,rotationX,rotationY,rotationZ,scaling,mirror,translation,determinant3,transformPoint,applyMatrix,placeOnBed,triangleNormal,findOverhangs,rotationBetween,fitsBed,autoOrient,frameMatrix,invertRigid,toParent,fromParent,worldMatrix,explainTransform,boundsOverlap,pairwiseClashes,trianglesIntersect,makeBVH,bvhIntersections,pointInMesh,pairwiseGeometryClashes,triangleDistance,boxDistance,bvhMinDistance,pairwiseClearances,pairwiseDistances,toBinarySTL,mat4TransformPoint,composeMat4,cadFrameProduct};
 });
