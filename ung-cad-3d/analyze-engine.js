@@ -1,0 +1,48 @@
+(function(root,factory){
+  const api=factory();
+  if(typeof module!=='undefined'&&module.exports) module.exports=api;
+  if(root) root.UNGAnalyze=api;
+})(typeof window!=='undefined'?window:globalThis,function(){
+  const EPS=1e-9;
+  const v=(x=0,y=0,z=0)=>({x:+x,y:+y,z:+z});
+  const sub=(a,b)=>v(a.x-b.x,a.y-b.y,a.z-b.z), mulv=(a,s)=>v(a.x*s,a.y*s,a.z*s);
+  const dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
+  const cross=(a,b)=>v(a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x);
+  const len=a=>Math.hypot(a.x,a.y,a.z), norm=a=>{const l=len(a);return l<EPS?v():mulv(a,1/l)};
+  const triArea=t=>len(cross(sub(t.b,t.a),sub(t.c,t.a)))/2;
+  const signedVolume=tris=>tris.reduce((s,t)=>s+dot(t.a,cross(t.b,t.c))/6,0);
+  function trianglesFromPolygons(polys){const out=[];for(const p of polys||[]){const vs=p.vertices||[];for(let i=1;i<vs.length-1;i++)out.push({a:{...vs[0].pos},b:{...vs[i].pos},c:{...vs[i+1].pos}});}return out;}
+  function measure(p1,p2){const dx=p2.x-p1.x,dy=p2.y-p1.y,dz=p2.z-p1.z;return{distance:Math.hypot(dx,dy,dz),dx,dy,dz};}
+  function bounds(tris){if(!tris||!tris.length)return{min:v(),max:v(),size:v()};let min=v(Infinity,Infinity,Infinity),max=v(-Infinity,-Infinity,-Infinity);for(const t of tris)for(const p of[t.a,t.b,t.c]){min=v(Math.min(min.x,p.x),Math.min(min.y,p.y),Math.min(min.z,p.z));max=v(Math.max(max.x,p.x),Math.max(max.y,p.y),Math.max(max.z,p.z));}return{min,max,size:v(max.x-min.x,max.y-min.y,max.z-min.z)};}
+  const volume=tris=>Math.abs(signedVolume(tris));
+  const surfaceArea=tris=>tris.reduce((s,t)=>s+triArea(t),0);
+  const MATERIALS={PLA:{density:1.24,price:25},PETG:{density:1.27,price:28}};
+  const PROFILES={fast:{infill:.10,walls:2,flow:14},balanced:{infill:.15,walls:2,flow:10},quality:{infill:.20,walls:3,flow:6}};
+  function printEstimate(tris,{material='PLA',quality='balanced'}={}){const mat=MATERIALS[material]||MATERIALS.PLA,p=PROFILES[quality]||PROFILES.balanced,vol=volume(tris),area=surfaceArea(tris),shell=Math.min(vol,area*p.walls*.42),plastic=shell+(vol-shell)*p.infill,grams=plastic/1000*mat.density,filamentM=plastic/(Math.PI*.875*.875)/1000,minutes=plastic/p.flow/60*1.35+3,cost=grams/1000*mat.price;return{volumeCm3:vol/1000,areaCm2:area/100,plasticCm3:plastic/1000,grams,filamentM,minutes,cost};}
+  const identity=()=>[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+  function multiply(A,B){const C=Array(16).fill(0);for(let r=0;r<4;r++)for(let c=0;c<4;c++)for(let k=0;k<4;k++)C[r*4+c]+=A[r*4+k]*B[k*4+c];return C;}
+  const rad=d=>d*Math.PI/180;
+  function rotationX(d){const c=Math.cos(rad(d)),s=Math.sin(rad(d));return[1,0,0,0,0,c,-s,0,0,s,c,0,0,0,0,1];}
+  function rotationY(d){const c=Math.cos(rad(d)),s=Math.sin(rad(d));return[c,0,s,0,0,1,0,0,-s,0,c,0,0,0,0,1];}
+  function rotationZ(d){const c=Math.cos(rad(d)),s=Math.sin(rad(d));return[c,-s,0,0,s,c,0,0,0,0,1,0,0,0,0,1];}
+  const scaling=(sx,sy,sz)=>[sx,0,0,0,0,sy,0,0,0,0,sz,0,0,0,0,1];
+  const mirror=axis=>scaling(axis==='x'?-1:1,axis==='y'?-1:1,axis==='z'?-1:1);
+  const translation=(tx,ty,tz)=>[1,0,0,tx,0,1,0,ty,0,0,1,tz,0,0,0,1];
+  function determinant3(M){return M[0]*(M[5]*M[10]-M[6]*M[9])-M[1]*(M[4]*M[10]-M[6]*M[8])+M[2]*(M[4]*M[9]-M[5]*M[8]);}
+  function transformPoint(M,p){const x=M[0]*p.x+M[1]*p.y+M[2]*p.z+M[3],y=M[4]*p.x+M[5]*p.y+M[6]*p.z+M[7],z=M[8]*p.x+M[9]*p.y+M[10]*p.z+M[11],w=M[12]*p.x+M[13]*p.y+M[14]*p.z+M[15]||1;return v(x/w,y/w,z/w);}
+  function applyMatrix(tris,M){const flip=determinant3(M)<0;return tris.map(t=>{const a=transformPoint(M,t.a),b=transformPoint(M,t.b),c=transformPoint(M,t.c);return flip?{a,b:c,c:b}:{a,b,c};});}
+  function placeOnBed(tris){const b=bounds(tris);return applyMatrix(tris,translation(-(b.min.x+b.max.x)/2,-(b.min.y+b.max.y)/2,-b.min.z));}
+  const triangleNormal=t=>norm(cross(sub(t.b,t.a),sub(t.c,t.a)));
+  function findOverhangs(tris,limitDeg=45){if(!tris.length)return{indices:[],area:0,bedArea:0};const minZ=bounds(tris).min.z,threshold=-Math.sin(rad(limitDeg)),indices=[];let area=0,bedArea=0;tris.forEach((t,i)=>{const n=triangleNormal(t),a=triArea(t),resting=Math.max(t.a.z,t.b.z,t.c.z)-minZ<=.05;if(resting&&n.z<-.99){bedArea+=a;return;}if(n.z<threshold){indices.push(i);area+=a;}});return{indices,area,bedArea};}
+  function rodrigues(a,th){const{x,y,z}=a,c=Math.cos(th),s=Math.sin(th),q=1-c;return[x*x*q+c,x*y*q-z*s,x*z*q+y*s,0,y*x*q+z*s,y*y*q+c,y*z*q-x*s,0,z*x*q-y*s,z*y*q+x*s,z*z*q+c,0,0,0,0,1];}
+  function rotationBetween(from,to){const f=norm(from),t=norm(to),c=Math.max(-1,Math.min(1,dot(f,t)));if(c>1-1e-10)return identity();if(c<-1+1e-10){let axis=Math.abs(f.x)<.9?cross(f,v(1,0,0)):cross(f,v(0,1,0));return rodrigues(norm(axis),Math.PI);}return rodrigues(norm(cross(f,t)),Math.acos(c));}
+  function fitsBed(tris){const s=bounds(tris).size;return s.x<=220+1e-8&&s.y<=220+1e-8&&s.z<=220+1e-8;}
+  function autoOrient(tris){const before=findOverhangs(placeOnBed(tris)).area,groups=new Map();for(const t of tris){const n=triangleNormal(t),key=[n.x,n.y,n.z].map(x=>Math.round(x*100)/100).join(','),g=groups.get(key)||{normal:n,area:0};g.area+=triArea(t);groups.set(key,g);}const normals=[v(1,0,0),v(-1,0,0),v(0,1,0),v(0,-1,0),v(0,0,1),v(0,0,-1),...[...groups.values()].sort((a,b)=>b.area-a.area).slice(0,24).map(g=>g.normal)];let best=null;for(const n of normals){const R=rotationBetween(n,v(0,0,-1)),placed=placeOnBed(applyMatrix(tris,R)),oh=findOverhangs(placed),a=surfaceArea(placed),s=bounds(placed).size,fit=fitsBed(placed),score=(a?oh.area/a:0)*100-(a?oh.bedArea/a:0)*20+s.z/1000+(fit?0:1000);if(!best||score<best.score)best={score,matrix:R,faceDown:n,overhangArea:oh.area,overhangAreaBefore:before,bedArea:oh.bedArea,size:s,fits:fit};}delete best.score;return best;}
+  function frameMatrix({x=0,y=0,z=0,rx=0,ry=0,rz=0}={}){return multiply(translation(x,y,z),multiply(rotationZ(rz),multiply(rotationY(ry),rotationX(rx))));}
+  function invertRigid(T){const Rt=[T[0],T[4],T[8],T[1],T[5],T[9],T[2],T[6],T[10]],d=v(T[3],T[7],T[11]),q=v(-(Rt[0]*d.x+Rt[1]*d.y+Rt[2]*d.z),-(Rt[3]*d.x+Rt[4]*d.y+Rt[5]*d.z),-(Rt[6]*d.x+Rt[7]*d.y+Rt[8]*d.z));return[Rt[0],Rt[1],Rt[2],q.x,Rt[3],Rt[4],Rt[5],q.y,Rt[6],Rt[7],Rt[8],q.z,0,0,0,1];}
+  const toParent=(frame,point)=>transformPoint(frameMatrix(frame),point),fromParent=(frame,point)=>transformPoint(invertRigid(frameMatrix(frame)),point);
+  function worldMatrix(frames,name){const visiting=new Set(),memo={};function go(n){if(memo[n])return memo[n];if(visiting.has(n))throw new Error('loop in frame attachments');visiting.add(n);const f=frames[n];if(!f)throw new Error('Unknown frame: '+n);const local=frameMatrix(f),parent=f.parent,world=(!parent||parent==='F'||parent==='Base frame (F)')?local:multiply(go(parent),local);visiting.delete(n);return memo[n]=world;}return go(name);}
+  function explainTransform(frame,x){const T=frameMatrix(frame),R=[T[0],T[1],T[2],T[4],T[5],T[6],T[8],T[9],T[10]],d=v(frame.x||0,frame.y||0,frame.z||0),X=transformPoint(T,x),moved=Math.abs(d.x)+Math.abs(d.y)+Math.abs(d.z)>EPS,rotated=Math.abs(frame.rx||0)+Math.abs(frame.ry||0)+Math.abs(frame.rz||0)>EPS;const kind=moved&&rotated?'both':moved?'translation':rotated?'rotation':'none',R2=(!frame.rx&&!frame.ry)?[R[0],R[1],R[3],R[4]]:null;return{kind,flat:[...T],R,R2,Rx:v(R[0]*x.x+R[1]*x.y+R[2]*x.z,R[3]*x.x+R[4]*x.y+R[5]*x.z,R[6]*x.x+R[7]*x.y+R[8]*x.z),d,X};}
+  function toBinarySTL(tris,name='UNG-CAD'){const buf=new ArrayBuffer(84+50*tris.length),dv=new DataView(buf),u8=new Uint8Array(buf),enc=new TextEncoder().encode(name.slice(0,80));u8.set(enc.slice(0,80));dv.setUint32(80,tris.length,true);let off=84;for(const t of tris){const n=triangleNormal(t);for(const q of[n.x,n.y,n.z]){dv.setFloat32(off,q,true);off+=4;}for(const p of[t.a,t.b,t.c])for(const q of[p.x,p.y,p.z]){dv.setFloat32(off,q,true);off+=4;}dv.setUint16(off,0,true);off+=2;}return buf;}
+  return{trianglesFromPolygons,measure,bounds,volume,surfaceArea,printEstimate,identity,multiply,rotationX,rotationY,rotationZ,scaling,mirror,translation,determinant3,transformPoint,applyMatrix,placeOnBed,triangleNormal,findOverhangs,rotationBetween,fitsBed,autoOrient,frameMatrix,invertRigid,toParent,fromParent,worldMatrix,explainTransform,toBinarySTL};
+});
