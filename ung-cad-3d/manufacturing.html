@@ -13,7 +13,7 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 <h2><span class="step">1</span>Choose model</h2>
 <label class="btn" style="display:inline-flex;position:relative;align-items:center;overflow:hidden;cursor:pointer">Choose model or project<input id="pkg" type="file" multiple accept=".stl,.3mf,.gcode,.gx,.zip" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"></label>
 <div id="meta" class="meta">Choose the actual printable files you want to use. Open folders normally in the picker, then select the files inside.</div>
-<div class="notice"><b>Automatic manufacturing</b><span id="engine"> Choose a model. UNG-CAD repairs, prepares, slices, validates and sends it to the printer automatically.</span></div>
+<div class="notice"><b>Automatic manufacturing</b><span id="engine"> Choose a model. UNG-CAD repairs, prepares, slices, validates and sends it to the printer automatically.</span></div><div id="preflightGate" class="notice"><b>Manufacturing Preflight</b><span id="preflightState"> LOCKED — choose an STL model to validate.</span></div>
 
 <h2><span class="step">2</span>Check model</h2>
 <div id="parts"><div class="small">Upload a package above to list its printable parts.</div></div>
@@ -78,7 +78,10 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 <script>
 const f=document.getElementById('pkg'),meta=document.getElementById('meta'),parts=document.getElementById('parts'),status=document.getElementById('status'),part=document.getElementById('part'),sliceBtn=document.getElementById('slice'),sendBtn=document.getElementById('send'),previewStats=document.getElementById('previewStats');
 
-let selectedFile=null,lastMachineUrl=null,bridgeOnline=false,lastMachineFile=null;
+let selectedFile=null,lastMachineUrl=null,bridgeOnline=false,lastMachineFile=null,preflightPassed=false;
+const preflightState=document.getElementById('preflightState');
+function setPreflight(state,message){preflightPassed=state==='PASS';preflightState.textContent=' '+state+' — '+message;sliceBtn.disabled=!preflightPassed||!selectedFile||!part.value;if(!preflightPassed){lastMachineUrl=null;lastMachineFile=null;sendBtn.disabled=true;}}
+window.__setManufacturingPreflight=setPreflight;
 const qsPrinterId=new URLSearchParams(location.search).get('printer_id');
 if(qsPrinterId) document.getElementById('printer').value=qsPrinterId;
 
@@ -100,7 +103,7 @@ window.__replacePart=async(name,stlBuffer)=>{
 };
 window.__partNames=()=>[...part.options].map(o=>o.value).filter(Boolean);
 async function selectAndPreview(n,rowEl){
-  part.value=n;sliceBtn.disabled=false;
+  part.value=n;setPreflight('RUNNING','checking geometry, build volume and manufacturability…');
   document.querySelectorAll('.part').forEach(r=>r.classList.remove('active'));
   if(rowEl)rowEl.classList.add('active');
   const low=n.toLowerCase();
@@ -127,12 +130,12 @@ status.textContent='Inspecting actual package…';const d=new FormData();d.appen
 try{const r=await fetch('/api/manufacturing/inspect',{method:'POST',body:d}),j=await r.json();if(!r.ok)throw Error(j.detail||'Inspection failed');meta.textContent=(chosen.length>1?(chosen.length+' files selected'):selectedFile.name)+' — '+j.part_count+' printable parts detected (assembly reference excluded)';
 let firstRow=null;
 j.parts.forEach((n,i)=>{const o=document.createElement('option');o.value=n;o.textContent=(i+1)+'. '+n;part.appendChild(o);const row=document.createElement('div');row.className='part';const name=document.createElement('span');name.textContent=(i+1)+'. '+n;const tag=document.createElement('span');tag.className='tag';tag.textContent='.'+n.split('.').pop().toLowerCase();const b=document.createElement('button');b.className='btn';b.textContent='Preview & select';b.onclick=async()=>{b.disabled=true;const old=b.textContent;b.textContent='Loading…';await selectAndPreview(n,row);b.disabled=false;b.textContent=old;};row.append(name,tag,b);parts.appendChild(row);if(i===0)firstRow=row});
-part.disabled=false;sliceBtn.disabled=false;status.textContent='Package inspection complete.';
+part.disabled=false;sliceBtn.disabled=true;status.textContent='Package inspection complete. Manufacturing Preflight must pass before Auto Prepare unlocks.';
 if(j.parts.length)selectAndPreview(j.parts[0],firstRow);
 }catch(e){status.textContent='FAILED — '+e.message}}
 async function receiveStudioModel(){if(new URLSearchParams(location.search).get('from')!=='studio')return;try{const req=indexedDB.open('ungcad-handoff',1);req.onupgradeneeded=()=>req.result.createObjectStore('files');req.onsuccess=()=>{const db=req.result,tx=db.transaction('files','readonly'),get=tx.objectStore('files').get('current');get.onsuccess=async()=>{const x=get.result;db.close();if(!x||!x.blob)return;const file=new File([x.blob],x.name||'UNG-CAD-model.stl',{type:'model/stl'});await handleChosenFiles([file],'3D Studio model');status.textContent='3D Studio model transferred — ready for Auto Prepare.'};};}catch(e){status.textContent='Could not receive 3D Studio model — '+e.message}}receiveStudioModel();
 f.addEventListener('change',async()=>{if(f.files&&f.files.length){await handleChosenFiles(Array.from(f.files),'files');}});
-part.onchange=()=>{sliceBtn.disabled=!selectedFile||!part.value;if(part.value)selectAndPreview(part.value,null)};
+part.onchange=()=>{sliceBtn.disabled=true;if(part.value)selectAndPreview(part.value,null)};
 function drawToolpath(data,index){
  const panel=document.getElementById('toolpathPanel'),cv=document.getElementById('toolpathCanvas'),ctx=cv.getContext('2d'),layer=data.layers[index];
  panel.style.display='block';ctx.clearRect(0,0,cv.width,cv.height);if(!layer)return;
@@ -148,7 +151,7 @@ async function loadToolpath(machine){
  }catch(e){document.getElementById('toolpathPanel').style.display='none'}
 }
 
-sliceBtn.onclick=async()=>{if(!selectedFile||!part.value)return;sliceBtn.disabled=true;sendBtn.disabled=true;status.textContent='Preparing printable machine file…';const d=new FormData();d.append('file',selectedFile);d.append('selected',part.value);d.append('layer_height',document.getElementById('layer').value);d.append('quality',document.getElementById('quality').value);d.append('material',document.getElementById('material').value);d.append('supports',document.getElementById('supports').value);d.append('copies',document.getElementById('copies').value);
+sliceBtn.onclick=async()=>{if(!selectedFile||!part.value)return;if(!preflightPassed){status.textContent='BLOCKED — Manufacturing Preflight has not passed.';return;}sliceBtn.disabled=true;sendBtn.disabled=true;status.textContent='Preparing printable machine file…';const d=new FormData();d.append('file',selectedFile);d.append('selected',part.value);d.append('layer_height',document.getElementById('layer').value);d.append('quality',document.getElementById('quality').value);d.append('material',document.getElementById('material').value);d.append('supports',document.getElementById('supports').value);d.append('copies',document.getElementById('copies').value);
 try{const r=await fetch('/api/manufacturing/slice',{method:'POST',body:d}),j=await r.json();if(!r.ok)throw Error(j.detail||'Slicing failed');lastMachineUrl=j.download;lastMachineFile=j.machine_file;sendBtn.disabled=!bridgeOnline;if(!j.stats.pre_sliced)loadToolpath(j.machine_file);status.textContent=j.stats.pre_sliced?('MACHINE FILE READY — '+j.machine_file+'\n'):('AUTO PREPARE COMPLETE — '+j.stats.layers+' layers · '+j.stats.infill_percent+'% infill · '+j.stats.wall_count+' walls · supports '+j.stats.support_layers+' layers · '+j.stats.material_g+' g · ~'+j.stats.estimated_minutes+' min.\nValidation: '+j.stats.validation+' · Machine file: '+j.machine_file+'\n');const a=document.createElement('a');a.className='link';a.href=j.download;a.download=j.machine_file;a.textContent='Download AD5M G-code';status.appendChild(a)}catch(e){status.textContent='SLICE FAILED — '+e.message}finally{sliceBtn.disabled=false}};
 
 async function refreshBridge(){
@@ -162,7 +165,7 @@ async function refreshBridge(){
 setInterval(refreshBridge,5000);refreshBridge();
 
 async function pollJob(id){for(let i=0;i<180;i++){await new Promise(r=>setTimeout(r,2000));const r=await fetch('/api/manufacturing/jobs/'+id,{cache:'no-store'}),j=await r.json();if(j.status==='completed'){status.textContent='PRINT STARTED — AD5M bridge accepted '+j.machine_file;return}if(j.status==='failed'){status.textContent='PRINT FAILED — '+((j.result&&j.result.error)||'printer bridge failed');return}status.textContent='PRINT QUEUED — waiting for the AD5M bridge ('+j.status+')';}status.textContent='PRINT QUEUED — bridge has not picked it up yet.'}
-sendBtn.onclick=async()=>{if(!lastMachineFile){status.textContent='NO PREPARED FILE — tap Auto Prepare first.';return}if(!bridgeOnline){status.textContent='PRINTER OFFLINE — no print job was created.';return}sendBtn.disabled=true;try{const machine=lastMachineFile;const r=await fetch('/api/manufacturing/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_id:document.getElementById('printer').value.trim(),machine_file:machine})});const j=await r.json();if(!r.ok)throw Error(j.detail||'Could not queue print');status.textContent='PRINT QUEUED FOR AD5M — '+j.job_id;await pollJob(j.job_id)}catch(e){status.textContent='PRINT FAILED — '+e.message}finally{sendBtn.disabled=!lastMachineFile||!bridgeOnline}};
+sendBtn.onclick=async()=>{if(!preflightPassed){status.textContent='PRINT BLOCKED — Manufacturing Preflight has not passed.';return}if(!lastMachineFile){status.textContent='NO PREPARED FILE — tap Auto Prepare first.';return}if(!bridgeOnline){status.textContent='PRINTER OFFLINE — no print job was created.';return}sendBtn.disabled=true;try{const machine=lastMachineFile;const r=await fetch('/api/manufacturing/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_id:document.getElementById('printer').value.trim(),machine_file:machine})});const j=await r.json();if(!r.ok)throw Error(j.detail||'Could not queue print');status.textContent='PRINT QUEUED FOR AD5M — '+j.job_id;await pollJob(j.job_id)}catch(e){status.textContent='PRINT FAILED — '+e.message}finally{sendBtn.disabled=!lastMachineFile||!bridgeOnline}};
 </script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.140.0/build/three.module.js"}}</script>
 <script type="module" src="/static/manufacturing-preview.js"></script>
