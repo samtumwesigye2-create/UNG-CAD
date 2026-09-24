@@ -103,6 +103,16 @@ window.__runAssemblyManufacturingPreflight=function(threshold=0.40){
     if(conflicts.length){const h=conflicts[0],other=h.a===zone.name?h.b:h.a;gate('BLOCKED','connector/cable access blocked: '+zone.name+' intersects '+other+'.');return{pass:false,connectorClearance:conflicts};}
    }
   }
+  const board=/pcb|board|pico|raspberry.?pi|camera|radio|network|power/i, mount=/mount|standoff|post|boss|support/i, hole=/mount.?hole|screw.?hole|fastener.?hole/i;
+  const boards=assemblyParts.filter(p=>board.test(p.name)),mounts=assemblyParts.filter(p=>mount.test(p.name)),holes=assemblyParts.filter(p=>hole.test(p.name));
+  for(const b of boards){
+   const bb=A.bounds(b.tris),nearMounts=mounts.filter(m=>{const mb=A.bounds(m.tris),cx=(mb.min.x+mb.max.x)/2,cy=(mb.min.y+mb.max.y)/2;return cx>=bb.min.x-threshold&&cx<=bb.max.x+threshold&&cy>=bb.min.y-threshold&&cy<=bb.max.y+threshold&&mb.max.z<=bb.max.z+threshold;});
+   if(!nearMounts.length){gate('BLOCKED','unsupported board: '+b.name+' has no verified mounting post/standoff beneath its footprint.');return{pass:false,unsupportedBoard:b.name};}
+   const relatedHoles=holes.filter(h=>h.name.toLowerCase().includes(b.name.toLowerCase())||b.name.toLowerCase().includes(h.name.toLowerCase().replace(/mount.?hole|screw.?hole|fastener.?hole/ig,'').trim()));
+   if(relatedHoles.length){
+    for(const h of relatedHoles){const hb=A.bounds(h.tris),hc={x:(hb.min.x+hb.max.x)/2,y:(hb.min.y+hb.max.y)/2};const aligned=nearMounts.some(m=>{const mb=A.bounds(m.tris),mc={x:(mb.min.x+mb.max.x)/2,y:(mb.min.y+mb.max.y)/2};return Math.hypot(mc.x-hc.x,mc.y-hc.y)<=threshold;});if(!aligned){gate('BLOCKED','mounting alignment failure: '+h.name+' has no post/standoff center within '+threshold.toFixed(2)+' mm.');return{pass:false,misalignedHole:h.name};}}
+   }
+  }
   gate('PASS','assembly geometry has no intersections and meets '+threshold.toFixed(2)+' mm minimum clearance.');
   return{pass:true,clashes:[],clearances:[]};
  }catch(e){gate('BLOCKED','assembly validation failed: '+e.message);return{pass:false,error:e.message};}
