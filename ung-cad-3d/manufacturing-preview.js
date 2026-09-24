@@ -26,7 +26,19 @@ function frameCurrent(){
 function redraw(red=false){
  if(!current.tris)return;clearMesh(current.mesh);const set=red&&current.overhangs?new Set(current.overhangs.indices):null;current.mesh=meshFromTris(current.tris,set);scene.add(current.mesh);previewStats.textContent=statsText(current.label,current.tris);if(window.__refreshAnalyzeEstimate)window.__refreshAnalyzeEstimate();resize();
 }
-function setCurrent(label,tris,remember=true){if(remember)current.original=tris.map(t=>({a:{...t.a},b:{...t.b},c:{...t.c}}));current.label=label;current.tris=A.placeOnBed(tris);current.changed=false;current.overhangs=null;placeholder.style.display='none';redraw();frameCurrent();if(window.__analyzeReady)window.__analyzeReady();}
+function setCurrent(label,tris,remember=true){if(remember)current.original=tris.map(t=>({a:{...t.a},b:{...t.b},c:{...t.c}}));current.label=label;current.tris=A.placeOnBed(tris);current.changed=false;current.overhangs=null;placeholder.style.display='none';redraw();frameCurrent();runManufacturingPreflight();if(window.__analyzeReady)window.__analyzeReady();}
+function runManufacturingPreflight(){
+ const gate=window.__setManufacturingPreflight;if(!gate||!current.tris||!current.tris.length)return;
+ try{
+  const b=A.bounds(current.tris),finite=[b.min.x,b.min.y,b.min.z,b.max.x,b.max.y,b.max.z].every(Number.isFinite);
+  if(!finite||current.tris.length<4){gate('BLOCKED','invalid or empty printable geometry.');return;}
+  if(!A.fitsBed(current.tris)){gate('BLOCKED','model exceeds the Adventurer 5M 220 × 220 × 220 mm build volume.');return;}
+  const oh=A.findOverhangs(current.tris),area=A.surfaceArea(current.tris),ratio=area?oh.area/area:0;
+  if(ratio>.35){gate('PASS','geometry is valid and fits the printer; heavy overhangs detected — supports/orientation required.');return;}
+  gate('PASS','geometry is valid, fits the printer and may proceed to Auto Prepare.');
+ }catch(e){gate('BLOCKED','geometry validation failed: '+e.message);}
+}
+window.__runManufacturingPreflight=runManufacturingPreflight;
 window.__previewSTL=function(label,arrayBuffer){try{const polys=window.CSGEngine.parseSTL(arrayBuffer),tris=A.trianglesFromPolygons(polys);if(!tris.length)throw Error('Could not read geometry');assemblyMode=false;for(const m of assemblyMeshes)clearMesh(m);assemblyMeshes=[];setCurrent(label,tris,true);}catch(e){previewStats.textContent='Preview failed — '+e.message;}};
 window.__analyzeGetCurrent=()=>current.tris;
 window.__analyzeGetOriginal=()=>current.original;
