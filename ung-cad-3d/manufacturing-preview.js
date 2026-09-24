@@ -78,5 +78,18 @@ window.__checkAssemblyClearance=function(threshold){
  return hits;
 };
 window.__assemblyFitReport=function(){return A.pairwiseDistances(assemblyParts);};
+window.__runAssemblyManufacturingPreflight=function(threshold=0.40){
+ const gate=window.__setManufacturingPreflight;
+ if(!gate)return{pass:false,reason:'Manufacturing gate unavailable'};
+ if(!assemblyMode||assemblyParts.length<2){gate('BLOCKED','assembly validation requires at least two loaded assembly parts.');return{pass:false,reason:'assembly not loaded'};}
+ try{
+  const clashes=A.pairwiseGeometryClashes(assemblyParts,{limitPerPair:128});
+  if(clashes.length){const h=clashes[0];gate('BLOCKED','assembly collision: '+h.a+' intersects '+h.b+'.');return{pass:false,clashes};}
+  const clearances=A.pairwiseClearances(assemblyParts,threshold);
+  if(clearances.length){const h=clearances[0];gate('BLOCKED','minimum '+threshold.toFixed(2)+' mm clearance failed between '+h.a+' and '+h.b+' ('+h.distance.toFixed(3)+' mm).');return{pass:false,clearances};}
+  gate('PASS','assembly geometry has no intersections and meets '+threshold.toFixed(2)+' mm minimum clearance.');
+  return{pass:true,clashes:[],clearances:[]};
+ }catch(e){gate('BLOCKED','assembly validation failed: '+e.message);return{pass:false,error:e.message};}
+};
 window.__backSingle=function(){assemblyMode=false;for(const m of assemblyMeshes)clearMesh(m);assemblyMeshes=[];assemblyParts=[];if(current.tris)redraw();};
 resize();
