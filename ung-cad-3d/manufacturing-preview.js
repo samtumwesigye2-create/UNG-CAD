@@ -85,6 +85,12 @@ window.__runAssemblyManufacturingPreflight=function(threshold=0.40){
  try{
   const clashes=A.pairwiseGeometryClashes(assemblyParts,{limitPerPair:128});
   if(clashes.length){const h=clashes[0];gate('BLOCKED','assembly collision: '+h.a+' intersects '+h.b+'.');return{pass:false,clashes};}
+  const enclosure=/lid|cover|top|chassis|case|shell|base/i, internal=/pcb|board|pico|pi|camera|sensor|radio|network|power|battery|fan|cable|connector|post/i;
+  const enclosureParts=assemblyParts.filter(p=>enclosure.test(p.name)),internalParts=assemblyParts.filter(p=>internal.test(p.name));
+  if(enclosureParts.length&&internalParts.length){
+   const mating=A.pairwiseGeometryClashes([...enclosureParts,...internalParts],{limitPerPair:128}).filter(h=>enclosure.test(h.a)&&internal.test(h.b)||enclosure.test(h.b)&&internal.test(h.a));
+   if(mating.length){const h=mating[0];gate('BLOCKED','enclosure/lid fit failure: '+h.a+' interferes with '+h.b+'.');return{pass:false,mating};}
+  }
   const clearances=A.pairwiseClearances(assemblyParts,threshold);
   if(clearances.length){const h=clearances[0];gate('BLOCKED','minimum '+threshold.toFixed(2)+' mm clearance failed between '+h.a+' and '+h.b+' ('+h.distance.toFixed(3)+' mm).');return{pass:false,clearances};}
   gate('PASS','assembly geometry has no intersections and meets '+threshold.toFixed(2)+' mm minimum clearance.');
