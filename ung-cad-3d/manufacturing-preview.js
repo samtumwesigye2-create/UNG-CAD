@@ -93,6 +93,16 @@ window.__runAssemblyManufacturingPreflight=function(threshold=0.40){
   }
   const clearances=A.pairwiseClearances(assemblyParts,threshold);
   if(clearances.length){const h=clearances[0];gate('BLOCKED','minimum '+threshold.toFixed(2)+' mm clearance failed between '+h.a+' and '+h.b+' ('+h.distance.toFixed(3)+' mm).');return{pass:false,clearances};}
+  const connector=/usb|ethernet|rj45|ffc|fpc|camera.?cable|power.?jack|connector|port/i, keepout=/keepout|insertion|plug.?clearance|cable.?exit|service.?space/i;
+  const connectors=assemblyParts.filter(p=>connector.test(p.name)),keepouts=assemblyParts.filter(p=>keepout.test(p.name));
+  if(connectors.length&&!keepouts.length){gate('BLOCKED','connector hardware is present but no verified insertion/cable-exit clearance geometry is defined.');return{pass:false,unverifiedConnectors:connectors.map(p=>p.name)};}
+  if(keepouts.length){
+   const obstacles=assemblyParts.filter(p=>!keepout.test(p.name));
+   for(const zone of keepouts){
+    const conflicts=A.pairwiseGeometryClashes([zone,...obstacles],{limitPerPair:64}).filter(h=>h.a===zone.name||h.b===zone.name);
+    if(conflicts.length){const h=conflicts[0],other=h.a===zone.name?h.b:h.a;gate('BLOCKED','connector/cable access blocked: '+zone.name+' intersects '+other+'.');return{pass:false,connectorClearance:conflicts};}
+   }
+  }
   gate('PASS','assembly geometry has no intersections and meets '+threshold.toFixed(2)+' mm minimum clearance.');
   return{pass:true,clashes:[],clearances:[]};
  }catch(e){gate('BLOCKED','assembly validation failed: '+e.message);return{pass:false,error:e.message};}
