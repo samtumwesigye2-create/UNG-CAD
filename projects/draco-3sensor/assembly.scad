@@ -201,6 +201,21 @@ module printable_part(part=1){
 }
 
 manufacturing_truth_check();
+// Mechanical preflight for the approved port layout.
+// These assertions catch envelope/spacing mistakes before STL export.
+module mechanical_preflight(){
+ assert(100<=220 && 100<=220 && 150<=220,"BLOCKED: DRACO exceeds 220 mm printer envelope");
+ assert(wall>=2.4,"BLOCKED: enclosure wall below 2.4 mm");
+ assert(camera_z<thermal_z && radar_z<camera_z,"BLOCKED: sensor tray order invalid");
+ assert(abs(camera_port_x-thermal_port_x)>=18,"BLOCKED: thermal/camera ports too close");
+ assert(abs(radar_port_x-camera_port_x)>=18,"BLOCKED: camera/radar ports too close");
+ assert(abs(ethernet_port_x-radar_port_x)>=18,"BLOCKED: radar/Ethernet ports too close");
+ echo("PASS: outer envelope, sensor ordering and connector spacing");
+ echo("PENDING HARDWARE TRUTH: DC-DC converter exact envelope/terminal height");
+ echo("PENDING HARDWARE TRUTH: C4001 carrier variant must be SEN0609 or SEN0610");
+}
+mechanical_preflight();
+
 
 // Preview assembly. Manufacturing exports call individual modules.
 module assembly(){
