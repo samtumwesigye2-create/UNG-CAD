@@ -1,0 +1,21 @@
+{
+  "project": "UNG Compact Observation Quad",
+  "role": "observation_and_tracking",
+  "physical_interception": false,
+  "motor_span_mm": 180,
+  "max_printed_part_mm": 215,
+  "main_frame_parts": 1,
+  "optional_parts": ["center_bumper_ring"],
+  "fc_mount_mm": [20, 20],
+  "intended_features": [
+    "manual_flight",
+    "position_hold",
+    "return_to_home",
+    "geofencing",
+    "telemetry",
+    "camera_observation",
+    "visual_tracking",
+    "separation_aware_following"
+  ],
+  "fabrication_status": "motor_mount_pattern_requires_selected_motor"
+}
