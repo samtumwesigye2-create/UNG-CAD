@@ -1,0 +1,20 @@
+{
+  "project":"UNG Compact Bicopter V1",
+  "role":"observation_and_tracking",
+  "motor_count":2,
+  "configuration":"bicopter",
+  "printer":"FlashForge Adventurer 5M",
+  "max_printed_part_mm":215,
+  "unique_printed_designs":4,
+  "printed_parts":[
+    {"part":"body","quantity":1},
+    {"part":"boom","quantity":2,"identical":true},
+    {"part":"tilt_pod","quantity":2,"identical":true},
+    {"part":"guard","quantity":2,"identical":true,"optional":true}
+  ],
+  "motor_interface_mm":[9,9],
+  "motor_screw":"M2",
+  "flight_controller_interface_mm":[20,20],
+  "control_note":"Two motors require active thrust-vector/tilt control; exact servo geometry must be matched to selected hardware before production.",
+  "physical_interception":false
+}
