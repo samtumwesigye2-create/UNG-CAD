@@ -58,6 +58,6 @@ input,select{width:100%;height:38px;border:1px solid #354150;border-radius:8px;b
   setTimeout(()=>{if(!window.__ungViewerStarted&&v){v.style.background='#111827';if(s)s.textContent='3D module blocked before startup — external module loading failed';}},4000);
 })();
 </script>
-<script type="module" src="./viewer.js?v=em-v1-complete"></script>
+<script type="module" src="./viewer.js?v=em-v2-complete"></script>
 <script>document.querySelectorAll('#extrude-ui,#revolve-ui,#loft-ui,#sweep-ui,#fillet-ui,#chamfer-ui,#shell-ui').forEach(b=>b.onclick=()=>{document.getElementById('status').textContent=b.textContent+' tool is being restored to the production geometry engine.'})</script>
 <script>document.getElementById("em-export-btn")?.addEventListener("click",()=>{if(!window.__ungLastEM){document.getElementById("status").textContent="Calculate transformer first.";return}try{const r=window.UNGElectromagneticsManufacturing.handoff(window.__ungLastEM);document.getElementById("status").textContent="Generated "+r.name+" for manufacturing validation."}catch(e){document.getElementById("status").textContent="Bobbin generation failed: "+e.message}});</script><script src="./electromagnetics-v2.js"></script></body></html>
