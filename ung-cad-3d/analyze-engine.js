@@ -16,9 +16,32 @@
   function bounds(tris){if(!tris||!tris.length)return{min:v(),max:v(),size:v()};let min=v(Infinity,Infinity,Infinity),max=v(-Infinity,-Infinity,-Infinity);for(const t of tris)for(const p of[t.a,t.b,t.c]){min=v(Math.min(min.x,p.x),Math.min(min.y,p.y),Math.min(min.z,p.z));max=v(Math.max(max.x,p.x),Math.max(max.y,p.y),Math.max(max.z,p.z));}return{min,max,size:v(max.x-min.x,max.y-min.y,max.z-min.z)};}
   const volume=tris=>Math.abs(signedVolume(tris));
   const surfaceArea=tris=>tris.reduce((s,t)=>s+triArea(t),0);
-  const MATERIALS={PLA:{density:1.24,price:25},PETG:{density:1.27,price:28}};
+  const MATERIALS={PLA:{density:1.24,price:25,nozzleTemp:200,bedTemp:55},PETG:{density:1.27,price:28,nozzleTemp:235,bedTemp:80},ABS:{density:1.04,price:24,nozzleTemp:245,bedTemp:100},TPU:{density:1.21,price:32,nozzleTemp:225,bedTemp:50}};
   const PROFILES={fast:{infill:.10,walls:2,flow:14},balanced:{infill:.15,walls:2,flow:10},quality:{infill:.20,walls:3,flow:6}};
   function printEstimate(tris,{material='PLA',quality='balanced'}={}){const mat=MATERIALS[material]||MATERIALS.PLA,p=PROFILES[quality]||PROFILES.balanced,vol=volume(tris),area=surfaceArea(tris),shell=Math.min(vol,area*p.walls*.42),plastic=shell+(vol-shell)*p.infill,grams=plastic/1000*mat.density,filamentM=plastic/(Math.PI*.875*.875)/1000,minutes=plastic/p.flow/60*1.35+3,cost=grams/1000*mat.price;return{volumeCm3:vol/1000,areaCm2:area/100,plasticCm3:plastic/1000,grams,filamentM,minutes,cost};}
+  function assemblyEstimate(parts,{material='PLA',quality='balanced',hardware=[]}={}){
+    const perPart=parts.map(p=>({name:p.name,...printEstimate(p.tris,{material,quality})}));
+    const totals=perPart.reduce((s,p)=>({grams:s.grams+p.grams,filamentM:s.filamentM+p.filamentM,minutes:s.minutes+p.minutes,cost:s.cost+p.cost}),{grams:0,filamentM:0,minutes:0,cost:0});
+    const hardwareCost=hardware.reduce((s,h)=>s+(h.unitCost||0)*(h.qty||1),0);
+    const hardwareList=hardware.map(h=>({name:h.name,qty:h.qty||1,unitCost:h.unitCost||0,lineCost:(h.unitCost||0)*(h.qty||1)}));
+    return{perPart,printCost:totals.cost,hardwareCost,totalCost:totals.cost+hardwareCost,totalGrams:totals.grams,totalFilamentM:totals.filamentM,totalMinutes:totals.minutes,hardware:hardwareList};
+  }
+  function edgeKey(p,precision=4){const scale=Math.pow(10,precision);const rx=Math.round(p.x*scale)/scale,ry=Math.round(p.y*scale)/scale,rz=Math.round(p.z*scale)/scale;return rx.toFixed(precision)+','+ry.toFixed(precision)+','+rz.toFixed(precision);}
+  function checkManifold(tris,precision=4){
+    const edges=new Map();function addEdge(p,q){const ka=edgeKey(p,precision),kb=edgeKey(q,precision),key=ka<kb?ka+'|'+kb:kb+'|'+ka;const rec=edges.get(key);if(rec)rec.count++;else edges.set(key,{count:1,a:p,b:q});}
+    for(const t of tris){addEdge(t.a,t.b);addEdge(t.b,t.c);addEdge(t.c,t.a);}
+    let openEdges=0,nonManifoldEdges=0;const openSegments=[],nonManifoldSegments=[];
+    for(const rec of edges.values()){if(rec.count===1){openEdges++;openSegments.push([rec.a,rec.b]);}else if(rec.count!==2){nonManifoldEdges++;nonManifoldSegments.push([rec.a,rec.b]);}}
+    return{watertight:openEdges===0&&nonManifoldEdges===0,openEdges,nonManifoldEdges,edgeCount:edges.size,triangleCount:tris.length,openSegments,nonManifoldSegments};
+  }
+  function repairMesh(tris,precision=4){
+    const edges=new Map();const keyOf=p=>edgeKey(p,precision);function addDirected(p,q){const ka=keyOf(p),kb=keyOf(q),key=ka<kb?ka+'|'+kb:kb+'|'+ka;const rec=edges.get(key);if(rec)rec.count++;else edges.set(key,{count:1,p,q,ka,kb});}
+    for(const t of tris){addDirected(t.a,t.b);addDirected(t.b,t.c);addDirected(t.c,t.a);}const openEdges=[...edges.values()].filter(r=>r.count===1);if(!openEdges.length)return{tris,patched:0,loopsFound:0,loopsFilled:0};
+    const byStart=new Map();for(const e of openEdges){const sk=keyOf(e.p);if(!byStart.has(sk))byStart.set(sk,[]);byStart.get(sk).push(e);}const used=new Set(),loops=[];
+    for(const e of openEdges){if(used.has(e))continue;const loop=[e.p];let cur=e,guard=0;used.add(cur);while(guard++<10000){const nextKey=keyOf(cur.q),candidates=(byStart.get(nextKey)||[]).filter(x=>!used.has(x));if(!candidates.length)break;const next=candidates[0];used.add(next);if(keyOf(next.p)===keyOf(e.p)){loop.push(next.p);break;}loop.push(next.p);cur=next;}if(loop.length>=3)loops.push(loop);}
+    const patch=[];for(const loop of loops){let cx=0,cy=0,cz=0;for(const p of loop){cx+=p.x;cy+=p.y;cz+=p.z;}const n=loop.length,centroid={x:cx/n,y:cy/n,z:cz/n};for(let i=0;i<loop.length;i++){const a=loop[i],b=loop[(i+1)%loop.length];patch.push({a:centroid,b:a,c:b});}}
+    return{tris:tris.concat(patch),patched:patch.length,loopsFound:loops.length,loopsFilled:loops.length};
+  }
   const identity=()=>[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
   function multiply(A,B){const C=Array(16).fill(0);for(let r=0;r<4;r++)for(let c=0;c<4;c++)for(let k=0;k<4;k++)C[r*4+c]+=A[r*4+k]*B[k*4+c];return C;}
   const rad=d=>d*Math.PI/180;
@@ -132,5 +155,5 @@
   function mat4TransformPoint(m,p){const q=[0,0,0,0],vv=[p[0],p[1],p[2],1];for(let i=0;i<4;i++)for(let j=0;j<4;j++)q[i]+=m[i][j]*vv[j];const w=q[3]||1;return[q[0]/w,q[1]/w,q[2]/w];}
   function composeMat4(a,b){return a.map((r,i)=>r.map((_,j)=>a[i].reduce((sum,__,k)=>sum+a[i][k]*b[k][j],0)));}
   function cadFrameProduct(position,transform,sourceFrame="part",destinationFrame="assembly"){return{position:mat4TransformPoint(transform,position),source_frame:sourceFrame,destination_frame:destinationFrame,provenance:"DERIVED"};}
-  return{trianglesFromPolygons,measure,bounds,volume,surfaceArea,printEstimate,identity,multiply,rotationX,rotationY,rotationZ,scaling,mirror,translation,determinant3,transformPoint,applyMatrix,placeOnBed,triangleNormal,findOverhangs,rotationBetween,fitsBed,autoOrient,frameMatrix,invertRigid,toParent,fromParent,worldMatrix,explainTransform,boundsOverlap,pairwiseClashes,trianglesIntersect,makeBVH,bvhIntersections,pointInMesh,pairwiseGeometryClashes,triangleDistance,boxDistance,bvhMinDistance,pairwiseClearances,pairwiseDistances,toBinarySTL,mat4TransformPoint,composeMat4,cadFrameProduct};
+  return{trianglesFromPolygons,measure,bounds,volume,surfaceArea,printEstimate,assemblyEstimate,identity,multiply,rotationX,rotationY,rotationZ,scaling,mirror,translation,determinant3,transformPoint,applyMatrix,placeOnBed,triangleNormal,findOverhangs,rotationBetween,fitsBed,autoOrient,checkManifold,repairMesh,frameMatrix,invertRigid,toParent,fromParent,worldMatrix,explainTransform,boundsOverlap,pairwiseClashes,trianglesIntersect,makeBVH,bvhIntersections,pointInMesh,pairwiseGeometryClashes,triangleDistance,boxDistance,bvhMinDistance,pairwiseClearances,pairwiseDistances,toBinarySTL,mat4TransformPoint,composeMat4,cadFrameProduct};
 });
