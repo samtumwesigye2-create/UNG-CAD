@@ -98,3 +98,19 @@ if(showAllBtn)showAllBtn.onclick=()=>{assemblyObjects().forEach(o=>{o.visible=tr
 document.addEventListener("click",()=>{if(isolateBtn)isolateBtn.disabled=selected.size!==1});
 
 window.__ungExplodedAssembly={apply:applyExplodedView,assemble:()=>{if(explodeRange)explodeRange.value=0;applyExplodedView(0)},order:()=>orderedAssembly().map(o=>({id:o.id,name:o.name,order:o.__explodeOrder||null}))};
+
+/* Exploded assembly labels */
+const explodeLabels=document.getElementById("explode-labels");let explodeLabelGroup=null;
+function clearExplodeLabels(){if(explodeLabelGroup){scene.remove(explodeLabelGroup);explodeLabelGroup.traverse(x=>{x.material?.map?.dispose?.();x.material?.dispose?.()});explodeLabelGroup=null}}
+function labelSprite(text){
+ const cv=document.createElement("canvas"),ctx=cv.getContext("2d");cv.width=512;cv.height=96;ctx.fillStyle="rgba(8,13,20,.88)";ctx.fillRect(0,0,512,96);ctx.strokeStyle="#53e1e9";ctx.lineWidth=3;ctx.strokeRect(2,2,508,92);ctx.fillStyle="#fff";ctx.font="bold 30px -apple-system,Arial";ctx.textBaseline="middle";ctx.fillText(text.slice(0,28),18,48);
+ const tex=new THREE.CanvasTexture(cv),mat=new THREE.SpriteMaterial({map:tex,depthTest:false}),sp=new THREE.Sprite(mat);sp.scale.set(28,5.25,1);return sp;
+}
+function updateExplodeLabels(){
+ clearExplodeLabels();if(!explodeLabels?.checked||!explodeRange||Number(explodeRange.value)<=0)return;
+ explodeLabelGroup=new THREE.Group();orderedAssembly().forEach((o,i)=>{const b=assemblyBounds(o);if(!b)return;const sp=labelSprite(`${i+1} · ${o.name}`);sp.position.set(b.max.x+16,(b.min.y+b.max.y)/2,b.max.z+4);explodeLabelGroup.add(sp)});scene.add(explodeLabelGroup);
+}
+explodeLabels?.addEventListener("change",updateExplodeLabels);
+explodeRange?.addEventListener("input",()=>requestAnimationFrame(updateExplodeLabels));
+explodeBtn?.addEventListener("click",()=>requestAnimationFrame(updateExplodeLabels));
+assembleBtn?.addEventListener("click",clearExplodeLabels);
