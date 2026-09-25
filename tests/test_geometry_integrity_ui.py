@@ -13,5 +13,6 @@ def test_geometry_integrity_engine_is_wired():
         assert token in JS
 
 def test_integrity_gate_is_refreshed_with_scene():
-    assert "updateTwin(one)" in JS\n    assert "updateIntegrity()" in JS
+    assert "updateTwin(one)" in JS
+    assert "updateIntegrity()" in JS
     assert "integrity-run" in JS
