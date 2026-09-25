@@ -5,8 +5,13 @@
   "motor_span_mm": 180,
   "max_printed_part_mm": 215,
   "main_frame_parts": 1,
-  "optional_parts": ["center_bumper_ring"],
-  "fc_mount_mm": [20, 20],
+  "optional_parts": [
+    "center_bumper_ring"
+  ],
+  "fc_mount_mm": [
+    20,
+    20
+  ],
   "intended_features": [
     "manual_flight",
     "position_hold",
@@ -17,5 +22,13 @@
     "visual_tracking",
     "separation_aware_following"
   ],
-  "fabrication_status": "motor_mount_pattern_requires_selected_motor"
+  "fabrication_status": "motor_mount_pattern_finalized",
+  "motor_class": "1404",
+  "motor_mount_pattern_mm": [
+    9,
+    9
+  ],
+  "motor_mount_screw": "M2",
+  "power_target": "3S-4S",
+  "prop_target_in": "3-4"
 }
