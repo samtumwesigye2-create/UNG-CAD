@@ -13,6 +13,8 @@ const palette=[0x3b82f6,0x8b5cf6,0x10b981,0xf59e0b,0xec4899,0x22c55e];
 function resize(){const w=previewEl.clientWidth,h=previewEl.clientHeight||320;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);}
 window.addEventListener('resize',resize);(function frame(){requestAnimationFrame(frame);controls.update();renderer.render(scene,camera);})();
 function clearMesh(m){if(m){scene.remove(m);m.geometry?.dispose();m.material?.dispose();}}
+let openEdgeLines=null;
+function drawOpenEdges(segments){clearMesh(openEdgeLines);openEdgeLines=null;if(!segments||!segments.length)return;const pos=[];for(const [a,b] of segments)pos.push(a.x,a.y,a.z,b.x,b.y,b.z);const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));openEdgeLines=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0xff0000,linewidth:3}));scene.add(openEdgeLines);}
 function geomFromTris(tris,redSet=null,color=0x3b82f6){
  const pos=[],col=[];const c0=new THREE.Color(color),cr=new THREE.Color(0xef4444);
  tris.forEach((t,i)=>{const cc=redSet&&redSet.has(i)?cr:c0;for(const p of[t.a,t.b,t.c]){pos.push(p.x,p.y,p.z);col.push(cc.r,cc.g,cc.b);}});
@@ -32,7 +34,7 @@ function runManufacturingPreflight(){
  try{
   const b=A.bounds(current.tris),finite=[b.min.x,b.min.y,b.min.z,b.max.x,b.max.y,b.max.z].every(Number.isFinite);
   if(!finite||current.tris.length<4){gate('BLOCKED','invalid or empty printable geometry.');return;}
-  if(!A.fitsBed(current.tris)){gate('BLOCKED','model exceeds the Adventurer 5M 220 × 220 × 220 mm build volume.');return;}
+  if(!A.fitsBed(current.tris)){gate('BLOCKED','model exceeds the Adventurer 5M 220 × 220 × 220 mm build volume.');return;}\n  const manifold=A.checkManifold(current.tris);current.manifold=manifold;drawOpenEdges(manifold.watertight?[]:manifold.openSegments.concat(manifold.nonManifoldSegments));\n  if(!manifold.watertight){gate('BLOCKED','geometry is not watertight — '+manifold.openEdges+' open edge(s) and '+manifold.nonManifoldEdges+' non-manifold edge(s) found (highlighted in red).');return;}
   const oh=A.findOverhangs(current.tris),area=A.surfaceArea(current.tris),ratio=area?oh.area/area:0;
   if(ratio>.35){gate('PASS','geometry is valid and fits the printer; heavy overhangs detected — supports/orientation required.');return;}
   gate('PASS','geometry is valid, fits the printer and may proceed to Auto Prepare.');
@@ -46,6 +48,7 @@ window.__analyzeApplyMatrix=function(M){if(!current.tris)return null;current.tri
 window.__analyzeReset=function(){if(!current.original)return;current.tris=A.placeOnBed(current.original.map(t=>({a:{...t.a},b:{...t.b},c:{...t.c}})));current.changed=false;current.overhangs=null;redraw();if(window.__analyzeChanged)window.__analyzeChanged(false);};
 window.__analyzeSupport=function(show=true){if(!current.tris)return null;current.overhangs=A.findOverhangs(current.tris);redraw(show);return current.overhangs;};
 window.__analyzeHideSupport=()=>redraw(false);
+window.__analyzeRepair=function(){if(!current.tris)return null;const before=A.checkManifold(current.tris);if(before.watertight)return{...before,patched:0,alreadyOk:true};const result=A.repairMesh(current.tris);current.tris=result.tris;current.changed=true;current.overhangs=null;redraw();if(window.__analyzeChanged)window.__analyzeChanged(true);runManufacturingPreflight();return{...A.checkManifold(current.tris),patched:result.patched,loopsFilled:result.loopsFilled,before};};
 window.__analyzeBestPosition=function(){if(!current.tris)return null;const r=A.autoOrient(current.tris),before=r.overhangAreaBefore;current.tris=A.placeOnBed(A.applyMatrix(current.tris,r.matrix));current.changed=true;current.overhangs=A.findOverhangs(current.tris);redraw(true);if(window.__analyzeChanged)window.__analyzeChanged(true);return{...r,overhangAreaBefore:before,overhangArea:current.overhangs.area,size:A.bounds(current.tris).size,fits:A.fitsBed(current.tris)};};
 
 function clearMeasure(){for(const o of measureObjects)scene.remove(o);measureObjects=[];picks=[];if(window.__measureResult)window.__measureResult(null);}
@@ -77,7 +80,7 @@ window.__checkAssemblyClearance=function(threshold){
  assemblyParts.forEach((part,i)=>{part.mesh.material.color.setHex(hitNames.has(part.name)?0xfacc15:palette[i%palette.length]);});
  return hits;
 };
-window.__assemblyFitReport=function(){return A.pairwiseDistances(assemblyParts);};
+window.__assemblyFitReport=function(){return A.pairwiseDistances(assemblyParts);};\nwindow.__assemblyEstimate=function(options={}){if(!assemblyMode||!assemblyParts.length)return null;return A.assemblyEstimate(assemblyParts,options);};
 window.__runAssemblyManufacturingPreflight=function(threshold=0.40){
  const gate=window.__setManufacturingPreflight;
  if(!gate)return{pass:false,reason:'Manufacturing gate unavailable'};
