@@ -132,13 +132,15 @@ module head_internal_layout(){
  rear_cable_race();
 }
 
-// Base electronics zones. These are intentionally generic retention envelopes until
-// the exact controller/power/network boards installed in DRACO are verified.
+// Base electronics zones updated from user's actual hardware photos.
+// Controller is Raspberry Pi Pico 2 W with pre-soldered headers.
+// Power module is the photographed adjustable DC-DC board; exact board envelope still requires scale verification.
+pico2w_w=21; pico2w_l=51; // nominal Pico family board envelope
 module base_electronics_layout(){
- // controller zone
- translate([-22,8,10]) cube([34,44,2],center=true);
- // power zone
- translate([22,12,10]) cube([28,34,2],center=true);
+ // Pico 2 W pocket; extra lateral clearance accommodates installed header pins.
+ translate([-24,8,10]) cube([pico2w_w+6,pico2w_l+2,3],center=true);
+ // photographed DC-DC converter zone; intentionally generous until measured
+ translate([22,12,10]) cube([34,54,3],center=true);
  // rear port cable corridor: power USB-C / data USB-C / Ethernet
  translate([0,-35,18]) cube([76,20,10],center=true);
  // protected vertical harness route to head
@@ -158,7 +160,9 @@ module manufacturing_truth_check(){
  if(c4001_variant!="SEN0609" && c4001_variant!="SEN0610")
    echo("BLOCKED: C4001 carrier variant unresolved");
  echo("BLOCKED UNTIL VERIFIED: Camera Module 3 NoIR owned-board envelope/mounting geometry");
- echo("BLOCKED UNTIL VERIFIED: base controller, power and Ethernet hardware footprints");
+ echo("VERIFIED IDENTITY: Raspberry Pi Pico 2 W controller with pre-soldered headers");
+ echo("BLOCKED UNTIL VERIFIED: photographed DC-DC converter exact envelope and connector heights");
+ echo("BLOCKED UNTIL VERIFIED: Ethernet hardware is not visible in supplied photos");
 }
 
 module printable_part(part=1){
