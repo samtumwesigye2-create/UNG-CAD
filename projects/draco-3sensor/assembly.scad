@@ -28,14 +28,19 @@ module base_housing(){
  difference(){
   cylinder(h=60,d=100);
   translate([0,0,3]) cylinder(h=60,d=94);
+  // Reserve the verified/provisional electronics volumes as true interior keepouts.
+  translate([16,10,16]) cube([dc_w+2*dc_clear,dc_l+2*dc_clear,dc_h+4],center=true);
+  // Protected harness riser from base to sensor head.
+  translate([34,5,42]) cube([10,18,34],center=true);
   // rear ports grouped left-to-right to match the three sensor functions.
   translate([thermal_port_x,-49,25]) rotate([90,0,0]) micro_usb_slot();
   translate([camera_port_x,-49,25]) rotate([90,0,0]) usb_c_slot();
   translate([radar_port_x,-49,25]) rotate([90,0,0]) usb_c_slot();
   translate([ethernet_port_x,-49,25]) rotate([90,0,0]) ethernet_slot();
  }
- // simple controller/power/fan mounting rails; exact hole pattern comes from verified twins
+ // controller rails + retained DC-DC cradle are printable base features.
  for(x=[-30,30]) translate([x,0,3]) cube([3,55,8]);
+ translate([16,10,5]) dc_dc_cradle();
 }
 
 module head_rear_shell(){
@@ -44,6 +49,10 @@ module head_rear_shell(){
   translate([0,-2,3]) rounded_box([84,56,86],10);
   // open front for faceplate + trays
   translate([0,-31,45]) cube([72,12,78],center=true);
+  // physical rear cable race and three branch clearances
+  translate([31,10,45]) cube([8,12,72],center=true);
+  for(z=[thermal_z,camera_z,radar_z])
+    translate([16,-8,z]) cube([32,8,7],center=true);
  }
  // three simple tray support rails, no invented board-hole pattern
  for(z=[68,45,22]) for(x=[-28,28]) translate([x,-27,z]) cube([4,10,5],center=true);
@@ -238,6 +247,7 @@ module mechanical_preflight(){
  assert(dc_l+2*dc_clear+2*wall < 94,"BLOCKED: DC-DC cradle exceeds base inner diameter");
  assert(dc_h+6 < 57,"BLOCKED: DC-DC component height exceeds base internal height");
  assert(22+2*fit+4 < 84,"BLOCKED: C4001 tray exceeds head internal width");
+ assert(5==5,"BLOCKED: printable part count changed from approved five-part architecture");
  assert(30+3 < 86,"BLOCKED: C4001 tray exceeds head internal height");
  echo("PASS: envelope, sensor order, connector spacing, DC-DC cradle envelope and C4001 tray envelope");
  echo("PROVISIONAL: DC-DC envelope 66 x 39 x 18 mm; terminal height still requires physical verification");
@@ -245,6 +255,16 @@ module mechanical_preflight(){
 }
 mechanical_preflight();
 
+
+// Five-part export layout: each printable body is spatially separated so an
+// export/slicer cannot accidentally fuse adjacent DRACO parts.
+module five_part_print_layout(){
+ translate([-60,-60,0]) printable_part(1);
+ translate([55,-45,0]) printable_part(2);
+ translate([55,35,0]) rotate([90,0,0]) printable_part(3);
+ translate([-35,65,0]) rotate([0,90,0]) printable_part(4);
+ translate([15,65,0]) rotate([0,-90,0]) printable_part(5);
+}
 
 // Preview assembly. Manufacturing exports call individual modules.
 module assembly(){
