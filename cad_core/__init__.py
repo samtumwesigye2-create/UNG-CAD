@@ -8,3 +8,5 @@ from .geometry_adapter import CADGeometry
 __all__ = ["CADState","StateKind","StateStore","OptimizationProblem","GradientDescentOptimizer","SimulationRun","CADMath","CADGeometry"]
 
 from .electromechanical import Connection, ThreePhaseResult, solve_three_phase, winding_graph
+
+from .surfaces_of_revolution import GabrielHornAnalysis, gabriel_radius, analyze_gabriel_horn, gabriel_horn_profile
