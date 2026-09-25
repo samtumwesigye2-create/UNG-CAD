@@ -98,6 +98,35 @@ module c4001_tray(){
  else echo("BLOCKED: select verified C4001 carrier SEN0609 or SEN0610 before manufacturing export");
 }
 
+// Locked vertical tray stations in the 90 mm head.
+thermal_z=68;
+camera_z=45;
+radar_z=22;
+tray_y=-25;
+
+// Dedicated rear cable race: sensor leads/FFC leave each tray rearward,
+// then turn into one protected vertical channel instead of crossing the boards.
+module rear_cable_race(){
+ translate([31,10,45]) cube([6,10,70],center=true);
+ for(z=[thermal_z,camera_z,radar_z])
+   translate([16,-8,z]) cube([30,6,5],center=true);
+}
+
+// Three independent removable trays. No stacked sensor PCBs.
+module installed_sensor_trays(){
+ translate([0,tray_y,thermal_z]) amg8833_tray();
+ translate([0,tray_y,camera_z]) camera_module3_noir_tray();
+ translate([0,tray_y,radar_z]) c4001_tray();
+}
+
+// Head manufacturing subassembly: shell + tray stations + cable race.
+// C4001 remains fail-closed until c4001_variant matches the owned board.
+module head_internal_layout(){
+ head_rear_shell();
+ installed_sensor_trays();
+ rear_cable_race();
+}
+
 // Preview assembly. Manufacturing exports call individual modules.
 module assembly(){
  color("gainsboro") base_housing();
