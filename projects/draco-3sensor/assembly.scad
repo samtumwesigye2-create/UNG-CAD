@@ -132,6 +132,45 @@ module head_internal_layout(){
  rear_cable_race();
 }
 
+// Base electronics zones. These are intentionally generic retention envelopes until
+// the exact controller/power/network boards installed in DRACO are verified.
+module base_electronics_layout(){
+ // controller zone
+ translate([-22,8,10]) cube([34,44,2],center=true);
+ // power zone
+ translate([22,12,10]) cube([28,34,2],center=true);
+ // rear port cable corridor: power USB-C / data USB-C / Ethernet
+ translate([0,-35,18]) cube([76,20,10],center=true);
+ // protected vertical harness route to head
+ translate([34,5,38]) cube([8,16,38],center=true);
+}
+
+// Port alignment gauges terminate at the actual rear openings.
+// They are clearance volumes, not printable solids.
+module rear_port_keepouts(){
+ translate([-24,-44,25]) cube([14,18,10],center=true);
+ translate([0,-44,25]) cube([14,18,10],center=true);
+ translate([27,-44,25]) cube([20,18,18],center=true);
+}
+
+// Manufacturing guardrails. Echo BLOCKED for unresolved hardware truth.
+module manufacturing_truth_check(){
+ if(c4001_variant!="SEN0609" && c4001_variant!="SEN0610")
+   echo("BLOCKED: C4001 carrier variant unresolved");
+ echo("BLOCKED UNTIL VERIFIED: Camera Module 3 NoIR owned-board envelope/mounting geometry");
+ echo("BLOCKED UNTIL VERIFIED: base controller, power and Ethernet hardware footprints");
+}
+
+module printable_part(part=1){
+ if(part==1) base_housing();
+ else if(part==2) head_rear_shell();
+ else if(part==3) front_faceplate();
+ else if(part==4) side_cover(-1);
+ else if(part==5) side_cover(1);
+}
+
+manufacturing_truth_check();
+
 // Preview assembly. Manufacturing exports call individual modules.
 module assembly(){
  color("gainsboro") base_housing();
