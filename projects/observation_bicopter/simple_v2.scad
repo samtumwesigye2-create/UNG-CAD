@@ -12,60 +12,72 @@ servo_h=25.1; // reference envelope; arm pocket is through-cut
 horn_clear_d=18; // conservative clearance envelope around servo output
 link_hole=2.2; // M2 linkage clearance
 guard_od=92; guard_wall=3; guard_t=4;
+mount_screw=3.4; // M3 clearance
+body_mount_x=30; body_mount_y=18; // matching body/arm two-screw interface
+guard_mount_pitch=12; // two M3 screws prevent guard rotation
 
 module body(){
  difference(){
   cube([body_x,body_y,body_t],center=true);
-  for(x=[-10,10],y=[-10,10]) translate([x,y,-5]) cylinder(d=3.4,h=10);
-  for(x=[-25,25]) translate([x-2,-18,-5]) cube([4,36,10]);
-  for(x=[-body_x/2+7,body_x/2-7]) translate([x,0,-5]) cylinder(d=3.4,h=10);
+  // 20x20 flight-controller pattern
+  for(x=[-10,10],y=[-10,10]) translate([x,y,-1]) cylinder(d=3.4,h=body_t+2);
+  // battery strap slots
+  for(x=[-25,25]) translate([x-2,-18,-1]) cube([4,36,body_t+2]);
+  // two M3 holes per side for each arm: no single-screw pivot
+  for(side=[-1,1], y=[-body_mount_y/2,body_mount_y/2])
+   translate([side*body_mount_x,y,-1]) cylinder(d=mount_screw,h=body_t+2);
  }
 }
 
 module arm(){
- // Single 2D profile extruded once: avoids coplanar union seams.
  difference(){
   linear_extrude(height=arm_t)
    union(){
     translate([0,-arm_w/2]) square([arm_l,arm_w]);
     translate([arm_l,0]) circle(d=motor_pad);
+    // widened body-end mounting lug
+    translate([0,-12]) square([20,24]);
+    // guard mounting ear outside propeller center
+    translate([arm_l-8,-18]) square([16,12]);
    }
 
-  // All cutters deliberately overrun Z faces.
-  translate([7,0,-1]) cylinder(d=3.4,h=arm_t+2);
+  // two M3 body attachment holes matching the body interface
+  for(y=[-body_mount_y/2,body_mount_y/2])
+   translate([10,y,-1]) cylinder(d=mount_screw,h=arm_t+2);
+
+  // motor interface
   translate([arm_l,0,-1]) cylinder(d=4,h=arm_t+2);
   for(x=[-motor_mount/2,motor_mount/2],y=[-motor_mount/2,motor_mount/2])
    translate([arm_l+x,y,-1]) cylinder(d=motor_screw,h=arm_t+2);
 
-  // Servo pocket kept wholly inside the rectangular arm section.
-  translate([arm_l-40,-servo_y/2,-1])
-   cube([servo_x,servo_y,arm_t+2]);
-
-  // Horn clearance and linkage hole are independent through-cuts.
+  // servo pocket
+  translate([arm_l-40,-servo_y/2,-1]) cube([servo_x,servo_y,arm_t+2]);
   translate([arm_l-18,0,-1]) cylinder(d=horn_clear_d,h=arm_t+2);
   translate([arm_l-7,0,-1]) cylinder(d=link_hole,h=arm_t+2);
+
+  // two matching M3 holes for guard attachment
+  for(x=[arm_l-guard_mount_pitch/2,arm_l+guard_mount_pitch/2])
+   translate([x,-12,-1]) cylinder(d=mount_screw,h=arm_t+2);
  }
 }
 
 module guard(){
- // One connected C-shaped prop guard with a radial mounting bridge.
- // The bridge overlaps the ring wall so the exported STL is one solid body.
- union(){
-  difference(){
-   cylinder(d=guard_od,h=guard_t);
-   translate([0,0,-1]) cylinder(d=guard_od-2*guard_wall,h=guard_t+2);
-   // remove left half, leaving a right-side C arc
-   translate([-guard_od,-guard_od/2-1,-1])
-    cube([guard_od,guard_od+2,guard_t+2]);
-  }
-  // radial bridge from center mount to the C-ring inner wall
-  translate([0,-4,0])
-   cube([guard_od/2+2,8,guard_t]);
-  // reinforced center mounting boss
-  cylinder(d=14,h=guard_t);
- }
- // M3 clearance through the center boss
  difference(){
+  union(){
+   // C-shaped outer guard
+   difference(){
+    cylinder(d=guard_od,h=guard_t);
+    translate([0,0,-1]) cylinder(d=guard_od-2*guard_wall,h=guard_t+2);
+    translate([-guard_od,-guard_od/2-1,-1])
+     cube([guard_od,guard_od+2,guard_t+2]);
+   }
+   // compact mounting tab at the arm side; avoids a bridge through prop sweep
+   translate([-guard_mount_pitch/2-6,-guard_od/2,0])
+    cube([guard_mount_pitch+12,16,guard_t]);
+  }
+  // two M3 guard mounting holes
+  for(x=[-guard_mount_pitch/2,guard_mount_pitch/2])
+   translate([x,-guard_od/2+8,-1]) cylinder(d=mount_screw,h=guard_t+2);
  }
 }
 
