@@ -58,6 +58,28 @@ def root(): return RedirectResponse(url="/studio.html")
 @app.get("/studio.html")
 def studio(): return FileResponse(BASE_DIR/"studio.html")
 
+@app.get("/viewer.html")
+def viewer_page(): return FileResponse(BASE_DIR/"viewer.html")
+
+@app.get("/data-twin.html")
+def data_twin_page(): return FileResponse(BASE_DIR/"data-twin.html")
+
+@app.get("/manufacturing.html")
+def manufacturing_page(): return FileResponse(BASE_DIR/"manufacturing.html")
+
+@app.get("/drafting.html")
+def drafting_page(): return FileResponse(BASE_DIR/"drafting.html")
+
+# Serve root-level UI assets referenced by the production pages.
+@app.get("/{asset_name}")
+def ui_asset(asset_name: str):
+    allowed_ext={".js",".css",".json",".py",".txt",".map",".wasm"}
+    safe=Path(asset_name).name
+    target=BASE_DIR/safe
+    if target.is_file() and target.suffix.lower() in allowed_ext:
+        return FileResponse(target)
+    raise HTTPException(404,"Not Found")
+
 @app.put("/api/data-twin/bindings/{object_key}")
 def put_twin_binding(object_key: str, body: TwinBindingIn):
     if object_key != body.object_key: raise HTTPException(400,"object_key mismatch")
