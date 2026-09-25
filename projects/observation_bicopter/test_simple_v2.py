@@ -4,7 +4,7 @@ s=Path(__file__).with_name("simple_v2.scad").read_text()
 for token in [
  "body_x=80;", "body_y=60;", "arm_l=92;", "guard_od=92;",
  "servo_x=23.6;", "servo_y=12.6;", "horn_clear_d=18;",
- "link_hole=2.2;", "motor_mount=9;",
+ "link_hole=2.2;", "motor_mount=9;", "translate([arm_l-7,0,-1])",
  "module body()", "module arm()", "module guard()"
 ]:
     assert token in s, f"missing:{token}"
