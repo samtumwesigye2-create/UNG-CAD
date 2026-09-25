@@ -7,7 +7,8 @@ part=0; // 0 layout, 1 body, 2 arm, 3 guard
 body_x=80; body_y=60; body_t=5;
 arm_l=92; arm_w=18; arm_t=6;
 motor_pad=30; motor_mount=9; motor_screw=2.2;
-servo_x=24; servo_y=13; // intentionally generic envelope; verify selected servo
+servo_x=23.6; servo_y=12.6; // ES09MD body + ~0.3 mm/side print clearance
+servo_h=25.1; // reference envelope; arm pocket is through-cut
 guard_od=92; guard_wall=3; guard_t=4;
 
 module body(){
@@ -30,7 +31,7 @@ module arm(){
   translate([arm_l,0,-1])
    for(x=[-motor_mount/2,motor_mount/2],y=[-motor_mount/2,motor_mount/2])
     translate([x,y,0]) cylinder(d=motor_screw,h=arm_t+2);
-  // generic servo pocket near motor end; freeze after servo selection
+  // EMAX ES09MD-class servo pocket near motor end
   translate([arm_l-32,-servo_y/2,-1]) cube([servo_x,servo_y,arm_t+2]);
  }
 }
