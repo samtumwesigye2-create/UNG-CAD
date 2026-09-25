@@ -24,7 +24,15 @@ function optimize(input){
  return {primary_turns:n1,secondary_turns:n2,ratio:n2/n1,model:'first-pass volts-per-turn synthesis',requiresValidation:true};
 }
 const state={version:'2.1',features:Object.fromEntries(FEATURES.map(x=>[x[0],{enabled:true,status:'scaffolded'}])),studies:[]};
-function open(){const p=document.getElementById('em-v2-panel');if(!p)return;p.style.display=p.style.display==='none'?'block':'none';p.innerHTML='<strong>Electromagnetics V2</strong>'+FEATURES.map(x=>'<div class="obj"><b>'+x[1]+'</b><br><span class="muted">'+x[2]+'</span></div>').join('')+'<div class="muted">High-fidelity FEA and standards compliance require validated external solver/material/standards data; this workspace preserves that boundary.</div>'}
+function runLive(){
+ const g=id=>Number(document.getElementById(id)?.value),mat=document.getElementById('em-core-material')?.value||'custom';
+ const mu=mat==='silicon_steel'?4000:mat==='ferrite'?2000:1,area=g('em-core-area')*1e-4;
+ const field=analyticalField({turns:g('em-n1'),current_a:Math.max(g('em-i2')*(g('em-n2')/Math.max(g('em-n1'),1)),.001),path_length_m:.25,mu_r:mu,core_area_m2:area});
+ const opt=optimize({vin:g('em-v1'),vout:g('em-v1')*(g('em-n2')/Math.max(g('em-n1'),1)),frequency_hz:g('em-freq'),core_area_m2:area,bmax_t:g('em-bmax-limit')});
+ state.last={field,opt};window.dispatchEvent(new CustomEvent('ung:em-v2-field',{detail:state.last}));
+ const o=document.getElementById('em-v2-output');if(o)o.innerHTML='<b>Analytical field</b><br>B ≈ '+field.B_t.toFixed(4)+' T · H ≈ '+field.H_a_per_m.toFixed(1)+' A/m · Φ ≈ '+field.flux_wb.toExponential(3)+' Wb<br><b>Optimizer</b><br>N₁ '+opt.primary_turns+' · N₂ '+opt.secondary_turns+' · ratio '+opt.ratio.toFixed(4);
+}
+function open(){const p=document.getElementById('em-v2-panel');if(!p)return;p.style.display=p.style.display==='none'?'block':'none';p.innerHTML='<strong>Electromagnetics V2</strong><button id="em-v2-run">Run Field + Optimize</button><div id="em-v2-output" class="gate"><span class="muted">Ready.</span></div>'+FEATURES.map(x=>'<div class="obj"><b>'+x[1]+'</b><br><span class="muted">'+x[2]+'</span></div>').join('')+'<div class="muted">High-fidelity FEA and standards compliance require validated external solver/material/standards data.</div>';document.getElementById('em-v2-run')?.addEventListener('click',runLive)}
 document.addEventListener('DOMContentLoaded',()=>document.getElementById('em-v2-btn')?.addEventListener('click',open));
-window.UNGElectromagneticsV2={state,features:FEATURES,open,analyticalField,optimize};
+window.UNGElectromagneticsV2={state,features:FEATURES,open,runLive,analyticalField,optimize};
 })();
