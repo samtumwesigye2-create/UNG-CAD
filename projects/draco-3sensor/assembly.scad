@@ -13,16 +13,26 @@ module rounded_box(size=[90,60,90],r=10){
 }
 
 module usb_c_slot(){ hull(){translate([-5,0,0]) cylinder(h=wall*4,r=2.2,center=true);translate([5,0,0]) cylinder(h=wall*4,r=2.2,center=true);} }
+module micro_usb_slot(){ hull(){translate([-3.4,0,0]) cylinder(h=wall*4,r=1.7,center=true);translate([3.4,0,0]) cylinder(h=wall*4,r=1.7,center=true);} }
 module ethernet_slot(){ cube([16.5,wall*4,14.5],center=true); }
+
+// Rear connector columns deliberately correspond to sensor stack:
+// thermal (top) -> Micro USB power; camera (middle) -> USB-C power/data;
+// radar (bottom) -> USB-C power/data; Ethernet -> Pi 5 system/network.
+thermal_port_x=-32;
+camera_port_x=-11;
+radar_port_x=10;
+ethernet_port_x=32;
 
 module base_housing(){
  difference(){
   cylinder(h=60,d=100);
   translate([0,0,3]) cylinder(h=60,d=94);
-  // rear power, data and Ethernet openings
-  translate([-24,-49,25]) rotate([90,0,0]) usb_c_slot();
-  translate([0,-49,25]) rotate([90,0,0]) usb_c_slot();
-  translate([27,-49,25]) rotate([90,0,0]) ethernet_slot();
+  // rear ports grouped left-to-right to match the three sensor functions.
+  translate([thermal_port_x,-49,25]) rotate([90,0,0]) micro_usb_slot();
+  translate([camera_port_x,-49,25]) rotate([90,0,0]) usb_c_slot();
+  translate([radar_port_x,-49,25]) rotate([90,0,0]) usb_c_slot();
+  translate([ethernet_port_x,-49,25]) rotate([90,0,0]) ethernet_slot();
  }
  // simple controller/power/fan mounting rails; exact hole pattern comes from verified twins
  for(x=[-30,30]) translate([x,0,3]) cube([3,55,8]);
@@ -144,8 +154,8 @@ module base_electronics_layout(){
  translate([-10,-34,18]) cube([rpi5_w+8,18,18],center=true);
  // photographed DC-DC converter zone; intentionally generous until measured
  translate([30,12,10]) cube([34,54,3],center=true);
- // rear port cable corridor: power USB-C / data USB-C / Ethernet
- translate([0,-35,18]) cube([76,20,10],center=true);
+ // rear port cable corridor: thermal Micro USB / camera USB-C / radar USB-C / Pi 5 Ethernet
+ translate([0,-35,18]) cube([88,20,10],center=true);
  // protected vertical harness route to head
  translate([34,5,38]) cube([8,16,38],center=true);
 }
@@ -153,9 +163,22 @@ module base_electronics_layout(){
 // Port alignment gauges terminate at the actual rear openings.
 // They are clearance volumes, not printable solids.
 module rear_port_keepouts(){
- translate([-24,-44,25]) cube([14,18,10],center=true);
- translate([0,-44,25]) cube([14,18,10],center=true);
- translate([27,-44,25]) cube([20,18,18],center=true);
+ translate([thermal_port_x,-44,25]) cube([12,18,9],center=true);
+ translate([camera_port_x,-44,25]) cube([14,18,10],center=true);
+ translate([radar_port_x,-44,25]) cube([14,18,10],center=true);
+ translate([ethernet_port_x,-44,25]) cube([20,18,18],center=true);
+}
+
+// Dedicated internal routes preserve the visual/functional sensor-to-port mapping.
+module sensor_port_routes(){
+ // thermal -> Micro USB
+ hull(){translate([-28,-20,thermal_z]) sphere(2);translate([thermal_port_x,-34,30]) sphere(2);}
+ // camera -> USB-C
+ hull(){translate([-10,-20,camera_z]) sphere(2);translate([camera_port_x,-34,30]) sphere(2);}
+ // radar -> USB-C
+ hull(){translate([10,-20,radar_z]) sphere(2);translate([radar_port_x,-34,30]) sphere(2);}
+ // Pi 5 -> Ethernet
+ hull(){translate([24,0,15]) sphere(2);translate([ethernet_port_x,-34,30]) sphere(2);}
 }
 
 // Manufacturing guardrails. Echo BLOCKED for unresolved hardware truth.
