@@ -1,7 +1,8 @@
 import io, math
 import numpy as np
 import trimesh
-from shapely.geometry import Polygon, MultiPolygon
+from shapely.geometry import Polygon, MultiPolygon, LineString, MultiLineString
+from shapely.ops import unary_union
 
 def _loop_points(coords, z):
     pts=[]
@@ -41,8 +42,16 @@ def _emit_wall_shell(lines, shell, xoff, yoff, z, e_state):
             e_state=_emit_loop(lines,_loop_points(np.asarray(ring.coords),z),xoff,yoff,z,e_state)
     return e_state
 
+MATERIAL_TEMPS={
+    "PLA":{"nozzle":200,"bed":55},
+    "PETG":{"nozzle":235,"bed":80},
+    "ABS":{"nozzle":245,"bed":100},
+    "TPU":{"nozzle":225,"bed":50},
+}
+
 def slice_stl(data: bytes, filename: str, layer_height=0.20, nozzle=0.40, wall_count=2, bed=220,
-              quality="balanced", material="PLA", supports="auto", copies=1, **kwargs):
+              quality="balanced", material="PLA", filament_color="", supports="auto", copies=1, infill_density=0.15, top_bottom_layers=3, **kwargs):
+    temps=MATERIAL_TEMPS.get(material.upper(), MATERIAL_TEMPS["PLA"])
     mesh=trimesh.load_mesh(io.BytesIO(data), file_type='stl')
     if not isinstance(mesh,trimesh.Trimesh):
         raise ValueError("STL did not produce a mesh")
