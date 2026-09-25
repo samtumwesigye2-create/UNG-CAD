@@ -9,6 +9,8 @@ arm_l=92; arm_w=18; arm_t=6;
 motor_pad=30; motor_mount=9; motor_screw=2.2;
 servo_x=23.6; servo_y=12.6; // ES09MD body + ~0.3 mm/side print clearance
 servo_h=25.1; // reference envelope; arm pocket is through-cut
+horn_clear_d=18; // conservative clearance envelope around servo output
+link_hole=2.2; // M2 linkage clearance
 guard_od=92; guard_wall=3; guard_t=4;
 
 module body(){
@@ -33,6 +35,10 @@ module arm(){
     translate([x,y,0]) cylinder(d=motor_screw,h=arm_t+2);
   // EMAX ES09MD-class servo pocket near motor end
   translate([arm_l-32,-servo_y/2,-1]) cube([servo_x,servo_y,arm_t+2]);
+  // horn sweep clearance; keeps printed arm away from moving output
+  translate([arm_l-20,0,-1]) cylinder(d=horn_clear_d,h=arm_t+2);
+  // simple M2 linkage anchor near motor pad
+  translate([arm_l-10,0,-1]) cylinder(d=link_hole,h=arm_t+2);
  }
 }
 
