@@ -29,5 +29,5 @@ def test_clean_validated_path_releases():
     assert released.state is GateState.RELEASE and released.releasable
 
 def test_studio_requires_toolpath_validation_before_handoff():
-    assert "['Toolpath',false]" in JS
+    assert "{name:'Toolpath',source:'Slicer/CAM validation',evaluated:false,passed:null}" in JS
     assert "Manufacturing STALE — regenerate/validate toolpath before release" in JS
