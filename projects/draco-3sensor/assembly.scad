@@ -106,7 +106,7 @@ module amg8833_tray(){
 
 // C4001 comes in multiple carrier versions. DFRobot SEN0609 is 26 x 30 mm;
 // Gravity SEN0610 is 22 x 30 mm. Select the actual owned carrier before manufacturing.
-c4001_variant="UNVERIFIED"; // "SEN0609" or "SEN0610"
+c4001_variant="SEN0610"; // selected DRACO carrier: 22 x 30 mm
 module c4001_tray(){
  if(c4001_variant=="SEN0609") sensor_tray(26,8,30,22);
  else if(c4001_variant=="SEN0610") sensor_tray(22,8,30,20);
@@ -152,8 +152,9 @@ module base_electronics_layout(){
  translate([-10,4,10]) cube([rpi5_w+4,rpi5_l+4,3],center=true);
  // leave connector-edge access and cooling clearance above the board
  translate([-10,-34,18]) cube([rpi5_w+8,18,18],center=true);
- // photographed DC-DC converter zone; intentionally generous until measured
- translate([30,12,10]) cube([34,54,3],center=true);
+ // XL4015/LM2596-style DC-DC converter provisional envelope: 66 x 39 x 18 mm.
+ // Add fit allowance around the board; exact owned-board measurement remains a final verification item.
+ translate([16,10,10]) cube([66+2*fit,39+2*fit,3],center=true);
  // rear port cable corridor: thermal Micro USB / camera USB-C / radar USB-C / Pi 5 Ethernet
  translate([0,-35,18]) cube([88,20,10],center=true);
  // protected vertical harness route to head
@@ -188,7 +189,7 @@ module manufacturing_truth_check(){
  echo("BLOCKED UNTIL VERIFIED: Camera Module 3 NoIR owned-board envelope/mounting geometry");
  echo("VERIFIED IDENTITY: Raspberry Pi 5 main controller");
  echo("VERIFIED INTERFACE: onboard Raspberry Pi 5 Ethernet port replaces need for a separate Ethernet module");
- echo("BLOCKED UNTIL VERIFIED: photographed DC-DC converter exact envelope and connector heights");
+ echo("PROVISIONAL: DC-DC envelope 66 x 39 x 18 mm; verify owned board before manufacturing-final export");
 
 }
 
@@ -211,8 +212,8 @@ module mechanical_preflight(){
  assert(abs(radar_port_x-camera_port_x)>=18,"BLOCKED: camera/radar ports too close");
  assert(abs(ethernet_port_x-radar_port_x)>=18,"BLOCKED: radar/Ethernet ports too close");
  echo("PASS: outer envelope, sensor ordering and connector spacing");
- echo("PENDING HARDWARE TRUTH: DC-DC converter exact envelope/terminal height");
- echo("PENDING HARDWARE TRUTH: C4001 carrier variant must be SEN0609 or SEN0610");
+ echo("PROVISIONAL: DC-DC envelope 66 x 39 x 18 mm; terminal height still requires physical verification");
+ echo("LOCKED: C4001 SEN0610 carrier 22 x 30 mm");
 }
 mechanical_preflight();
 
