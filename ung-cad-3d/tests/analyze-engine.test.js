@@ -55,4 +55,11 @@ let q1={name:'Q1',tris:box(10,10,10,{x:0,y:0,z:0})},q2={name:'Q2',tris:box(10,10
 close(A.triangleDistance(q1.tris[0],q1.tris[0]),0,1e-9);
 let clr=A.pairwiseClearances([q1,q2,q3],0.4);assert.equal(clr.length,1);close(clr[0].distance,0.3,1e-6);
 let report=A.pairwiseDistances([q1,q2,q3]);assert.equal(report.length,3);close(report[0].distance,0.3,1e-6);assert.ok(report[2].distance>=1);
+let mCube=A.checkManifold(base);assert.equal(mCube.watertight,true);assert.equal(mCube.openEdges,0);
+let mSphere=A.checkManifold(sphere);assert.equal(mSphere.watertight,true);
+let mBroken=A.checkManifold(base.slice(0,base.length-2));assert.equal(mBroken.watertight,false);assert.ok(mBroken.openEdges>0);
+
+let rr=A.repairMesh(base.slice(0,base.length-2));assert.equal(A.checkManifold(rr.tris).watertight,true);assert.ok(rr.patched>0);
+assert.equal(A.repairMesh(base).patched,0); // already watertight -> no-op
+
 console.log('analyze-engine: all required tests passed');
