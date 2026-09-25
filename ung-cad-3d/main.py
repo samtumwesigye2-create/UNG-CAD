@@ -70,15 +70,6 @@ def manufacturing_page(): return FileResponse(BASE_DIR/"manufacturing.html")
 @app.get("/drafting.html")
 def drafting_page(): return FileResponse(BASE_DIR/"drafting.html")
 
-# Serve root-level UI assets referenced by the production pages.
-@app.get("/{asset_name}")
-def ui_asset(asset_name: str):
-    allowed_ext={".js",".css",".json",".py",".txt",".map",".wasm"}
-    safe=Path(asset_name).name
-    target=BASE_DIR/safe
-    if target.is_file() and target.suffix.lower() in allowed_ext:
-        return FileResponse(target)
-    raise HTTPException(404,"Not Found")
 
 @app.put("/api/data-twin/bindings/{object_key}")
 def put_twin_binding(object_key: str, body: TwinBindingIn):
@@ -374,4 +365,14 @@ def delete_scene(scene_id:int):
 @app.get("/health")
 def health():
     return {"system":"UNG-CAD-3D","status":"ok","ui":"/studio.html","manufacturing":"/manufacturing.html","ad5m_bridge":"/ung-cad-ad5m-bridge.py"}
+# Root-level UI assets must be registered AFTER API and health routes.
+@app.get("/{asset_name}")
+def ui_asset(asset_name: str):
+    allowed_ext={".js",".css",".json",".py",".txt",".map",".wasm"}
+    safe=Path(asset_name).name
+    target=BASE_DIR/safe
+    if target.is_file() and target.suffix.lower() in allowed_ext:
+        return FileResponse(target)
+    raise HTTPException(404,"Not Found")
+
 app.mount("/static",StaticFiles(directory=BASE_DIR),name="static")
