@@ -40,6 +40,15 @@ input,select{width:100%;height:38px;border:1px solid #354150;border-radius:8px;b
 <script src="./csg-engine.js"></script>
 <script src="./ung-geometry-integration.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.140.0/build/three.module.js"}}</script>
-<script type="module" src="./viewer.js"></script>
+<script>
+(function(){
+  const s=document.getElementById('status'),v=document.getElementById('viewport');
+  window.__ungViewerStarted=false;
+  window.addEventListener('error',e=>{if(s&&!window.__ungViewerStarted)s.textContent='3D engine failed to load: '+(e.message||'script error')});
+  window.addEventListener('unhandledrejection',e=>{if(s&&!window.__ungViewerStarted)s.textContent='3D engine failed to start'});
+  setTimeout(()=>{if(!window.__ungViewerStarted&&v){v.style.background='#111827';if(s)s.textContent='3D engine did not start — reload once or disable content blockers';}},4000);
+})();
+</script>
+<script type="module" src="./viewer.js?v=95e63e15"></script>
 <script>document.querySelectorAll('#extrude-ui,#revolve-ui,#loft-ui,#sweep-ui,#fillet-ui,#chamfer-ui,#shell-ui').forEach(b=>b.onclick=()=>{document.getElementById('status').textContent=b.textContent+' tool is being restored to the production geometry engine.'})</script>
 </body></html>
