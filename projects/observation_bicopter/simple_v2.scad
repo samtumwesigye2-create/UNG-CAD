@@ -33,12 +33,13 @@ module arm(){
   translate([arm_l,0,-1])
    for(x=[-motor_mount/2,motor_mount/2],y=[-motor_mount/2,motor_mount/2])
     translate([x,y,0]) cylinder(d=motor_screw,h=arm_t+2);
-  // EMAX ES09MD-class servo pocket near motor end
-  translate([arm_l-32,-servo_y/2,-1]) cube([servo_x,servo_y,arm_t+2]);
-  // horn sweep clearance; keeps printed arm away from moving output
+  // EMAX ES09MD-class servo pocket. Keep all cuts separated from
+  // the motor pad transition to avoid coincident/non-manifold edges.
+  translate([arm_l-38,-servo_y/2,-1]) cube([servo_x,servo_y,arm_t+2]);
+  // horn sweep clearance, intentionally separated from pocket/pad edges
   translate([arm_l-20,0,-1]) cylinder(d=horn_clear_d,h=arm_t+2);
-  // simple M2 linkage anchor near motor pad
-  translate([arm_l-10,0,-1]) cylinder(d=link_hole,h=arm_t+2);
+  // M2 linkage anchor moved into solid motor-pad material
+  translate([arm_l-7,0,-1]) cylinder(d=link_hole,h=arm_t+2);
  }
 }
 
