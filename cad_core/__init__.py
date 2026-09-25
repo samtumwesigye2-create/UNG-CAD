@@ -6,3 +6,5 @@ from .math_engine import CADMath
 from .geometry_adapter import CADGeometry
 
 __all__ = ["CADState","StateKind","StateStore","OptimizationProblem","GradientDescentOptimizer","SimulationRun","CADMath","CADGeometry"]
+
+from .electromechanical import Connection, ThreePhaseResult, solve_three_phase, winding_graph
