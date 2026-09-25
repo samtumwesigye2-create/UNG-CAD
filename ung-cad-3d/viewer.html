@@ -24,6 +24,14 @@ input,select{width:100%;height:38px;border:1px solid #354150;border-radius:8px;b
 <div class="field"><label>Minimum feature</label><input id="horn-min-feature" type="number" min="0" step=".01" value=".4"></div>
 <button id="horn-create" class="compact">Generate Gabriel Horn</button>
 <div id="horn-analysis" class="muted">Finite CAD truncation • mathematical surface area diverges</div>
+<h3>Electrical Properties</h3>
+<div class="field"><label>Material</label><select id="wire-material"><option value="1.68e-8">Copper</option><option value="2.82e-8">Aluminum</option></select></div>
+<div class="field"><label>Path length (mm)</label><input id="wire-length" type="number" min="0" step=".1" value="1000"></div>
+<div class="field"><label>Cross-section (mm²)</label><input id="wire-area" type="number" min=".000001" step=".01" value="1"></div>
+<div class="field"><label>Current (A)</label><input id="wire-current" type="number" step=".1" value="1"></div>
+<div class="field"><label>Temperature (°C)</label><input id="wire-temp" type="number" step="1" value="20"></div>
+<button id="wire-bind" class="compact">Bind to Selected Part</button>
+<div id="wire-result" class="muted">Select one CAD part to bind electrical properties.</div>
 <h3>Electrical / Electromechanical</h3>
 <div class="field"><label>Connection</label><select id="em-connection"><option value="delta">Delta (Δ)</option><option value="wye">Wye (Y)</option></select></div>
 <div class="field"><label>Line voltage (V)</label><input id="em-voltage" type="number" min="0" step="1" value="480"></div>
