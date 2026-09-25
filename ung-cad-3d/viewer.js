@@ -77,3 +77,20 @@ window.addEventListener('ung:em-v2-field',e=>{
  scene.add(g);renderer.render(scene,camera);
 });
 window.addEventListener('message',e=>{if(e.origin!==location.origin||e.data?.type!=='ungcad:focus-part')return;const id=Number(e.data.id),o=objects.find(x=>x.id===id);if(!o)return;selected=[id];refresh();fitPolygons(o.polygons);status('Data Twin focused '+o.name)});
+
+/* Exploded assembly inspection */
+const explodeRange=document.getElementById("explode-range"),explodeBtn=document.getElementById("explode-btn"),assembleBtn=document.getElementById("assemble-btn"),isolateBtn=document.getElementById("isolate-btn"),showAllBtn=document.getElementById("show-all-btn"),explodeState=document.getElementById("explode-state");
+function assemblyObjects(){return objects.filter(o=>o&&o.mesh)}
+function rememberAssemblyPositions(){assemblyObjects().forEach(o=>{if(!o.__assembledPosition)o.__assembledPosition={x:o.mesh.position.x,y:o.mesh.position.y,z:o.mesh.position.z}})}
+function applyExplodedView(amount){
+  rememberAssemblyPositions(); const list=assemblyObjects(); const gap=Number(amount||0)*0.12;
+  list.forEach((o,i)=>{const p=o.__assembledPosition;o.mesh.position.set(p.x,p.y,p.z+i*gap);o.visible=true;o.mesh.visible=true});
+  if(explodeState)explodeState.textContent=gap>0?`Exploded inspection — ${list.length} parts · spacing ${gap.toFixed(1)}`:"Assembly view — assembled";
+  if(typeof render==="function")render();
+}
+if(explodeRange)explodeRange.oninput=()=>applyExplodedView(explodeRange.value);
+if(explodeBtn)explodeBtn.onclick=()=>{explodeRange.value=Math.max(Number(explodeRange.value),35);applyExplodedView(explodeRange.value)};
+if(assembleBtn)assembleBtn.onclick=()=>{explodeRange.value=0;applyExplodedView(0)};
+if(isolateBtn)isolateBtn.onclick=()=>{const list=assemblyObjects();if(selected.size!==1)return;const id=[...selected][0];list.forEach(o=>{const on=o.id===id;o.visible=on;o.mesh.visible=on});if(explodeState)explodeState.textContent="Isolated selected part";if(typeof render==="function")render()};
+if(showAllBtn)showAllBtn.onclick=()=>{assemblyObjects().forEach(o=>{o.visible=true;o.mesh.visible=true});applyExplodedView(explodeRange?explodeRange.value:0)};
+document.addEventListener("click",()=>{if(isolateBtn)isolateBtn.disabled=selected.size!==1});
