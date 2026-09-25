@@ -1,0 +1,19 @@
+{
+  "project": "UNG Compact Observation Quad",
+  "revision": "0.2-concept",
+  "mission": "observation_tracking",
+  "prohibited_design_intent": ["collision", "capture", "disable_other_aircraft", "weapon_payload"],
+  "dimensions_mm": {"motor_span": 180, "max_printed_part": 180},
+  "print_parts": [
+    {"name":"main_frame","file":"observation_quad.scad","quantity":1,"part_selector":1},
+    {"name":"center_bumper","file":"observation_quad.scad","quantity":1,"part_selector":2,"optional":true},
+    {"name":"prop_guard","file":"prop_guard.scad","quantity":4,"optional":true}
+  ],
+  "electronics_interfaces": {
+    "flight_controller_pattern_mm":"20x20",
+    "motor_mount":"VERIFY_AFTER_MOTOR_SELECTION",
+    "battery":"VERIFY_AFTER_POWERTRAIN_SELECTION",
+    "camera":"VERIFY_AFTER_CAMERA_SELECTION"
+  },
+  "flight_safety":["geofence","return_to_home","position_hold","separation_aware_following"]
+}
