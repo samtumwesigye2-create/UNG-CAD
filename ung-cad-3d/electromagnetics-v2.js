@@ -18,6 +18,17 @@ function analyticalField(input){
  const mu0=4*Math.PI*1e-7,H=N*I/path,B=mu0*muR*H,flux=B*area;
  return {model:'analytical-magnetic-circuit',H_a_per_m:H,B_t:B,flux_wb:flux,assumptions:['uniform core path','linear permeability','no fringing/leakage','not FEA']};
 }
+function windingModel(x){
+ const n1=Math.max(1,+x.n1||100),n2=Math.max(1,+x.n2||50),a=Math.max(.01,+x.wire_mm2||.82),turn=Math.max(1,+x.turn_mm||180)/1000,rho=1.724e-8;
+ const r1=rho*n1*turn/(a*1e-6),r2=rho*n2*turn/(a*1e-6),lm=Math.max(1e-9,(4*Math.PI*1e-7)*(+x.mu_r||1)*n1*n1*(+x.area_m2||4e-4)/Math.max(+x.path_m||.25,1e-6));
+ const leakage=lm*.03,cap_pf=(n1+n2)*.35;
+ return {r1_ohm:r1,r2_ohm:r2,lm_h:lm,leakage_h:leakage,parasitic_pf:cap_pf,layers1:Math.ceil(n1/20),layers2:Math.ceil(n2/20)};
+}
+function transientThermal(x){
+ const v=+x.v||120,r=Math.max(+x.r||1,.001),lm=Math.max(+x.lm||.1,1e-9),t=Math.max(+x.t||.02,0),tau=lm/r,i=v/r*(1-Math.exp(-t/tau)),loss=i*i*r,core=+x.core_loss||0,tr=Math.max(+x.thermal_r||8,0);
+ return {tau_s:tau,inrush_proxy_a:i,copper_w:loss,total_w:loss+core,temp_rise_c:(loss+core)*tr,model:'first-order RL + lumped thermal'};
+}
+function drc(x){const issues=[];if(x.b_t>x.b_limit)issues.push('flux density over entered limit');if(x.current_density>4)issues.push('current density above 4 A/mm² baseline');if(x.fill>x.fill_limit)issues.push('winding fill over material baseline');if(x.temp_c>130)issues.push('estimated temperature above 130°C baseline');return {pass:issues.length===0,issues,advisory:true}}
 function optimize(input){
  const vin=Number(input.vin||120),vout=Number(input.vout||12),f=Math.max(Number(input.frequency_hz||60),1),area=Math.max(Number(input.core_area_m2||4e-4),1e-9),b=Math.max(Number(input.bmax_t||1.2),.01);
  const n1=Math.ceil(vin/(4.44*f*b*area)),n2=Math.max(1,Math.round(n1*vout/vin));
@@ -34,5 +45,5 @@ function runLive(){
 }
 function open(){const p=document.getElementById('em-v2-panel');if(!p)return;p.style.display=p.style.display==='none'?'block':'none';p.innerHTML='<strong>Electromagnetics V2</strong><button id="em-v2-run">Run Field + Optimize</button><div id="em-v2-output" class="gate"><span class="muted">Ready.</span></div>'+FEATURES.map(x=>'<div class="obj"><b>'+x[1]+'</b><br><span class="muted">'+x[2]+'</span></div>').join('')+'<div class="muted">High-fidelity FEA and standards compliance require validated external solver/material/standards data.</div>';document.getElementById('em-v2-run')?.addEventListener('click',runLive)}
 document.addEventListener('DOMContentLoaded',()=>document.getElementById('em-v2-btn')?.addEventListener('click',open));
-window.UNGElectromagneticsV2={state,features:FEATURES,open,runLive,analyticalField,optimize};
+window.UNGElectromagneticsV2={state,features:FEATURES,open,runLive,analyticalField,optimize,windingModel,transientThermal,drc};
 })();
