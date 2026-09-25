@@ -47,6 +47,7 @@ body.embedded{display:block}.embedded header,.embedded #panel,.embedded #right{d
 <h3>Scene</h3><input id="scene-name" value="Untitled scene"><button id="save-btn">Save</button><div id="saved-list"></div><div id="status" class="status"></div></aside>
 <main id="viewport"><div class="viewbar"><button data-view="iso">ISO</button><button data-view="top">TOP</button><button data-view="front">FRONT</button><button data-view="side">SIDE</button><button id="fit-btn">FIT</button><button id="wireframe-btn">WIRE</button></div><div id="loading">Computing…</div></main>
 <aside id="right"><h3 style="border-top:0;padding-top:0">Objects</h3><div id="object-list"></div><h3>Geometry Integrity</h3><div class="gate"><div id="integrity-badge" class="gate-badge gate-empty">NO MODEL</div><div id="integrity-summary" class="muted">Create or import geometry to validate it.</div><div id="integrity-topology" class="muted">Topology —</div><div id="integrity-envelope" class="muted">Envelope —</div><div id="integrity-manufacturing" class="muted">Manufacturing —</div><select id="integrity-units"><option value="mm">mm</option><option value="in">in</option></select><button id="integrity-run" class="compact">Run Integrity Check</button></div><h3>Data Twin</h3><div class="obj" id="twin-name">No object selected</div><div class="muted" id="twin-id">PART —</div><div class="muted" id="twin-geometry">Geometry —</div><div class="muted" id="twin-position">Position —</div><div class="muted" id="twin-links">Links —</div><button id="twin-open-btn" disabled>Open Data Twin</button></aside>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="./csg-engine.js"></script>
 <script src="./ung-geometry-integration.js"></script>\n<script src="./electromagnetics.js"></script>
 <script type="importmap">{"imports":{"three":"https://esm.sh/three@0.140.0"}}</script>
@@ -59,6 +60,6 @@ body.embedded{display:block}.embedded header,.embedded #panel,.embedded #right{d
   setTimeout(()=>{if(!window.__ungViewerStarted&&v){v.style.background='#111827';if(s)s.textContent='3D module blocked before startup — external module loading failed';}},4000);
 })();
 </script>
-<script type="module" src="./viewer.js?v=em-v2-complete"></script>
+<script type="module" src="./viewer.js?v=zip-import-1"></script>
 <script>document.querySelectorAll('#extrude-ui,#revolve-ui,#loft-ui,#sweep-ui,#fillet-ui,#chamfer-ui,#shell-ui').forEach(b=>b.onclick=()=>{document.getElementById('status').textContent=b.textContent+' tool is being restored to the production geometry engine.'})</script>
 <script>document.getElementById("em-export-btn")?.addEventListener("click",()=>{if(!window.__ungLastEM){document.getElementById("status").textContent="Calculate transformer first.";return}try{const r=window.UNGElectromagneticsManufacturing.handoff(window.__ungLastEM);document.getElementById("status").textContent="Generated "+r.name+" for manufacturing validation."}catch(e){document.getElementById("status").textContent="Bobbin generation failed: "+e.message}});</script><script src="./electromagnetics-v2.js"></script></body></html>
