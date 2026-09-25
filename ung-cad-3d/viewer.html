@@ -23,6 +23,9 @@ input,select{width:100%;height:38px;border:1px solid #354150;border-radius:8px;b
 <div class="field"><label>Power factor</label><input id="em-pf" type="number" min="0" max="1" step=".01" value=".9"></div>
 <div class="field"><label>Phase resistance (Ω)</label><input id="em-resistance" type="number" min="0" step=".01" value="1"></div>
 <button id="em-calc" class="compact">Calculate 3-Phase</button>
+<div class="field"><label>Selected CAD part role</label><select id="em-role"><option value="stator">Stator</option><option value="rotor">Rotor</option><option value="winding">Winding</option></select></div>
+<button id="em-bind" class="compact">Bind Selected Part</button>
+<div id="em-bindings" class="muted">No electromechanical parts bound</div>
 <div id="em-result" class="muted">Electrical model — not calculated</div>
 <h3>Feature Timeline</h3><div id="feature-timeline" class="muted">No features yet</div><h3>Features</h3><button class="compact" id="extrude-ui">Extrude</button><button class="compact" id="revolve-ui">Revolve</button><button class="compact" id="loft-ui">Loft</button><button class="compact" id="sweep-ui">Sweep</button><button class="compact" id="fillet-ui">Fillet</button><button class="compact" id="chamfer-ui">Chamfer</button><button class="compact" id="shell-ui">Shell</button>
 <h3>Boolean</h3><button data-op="union">Union</button><button data-op="subtract">Subtract</button><button data-op="intersect">Intersect</button>
