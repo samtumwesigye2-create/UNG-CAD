@@ -1,0 +1,9 @@
+{
+  "schema":"ung-electromagnetics-materials-v1",
+  "notice":"Generic engineering baselines only. Replace with manufacturer curve data for production validation.",
+  "materials":[
+    {"id":"silicon_steel","name":"Generic silicon steel","relative_permeability":4000,"nominal_saturation_t":1.6,"recommended_window_fill":0.42},
+    {"id":"ferrite","name":"Generic MnZn ferrite","relative_permeability":2000,"nominal_saturation_t":0.40,"recommended_window_fill":0.38},
+    {"id":"custom","name":"Custom / unknown","relative_permeability":null,"nominal_saturation_t":null,"recommended_window_fill":0.35}
+  ]
+}
