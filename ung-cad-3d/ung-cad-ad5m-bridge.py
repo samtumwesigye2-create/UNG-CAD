@@ -34,7 +34,7 @@ async def connect(check_code):
         STATE["check_code"]=check_code
         return STATE["printer"]
 
-async def print_file(path, level=True):
+async def print_file(path, level=True, job_id=None):
     if not STATE["check_code"]: raise RuntimeError("Pair printer first")
     found=await PrinterDiscovery().discover()
     serial=STATE["printer"]["serial"]
@@ -54,6 +54,21 @@ async def print_file(path, level=True):
         state=str(getattr(verify,"machine_state","unknown"))
         if "READY" in state.upper() or "IDLE" in state.upper():
             raise RuntimeError("Printer accepted the command but remained idle; print did not start")
+        misses=0
+        while True:
+            await asyncio.sleep(8)
+            try:
+                st=await c.get_printer_status(); misses=0
+            except Exception:
+                misses+=1
+                if misses>=5: break
+                continue
+            if not st: continue
+            cur_state=str(getattr(st,"machine_state","unknown"))
+            try:
+                cloud_json("/api/bridge/progress","POST",{"printer_id":PRINTER_ID,"job_id":job_id,"current_layer":getattr(st,"current_print_layer",None),"total_layers":getattr(st,"total_print_layers",None),"percent":round(getattr(st,"print_progress",0.0)*100,1),"machine_state":cur_state})
+            except Exception as e: print("Progress report failed:",e)
+            if "READY" in cur_state.upper() or "IDLE" in cur_state.upper() or "ERROR" in cur_state.upper(): break
         return {"started":True,"file":Path(path).name,"mode":"upload_then_explicit_start","printer_state":state}
 
 
@@ -94,7 +109,7 @@ def cloud_worker():
                 fd,path=tempfile.mkstemp(prefix="ungcad_cloud_",suffix=Path(j["machine_file"]).suffix); os.close(fd)
                 try:
                     urllib.request.urlretrieve(CLOUD+j["download"],path)
-                    result=asyncio.run(print_file(path,True))
+                    result=asyncio.run(print_file(path,True,j["id"]))
                     cloud_json("/api/bridge/jobs/"+j["id"]+"/complete","POST",{"ok":True,"result":result})
                 except Exception as e:
                     cloud_json("/api/bridge/jobs/"+j["id"]+"/complete","POST",{"ok":False,"error":str(e)})
