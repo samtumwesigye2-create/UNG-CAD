@@ -104,12 +104,35 @@ module amg8833_tray(){
  sensor_tray(amg_pcb_w,amg_pcb_d+4,amg_pcb_h,0,18,18);
 }
 
+
+// Provisional DC-DC cradle. No mounting-hole coordinates are assumed.
+// The board drops into the pocket; low corner stops constrain XY while leaving
+// the display, inductor, capacitors and terminal blocks unobstructed.
+dc_w=39; dc_l=66; dc_h=18; dc_clear=0.8;
+module dc_dc_cradle(){
+ difference(){
+  cube([dc_w+2*wall+2*dc_clear,dc_l+2*wall+2*dc_clear,4],center=true);
+  translate([0,0,1.5]) cube([dc_w+2*dc_clear,dc_l+2*dc_clear,5],center=true);
+ }
+ for(x=[-(dc_w/2+dc_clear+wall/2),(dc_w/2+dc_clear+wall/2)])
+  for(y=[-(dc_l/2+dc_clear+wall/2),(dc_l/2+dc_clear+wall/2)])
+   translate([x,y,4]) cube([wall,wall,8],center=true);
+}
+
+// C4001 SEN0610 retention uses the verified 22 x 30 mm board envelope.
+// Side clips avoid assuming unverified mounting-hole locations.
+module c4001_sen0610_retention(){
+ sensor_tray(22,8,30,20);
+ for(x=[-12.2,12.2])
+   translate([x,2,0]) cube([2.4,8,10],center=true);
+}
+
 // C4001 comes in multiple carrier versions. DFRobot SEN0609 is 26 x 30 mm;
 // Gravity SEN0610 is 22 x 30 mm. Select the actual owned carrier before manufacturing.
 c4001_variant="SEN0610"; // selected DRACO carrier: 22 x 30 mm
 module c4001_tray(){
  if(c4001_variant=="SEN0609") sensor_tray(26,8,30,22);
- else if(c4001_variant=="SEN0610") sensor_tray(22,8,30,20);
+ else if(c4001_variant=="SEN0610") c4001_sen0610_retention();
  else echo("BLOCKED: select verified C4001 carrier SEN0609 or SEN0610 before manufacturing export");
 }
 
@@ -153,8 +176,8 @@ module base_electronics_layout(){
  // leave connector-edge access and cooling clearance above the board
  translate([-10,-34,18]) cube([rpi5_w+8,18,18],center=true);
  // XL4015/LM2596-style DC-DC converter provisional envelope: 66 x 39 x 18 mm.
- // Add fit allowance around the board; exact owned-board measurement remains a final verification item.
- translate([16,10,10]) cube([66+2*fit,39+2*fit,3],center=true);
+ // Retained by a perimeter cradle instead of invented screw-hole coordinates.
+ translate([16,10,5]) dc_dc_cradle();
  // rear port cable corridor: thermal Micro USB / camera USB-C / radar USB-C / Pi 5 Ethernet
  translate([0,-35,18]) cube([88,20,10],center=true);
  // protected vertical harness route to head
@@ -211,7 +234,12 @@ module mechanical_preflight(){
  assert(abs(camera_port_x-thermal_port_x)>=18,"BLOCKED: thermal/camera ports too close");
  assert(abs(radar_port_x-camera_port_x)>=18,"BLOCKED: camera/radar ports too close");
  assert(abs(ethernet_port_x-radar_port_x)>=18,"BLOCKED: radar/Ethernet ports too close");
- echo("PASS: outer envelope, sensor ordering and connector spacing");
+ assert(dc_w+2*dc_clear+2*wall < 94,"BLOCKED: DC-DC cradle exceeds base inner diameter");
+ assert(dc_l+2*dc_clear+2*wall < 94,"BLOCKED: DC-DC cradle exceeds base inner diameter");
+ assert(dc_h+6 < 57,"BLOCKED: DC-DC component height exceeds base internal height");
+ assert(22+2*fit+4 < 84,"BLOCKED: C4001 tray exceeds head internal width");
+ assert(30+3 < 86,"BLOCKED: C4001 tray exceeds head internal height");
+ echo("PASS: envelope, sensor order, connector spacing, DC-DC cradle envelope and C4001 tray envelope");
  echo("PROVISIONAL: DC-DC envelope 66 x 39 x 18 mm; terminal height still requires physical verification");
  echo("LOCKED: C4001 SEN0610 carrier 22 x 30 mm");
 }
