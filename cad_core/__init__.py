@@ -14,3 +14,5 @@ from .surfaces_of_revolution import GabrielHornAnalysis, gabriel_radius, analyze
 from .electrical import ohms_law, dc_power, energy_joules, conductor_resistance, series_resistance, parallel_resistance, series_capacitance, parallel_capacitance, series_inductance, parallel_inductance, series_rlc, resonance_hz, ideal_transformer, capacitor_energy, inductor_energy, RLCResult, TransformerResult
 
 from .electrical_binding import ElectricalMaterial, ConductorGeometry, ElectricalBinding, ElectricalBindingRegistry, COPPER, ALUMINUM
+
+from .engineering_dependencies import EngineeringState, EngineeringResult, EngineeringDependencyEngine
