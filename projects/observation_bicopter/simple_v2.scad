@@ -23,22 +23,26 @@ module body(){
 }
 
 module arm(){
+ // Single 2D profile extruded once: avoids coplanar union seams.
  difference(){
-  union(){
-   translate([0,-arm_w/2,0]) cube([arm_l,arm_w,arm_t]);
-   translate([arm_l,0,0]) cylinder(d=motor_pad,h=arm_t);
-  }
+  linear_extrude(height=arm_t)
+   union(){
+    translate([0,-arm_w/2]) square([arm_l,arm_w]);
+    translate([arm_l,0]) circle(d=motor_pad);
+   }
+
+  // All cutters deliberately overrun Z faces.
   translate([7,0,-1]) cylinder(d=3.4,h=arm_t+2);
   translate([arm_l,0,-1]) cylinder(d=4,h=arm_t+2);
-  translate([arm_l,0,-1])
-   for(x=[-motor_mount/2,motor_mount/2],y=[-motor_mount/2,motor_mount/2])
-    translate([x,y,0]) cylinder(d=motor_screw,h=arm_t+2);
-  // EMAX ES09MD-class servo pocket. Keep all cuts separated from
-  // the motor pad transition to avoid coincident/non-manifold edges.
-  translate([arm_l-38,-servo_y/2,-1]) cube([servo_x,servo_y,arm_t+2]);
-  // horn sweep clearance, intentionally separated from pocket/pad edges
-  translate([arm_l-20,0,-1]) cylinder(d=horn_clear_d,h=arm_t+2);
-  // M2 linkage anchor moved into solid motor-pad material
+  for(x=[-motor_mount/2,motor_mount/2],y=[-motor_mount/2,motor_mount/2])
+   translate([arm_l+x,y,-1]) cylinder(d=motor_screw,h=arm_t+2);
+
+  // Servo pocket kept wholly inside the rectangular arm section.
+  translate([arm_l-40,-servo_y/2,-1])
+   cube([servo_x,servo_y,arm_t+2]);
+
+  // Horn clearance and linkage hole are independent through-cuts.
+  translate([arm_l-18,0,-1]) cylinder(d=horn_clear_d,h=arm_t+2);
   translate([arm_l-7,0,-1]) cylinder(d=link_hole,h=arm_t+2);
  }
 }
