@@ -42,11 +42,13 @@ module head_rear_shell(){
 module front_faceplate(){
  difference(){
   hull(){for(x=[-31,31]) for(z=[12,78]) translate([x,0,z]) rotate([90,0,0]) cylinder(h=3,r=10,center=true);}
-  // openings deliberately parameterized; replace with verified hardware dimensions before release
-  translate([0,0,70]) cube([24,8,22],center=true); // AMG8833 window zone
-  translate([0,0,45]) rotate([90,0,0]) cylinder(h=8,d=18,center=true); // Camera Module 3 lens
-  translate([0,0,20]) rotate([90,0,0]) cylinder(h=8,d=24,center=true); // C4001 sensing aperture
+  // Apertures share the exact tray centerlines.
+  translate([0,0,thermal_z]) cube([18,8,18],center=true);
+  translate([0,0,camera_z]) rotate([90,0,0]) cylinder(h=8,d=camera_lens_clearance_d,center=true);
+  translate([0,0,radar_z]) rotate([90,0,0]) cylinder(h=8,d=(c4001_variant=="SEN0609"?22:20),center=true);
  }
+ // faceplate registration pins into rear shell
+ for(x=[-30,30]) for(z=[12,78]) translate([x,2,z]) rotate([90,0,0]) cylinder(h=5,d=3.2,center=true);
 }
 
 module side_cover(side=1){
@@ -64,9 +66,12 @@ module sensor_tray(width,depth,height,aperture_d=0,aperture_w=0,aperture_h=0){
   if(aperture_d>0) rotate([90,0,0]) cylinder(h=depth+12,d=aperture_d,center=true);
   if(aperture_w>0&&aperture_h>0) cube([aperture_w,depth+12,aperture_h],center=true);
  }
- // four corner retainers; no fabricated screw-hole coordinates
+ // four corner retainers; no fabricated board screw-hole coordinates
  for(x=[-width/2,width/2]) for(z=[-height/2,height/2])
    translate([x,0,z]) cube([2.2,depth+2*fit+2,2.2],center=true);
+ // simple rear spring latch + front stop: tray slides out only after latch release
+ translate([0,depth/2+fit+1,height/2]) cube([10,2,2],center=true);
+ translate([0,-depth/2-fit-1,-height/2]) cube([width+2,2,2],center=true);
 }
 
 // Camera Module 3 NoIR tray.
