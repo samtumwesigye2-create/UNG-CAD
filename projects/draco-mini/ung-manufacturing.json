@@ -1,7 +1,11 @@
 {
   "format": "ung-cad-manufacturing/v1",
   "project": "DRACO-Mini Gen-1",
-  "envelope_mm": {"x": 110, "y": 110, "z": 135},
+  "envelope_mm": {
+    "x": 110,
+    "y": 110,
+    "z": 135
+  },
   "fit_clearance_mm": 0.35,
   "windowless_camera_aperture": true,
   "screwless_external_enclosure": true,
@@ -15,25 +19,75 @@
   "electronics": {
     "compute": {
       "name": "Raspberry Pi Zero 2 W",
-      "envelope_mm": [65, 30]
+      "envelope_mm": [
+        65,
+        30
+      ]
     },
     "camera": {
       "name": "Raspberry Pi Camera Module 3 NoIR",
-      "envelope_mm": [25, 24, 11.5]
+      "envelope_mm": [
+        25,
+        24,
+        11.5
+      ]
     },
     "servos": {
       "class": "MG90S",
       "quantity": 2,
-      "nominal_envelope_mm": [22.8, 12.2, 28.5]
+      "nominal_envelope_mm": [
+        22.8,
+        12.2,
+        28.5
+      ]
     }
   },
   "assembly": {
     "external_fasteners": 0,
-    "joining_methods": ["keyed_slide_rails", "snap_fits", "bayonet_twist_locks"],
+    "joining_methods": [
+      "keyed_slide_rails",
+      "snap_fits",
+      "bayonet_twist_locks"
+    ],
     "electronics_cartridge_removable": true
   },
   "validation": {
     "fit_coupon_required_before_full_print": true,
-    "production_geometry_status": "pending_fit_validation"
+    "production_geometry_status": "cad_complete_physical_fit_coupon_pending",
+    "checks": [
+      "three_sensor_bay_alignment",
+      "sensor_retention",
+      "harness_routing",
+      "electronics_cartridge_alignment",
+      "part_envelope",
+      "wall_thickness"
+    ]
+  },
+  "design_revision": "three_sensor_retained_bay",
+  "sensor_architecture": {
+    "quantity": 3,
+    "bay_pitch_mm": 29,
+    "retention": [
+      "bottom_ledge",
+      "side_rails",
+      "snap_tabs"
+    ],
+    "harness_channel_mm": [
+      7,
+      5
+    ],
+    "independent_harness_lanes": true
+  },
+  "print_validation": {
+    "max_part_envelope_mm": [
+      110,
+      110,
+      135
+    ],
+    "user_part_limit_mm": 215,
+    "within_user_part_limit": true,
+    "min_structural_wall_mm": 2.4,
+    "nominal_fit_clearance_mm": 0.35,
+    "retention_tab_mm": 1.6
   }
 }
