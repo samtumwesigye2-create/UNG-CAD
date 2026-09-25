@@ -135,12 +135,15 @@ module head_internal_layout(){
 // Base electronics zones updated from user's actual hardware photos.
 // Controller is Raspberry Pi Pico 2 W with pre-soldered headers.
 // Power module is the photographed adjustable DC-DC board; exact board envelope still requires scale verification.
-pico2w_w=21; pico2w_l=51; // nominal Pico family board envelope
+// User's latest hardware photo shows a Raspberry Pi 5 as the main controller.
+rpi5_w=56; rpi5_l=85;
 module base_electronics_layout(){
- // Pico 2 W pocket; extra lateral clearance accommodates installed header pins.
- translate([-24,8,10]) cube([pico2w_w+6,pico2w_l+2,3],center=true);
+ // Raspberry Pi 5 pocket. Envelope follows official Raspberry Pi mechanical drawing.
+ translate([-10,4,10]) cube([rpi5_w+4,rpi5_l+4,3],center=true);
+ // leave connector-edge access and cooling clearance above the board
+ translate([-10,-34,18]) cube([rpi5_w+8,18,18],center=true);
  // photographed DC-DC converter zone; intentionally generous until measured
- translate([22,12,10]) cube([34,54,3],center=true);
+ translate([30,12,10]) cube([34,54,3],center=true);
  // rear port cable corridor: power USB-C / data USB-C / Ethernet
  translate([0,-35,18]) cube([76,20,10],center=true);
  // protected vertical harness route to head
@@ -160,9 +163,10 @@ module manufacturing_truth_check(){
  if(c4001_variant!="SEN0609" && c4001_variant!="SEN0610")
    echo("BLOCKED: C4001 carrier variant unresolved");
  echo("BLOCKED UNTIL VERIFIED: Camera Module 3 NoIR owned-board envelope/mounting geometry");
- echo("VERIFIED IDENTITY: Raspberry Pi Pico 2 W controller with pre-soldered headers");
+ echo("VERIFIED IDENTITY: Raspberry Pi 5 main controller");
+ echo("VERIFIED INTERFACE: onboard Raspberry Pi 5 Ethernet port replaces need for a separate Ethernet module");
  echo("BLOCKED UNTIL VERIFIED: photographed DC-DC converter exact envelope and connector heights");
- echo("BLOCKED UNTIL VERIFIED: Ethernet hardware is not visible in supplied photos");
+
 }
 
 module printable_part(part=1){
