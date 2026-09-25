@@ -50,6 +50,6 @@ input,select{width:100%;height:38px;border:1px solid #354150;border-radius:8px;b
   <button id="integrity-run" class="compact" type="button">Run Integrity Check</button>
 </div>
 <h3>Data Twin</h3><div class="obj" id="twin-name">No object selected</div><div class="muted" id="twin-id">PART —</div><div class="muted" id="twin-geometry">Geometry —</div><div class="muted" id="twin-position">Position —</div><div class="muted" id="twin-links">Links —</div><button id="twin-open-btn" disabled>Open Data Twin</button></aside>
-<script src="/static/csg-engine.js"></script><script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.140.0/build/three.module.js"}}</script><script type="module" src="/static/viewer.js"></script>
+<script src="./static/csg-engine.js"></script><script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.140.0/build/three.module.js"}}</script><script type="module" src="./static/viewer.js"></script>
 <script>document.querySelectorAll('#extrude-ui,#revolve-ui,#loft-ui,#sweep-ui,#fillet-ui,#chamfer-ui,#shell-ui').forEach(b=>b.onclick=()=>{document.getElementById('status').textContent=b.textContent+' tool is being restored to the production geometry engine.'})</script>
 </body></html>
