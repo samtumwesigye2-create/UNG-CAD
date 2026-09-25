@@ -47,6 +47,7 @@ function calculateThreePhase(){const c=document.getElementById('em-connection').
 function evaluateStudioReleaseGate(){
  const polys=[];objects.filter(o=>o.visible).forEach(o=>polys.push(...o.polygons));
  const topo=polys.length?inspectPolygons(polys):null;
+ const checks=[['Feature',objects.length>0],['Topology',!!topo&&topo.watertight],['Dimensions',objects.length>0],['Tolerance',false],['Assembly',false],['Manufacturability',!!topo&&topo.watertight],['Machine envelope',false],['Toolpath',false]];
  const evidence=[
   {name:'Feature',source:'Studio feature/object state',evaluated:true,passed:objects.length>0},
   {name:'Topology',source:'UNG-GEOMETRY mesh integrity',evaluated:!!topo,passed:topo?topo.watertight:null},
