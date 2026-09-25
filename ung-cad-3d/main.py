@@ -18,7 +18,7 @@ def init_db():
     c=get_connection()
     c.execute("CREATE TABLE IF NOT EXISTS scenes (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,data_json TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS print_jobs (id TEXT PRIMARY KEY, printer_id TEXT NOT NULL, machine_file TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, claimed_at TEXT, completed_at TEXT, result_json TEXT)")
-    c.execute("CREATE TABLE IF NOT EXISTS bridge_status (printer_id TEXT PRIMARY KEY, last_seen TEXT NOT NULL, version TEXT, printer_json TEXT, error TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS bridge_status (printer_id TEXT PRIMARY KEY, last_seen TEXT NOT NULL, version TEXT, printer_json TEXT, error TEXT)")\n    c.execute("CREATE TABLE IF NOT EXISTS print_progress (printer_id TEXT PRIMARY KEY, job_id TEXT, current_layer INTEGER, total_layers INTEGER, percent REAL, machine_state TEXT, updated_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS machines (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,kind TEXT NOT NULL,connection_type TEXT NOT NULL,config_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS jobs (id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,source_name TEXT NOT NULL,machine_file TEXT,status TEXT NOT NULL,error_message TEXT,stats_json TEXT,submitted_by TEXT,created_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS api_keys (id INTEGER PRIMARY KEY AUTOINCREMENT,key TEXT NOT NULL UNIQUE,owner_system TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL)")
@@ -337,6 +337,28 @@ class BridgeResult(BaseModel):
 def bridge_complete(job_id:str, body:BridgeResult):
     c=get_connection(); status="completed" if body.ok else "failed"; result=body.result or {"error":body.error}
     c.execute("UPDATE print_jobs SET status=?,completed_at=?,result_json=? WHERE id=?",(status,now_iso(),json.dumps(result),job_id)); c.commit(); c.close(); return {"ok":True,"status":status}
+
+class BridgeProgress(BaseModel):
+    printer_id:str
+    job_id:str|None=None
+    current_layer:int|None=None
+    total_layers:int|None=None
+    percent:float|None=None
+    machine_state:str|None=None
+
+@app.post("/api/bridge/progress")
+def bridge_progress(body:BridgeProgress):
+    c=get_connection()
+    c.execute("INSERT INTO print_progress (printer_id,job_id,current_layer,total_layers,percent,machine_state,updated_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(printer_id) DO UPDATE SET job_id=excluded.job_id,current_layer=excluded.current_layer,total_layers=excluded.total_layers,percent=excluded.percent,machine_state=excluded.machine_state,updated_at=excluded.updated_at",(body.printer_id,body.job_id,body.current_layer,body.total_layers,body.percent,body.machine_state,now_iso()))
+    c.commit(); c.close(); return {"ok":True}
+
+@app.get("/api/manufacturing/print-progress")
+def manufacturing_print_progress(printer_id:str="a51a5435"):
+    aliases={"SNMTUF9100669","a51a5435"}; ids=aliases if printer_id in aliases else {printer_id}; marks=",".join("?" for _ in ids)
+    c=get_connection(); row=c.execute(f"SELECT * FROM print_progress WHERE printer_id IN ({marks})",[*ids]).fetchone(); c.close()
+    if not row: return {"printing":False,"reason":"no progress reported yet"}
+    r=dict(row); age=(datetime.now(timezone.utc)-datetime.fromisoformat(r["updated_at"])).total_seconds()
+    return {"printing":age<30 and r["machine_state"] not in (None,"READY","IDLE"),"stale":age>=30,"age_seconds":round(age,1),**{k:r[k] for k in ("job_id","current_layer","total_layers","percent","machine_state","updated_at")}}
 
 @app.get("/api/manufacturing/health")
 def manufacturing_health():
