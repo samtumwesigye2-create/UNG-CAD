@@ -29,6 +29,10 @@ function transientThermal(x){
  return {tau_s:tau,inrush_proxy_a:i,copper_w:loss,total_w:loss+core,temp_rise_c:(loss+core)*tr,model:'first-order RL + lumped thermal'};
 }
 function drc(x){const issues=[];if(x.b_t>x.b_limit)issues.push('flux density over entered limit');if(x.current_density>4)issues.push('current density above 4 A/mm² baseline');if(x.fill>x.fill_limit)issues.push('winding fill over material baseline');if(x.temp_c>130)issues.push('estimated temperature above 130°C baseline');return {pass:issues.length===0,issues,advisory:true}}
+function tradeStudy(cases){return (cases||[]).map((x,i)=>({id:x.id||'case-'+(i+1),loss_w:+x.loss_w||0,temp_c:+x.temp_c||0,mass_g:+x.mass_g||0,size_cm3:+x.size_cm3||0,material_cost:+x.material_cost||0}))}
+function validateMeasured(predicted,measured){const keys=['voltage','current','temperature'];const error={};for(const k of keys){if(Number.isFinite(+predicted?.[k])&&Number.isFinite(+measured?.[k]))error[k]=+measured[k]-+predicted[k]}return {predicted,measured,error,timestamp:new Date().toISOString()}}
+function deviceModel(type,x={}){const N=Math.max(1,+x.turns||100),I=+x.current_a||1,L=Math.max(+x.inductance_h||.01,1e-9);switch(type){case'inductor':return{type,L_h:L,energy_j:.5*L*I*I};case'solenoid':case'relay':case'electromagnet':return{type,ampere_turns:N*I};case'wpt':return{type,primary_turns:N,coupling:+x.coupling||.2};case'motor':case'generator':return{type,poles:+x.poles||4,turns:N,model:'electromagnetic device scaffold'};default:return{type:'unknown'}}}
+function manufacturingPlan(type,x={}){return{device:type,geometry:['coil former','mounting envelope','winding clearance'],validation:['topology','electrical DRC','thermal estimate'],handoff:'UNG-GEOMETRY -> Manufacturing',parameters:x}}
 function optimize(input){
  const vin=Number(input.vin||120),vout=Number(input.vout||12),f=Math.max(Number(input.frequency_hz||60),1),area=Math.max(Number(input.core_area_m2||4e-4),1e-9),b=Math.max(Number(input.bmax_t||1.2),.01);
  const n1=Math.ceil(vin/(4.44*f*b*area)),n2=Math.max(1,Math.round(n1*vout/vin));
@@ -45,5 +49,5 @@ function runLive(){
 }
 function open(){const p=document.getElementById('em-v2-panel');if(!p)return;p.style.display=p.style.display==='none'?'block':'none';p.innerHTML='<strong>Electromagnetics V2</strong><button id="em-v2-run">Run Field + Optimize</button><div id="em-v2-output" class="gate"><span class="muted">Ready.</span></div>'+FEATURES.map(x=>'<div class="obj"><b>'+x[1]+'</b><br><span class="muted">'+x[2]+'</span></div>').join('')+'<div class="muted">High-fidelity FEA and standards compliance require validated external solver/material/standards data.</div>';document.getElementById('em-v2-run')?.addEventListener('click',runLive)}
 document.addEventListener('DOMContentLoaded',()=>document.getElementById('em-v2-btn')?.addEventListener('click',open));
-window.UNGElectromagneticsV2={state,features:FEATURES,open,runLive,analyticalField,optimize,windingModel,transientThermal,drc};
+window.UNGElectromagneticsV2={state,features:FEATURES,open,runLive,analyticalField,optimize,windingModel,transientThermal,drc,tradeStudy,validateMeasured,deviceModel,manufacturingPlan};
 })();
