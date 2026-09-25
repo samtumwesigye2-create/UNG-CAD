@@ -39,7 +39,7 @@ input,select{width:100%;height:38px;border:1px solid #354150;border-radius:8px;b
 <aside id="right"><h3 style="border-top:0;padding-top:0">Objects</h3><div id="object-list"></div><h3>Geometry Integrity</h3><div class="gate"><div id="integrity-badge" class="gate-badge gate-empty">NO MODEL</div><div id="integrity-summary" class="muted">Create or import geometry to validate it.</div><div id="integrity-topology" class="muted">Topology —</div><div id="integrity-envelope" class="muted">Envelope —</div><div id="integrity-manufacturing" class="muted">Manufacturing —</div><select id="integrity-units"><option value="mm">mm</option><option value="in">in</option></select><button id="integrity-run" class="compact">Run Integrity Check</button></div><h3>Data Twin</h3><div class="obj" id="twin-name">No object selected</div><div class="muted" id="twin-id">PART —</div><div class="muted" id="twin-geometry">Geometry —</div><div class="muted" id="twin-position">Position —</div><div class="muted" id="twin-links">Links —</div><button id="twin-open-btn" disabled>Open Data Twin</button></aside>
 <script src="./csg-engine.js"></script>
 <script src="./ung-geometry-integration.js"></script>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.140.0/build/three.module.js"}}</script>
+<script type="importmap">{"imports":{"three":"https://esm.sh/three@0.140.0"}}</script>
 <script>
 (function(){
   const s=document.getElementById('status'),v=document.getElementById('viewport');
@@ -49,6 +49,6 @@ input,select{width:100%;height:38px;border:1px solid #354150;border-radius:8px;b
   setTimeout(()=>{if(!window.__ungViewerStarted&&v){v.style.background='#111827';if(s)s.textContent='3D engine did not start — reload once or disable content blockers';}},4000);
 })();
 </script>
-<script type="module" src="./viewer.js?v=95e63e15"></script>
+<script type="module" src="./viewer.js?v=ios-esm-1"></script>
 <script>document.querySelectorAll('#extrude-ui,#revolve-ui,#loft-ui,#sweep-ui,#fillet-ui,#chamfer-ui,#shell-ui').forEach(b=>b.onclick=()=>{document.getElementById('status').textContent=b.textContent+' tool is being restored to the production geometry engine.'})</script>
 </body></html>
