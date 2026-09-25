@@ -1,0 +1,22 @@
+{
+  "design": "UNG Compact Observation Quad Modular V2",
+  "printer": "FlashForge Adventurer 5M",
+  "max_part_mm": 215,
+  "unique_printed_designs": 3,
+  "production": [
+    {"part": "center_plate", "quantity": 1, "supports": false},
+    {"part": "arm", "quantity": 4, "supports": false},
+    {"part": "guard", "quantity": 4, "supports": false, "optional": true}
+  ],
+  "recommended_layer_height_mm": 0.20,
+  "prototype_material": "PLA",
+  "production_material": "PETG",
+  "assembly_fasteners": {
+    "arm_retention": "M3",
+    "motor": "M2"
+  },
+  "motor_interface_mm": [9, 9],
+  "flight_controller_interface_mm": [20, 20],
+  "role": "observation_and_tracking",
+  "physical_interception": false
+}
