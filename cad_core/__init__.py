@@ -16,3 +16,5 @@ from .electrical import ohms_law, dc_power, energy_joules, conductor_resistance,
 from .electrical_binding import ElectricalMaterial, ConductorGeometry, ElectricalBinding, ElectricalBindingRegistry, COPPER, ALUMINUM
 
 from .engineering_dependencies import EngineeringState, EngineeringResult, EngineeringDependencyEngine
+
+from .release_gate import GateState, GateCheck, ReleaseGateResult, evaluate_release_gate
