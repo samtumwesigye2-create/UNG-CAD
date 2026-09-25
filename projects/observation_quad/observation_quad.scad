@@ -7,7 +7,9 @@ plate_d=72;
 plate_t=4;
 arm_w=12;
 motor_pad_d=28;
-motor_hole=9; // generic center clearance; adapt to selected motor before printing
+motor_hole=4; // center relief
+motor_mount=9; // verified 9x9 mm M2 pattern for selected 1404-class motor
+motor_screw=2.2; // M2 print clearance
 
 module arm(a=45){
  rotate([0,0,a]) hull(){
@@ -24,7 +26,12 @@ module frame(){
    cylinder(d=plate_d,h=plate_t);
    for(a=[45,135,225,315]) arm(a);
   }
-  for(a=[45,135,225,315]) motor_cut(a);
+  for(a=[45,135,225,315]) {
+    motor_cut(a);
+    rotate([0,0,a]) translate([span/2-14,0,-1])
+      for(x=[-motor_mount/2,motor_mount/2],y=[-motor_mount/2,motor_mount/2])
+        translate([x,y,0]) cylinder(d=motor_screw,h=plate_t+2);
+  }
   // flight-controller pattern: 20x20 mm, M3 clearance
   for(x=[-10,10],y=[-10,10]) translate([x,y,-1]) cylinder(d=3.4,h=plate_t+2);
   // strap slots
