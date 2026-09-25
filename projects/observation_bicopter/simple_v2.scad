@@ -18,14 +18,42 @@ guard_mount_pitch=12; // two M3 screws prevent guard rotation
 
 module body(){
  difference(){
-  cube([body_x,body_y,body_t],center=true);
-  // 20x20 flight-controller pattern
-  for(x=[-10,10],y=[-10,10]) translate([x,y,-1]) cylinder(d=3.4,h=body_t+2);
-  // battery strap slots
-  for(x=[-25,25]) translate([x-2,-18,-1]) cube([4,36,body_t+2]);
-  // two M3 holes per side for each arm: no single-screw pivot
+  union(){
+   cube([body_x,body_y,body_t],center=true);
+   // raised front sensor deck gives the camera/sensor module a defined seat
+   translate([0,-body_y/2+8,body_t/2+1.5])
+    cube([34,14,3],center=true);
+   // raised GPS deck at rear, away from the power area
+   translate([0,body_y/2-9,body_t/2+1.5])
+    cube([28,16,3],center=true);
+  }
+
+  // CENTER: 20x20 flight-controller mounting pattern
+  for(x=[-10,10],y=[-10,10])
+   translate([x,y,-body_t]) cylinder(d=3.4,h=body_t*3);
+
+  // FRONT SENSOR/CAMERA: 24x10 mm M2 mounting pattern
+  for(x=[-12,12],y=[-5,5])
+   translate([x,-body_y/2+8+y,-body_t])
+    cylinder(d=2.4,h=body_t*3+4);
+
+  // REAR GPS/SENSOR: 20x10 mm M2 mounting pattern
+  for(x=[-10,10],y=[-5,5])
+   translate([x,body_y/2-9+y,-body_t])
+    cylinder(d=2.4,h=body_t*3+4);
+
+  // POWER/BATTERY: two strap slots kept clear of sensor decks
+  for(x=[-25,25])
+   translate([x-2,-10,-body_t]) cube([4,20,body_t*3]);
+
+  // ARM INTERFACES: two M3 holes on each side
   for(side=[-1,1], y=[-body_mount_y/2,body_mount_y/2])
-   translate([side*body_mount_x,y,-1]) cylinder(d=mount_screw,h=body_t+2);
+   translate([side*body_mount_x,y,-body_t])
+    cylinder(d=mount_screw,h=body_t*3);
+
+  // cable pass-throughs: front sensor and rear GPS/power wiring
+  translate([0,-17,-body_t]) cube([10,5,body_t*3],center=true);
+  translate([0,17,-body_t]) cube([10,5,body_t*3],center=true);
  }
 }
 
