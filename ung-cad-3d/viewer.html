@@ -3,53 +3,28 @@
 <style>
 *{box-sizing:border-box}html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#080d14;color:#e7edf6;overflow:hidden}
 body{display:grid;grid-template-rows:64px 1fr;grid-template-columns:210px 1fr 240px}
-header{grid-column:1/4;display:flex;align-items:center;gap:14px;padding:10px 14px;background:#151a22;border-bottom:1px solid #303946;z-index:10}.brand{font-weight:800;letter-spacing:3px;white-space:nowrap}.tabs{display:flex;gap:10px}.tabs button{width:auto;padding:0 16px;background:#202731;border:1px solid #354150;color:#e6ebf2;box-shadow:none;outline:none}.tabs button:hover,.tabs button:focus,.tabs button:active{background:#202731;border-color:#354150;box-shadow:none;outline:none}.tabs button.active,.tabs button.active:hover,.tabs button.active:focus,.tabs button.active:active{background:#29485f;border-color:#18a8ff;color:#fff;box-shadow:inset 0 0 0 1px #18a8ff}
+header{grid-column:1/4;display:flex;align-items:center;gap:14px;padding:10px 14px;background:#151a22;border-bottom:1px solid #303946;z-index:10}.brand{font-weight:800;letter-spacing:3px;white-space:nowrap}.tabs{display:flex;gap:10px}.tabs button{width:auto;padding:0 16px;background:#202731;border:1px solid #354150;color:#e6ebf2;box-shadow:none;outline:none}.tabs button.active{background:#29485f;border-color:#18a8ff;color:#fff}
 aside{background:#151a22;overflow:auto;padding:12px 13px;border-color:#303946}#panel{border-right:1px solid #303946}#right{border-left:1px solid #303946}#viewport{position:relative;min-width:0;background:#080d14}
 h2{font-size:14px;margin:8px 0 14px;letter-spacing:3px;color:#a8b1c0}h3{font-size:12px;margin:16px 0 8px;letter-spacing:3px;color:#929dad;text-transform:uppercase;border-top:1px solid #303946;padding-top:14px}
-button,.tool{width:100%;min-height:48px;margin:5px 0;border:1px solid #354150;border-radius:10px;background:#202731;color:#e6ebf2;font-size:16px;text-align:left;padding:0 13px}button:hover,button:active{border-color:#159df0}.row{display:flex;gap:8px}.row>*{flex:1}.row button{text-align:center;padding:0;min-height:42px;font-size:13px}
+button,.tool{width:100%;min-height:48px;margin:5px 0;border:1px solid #354150;border-radius:10px;background:#202731;color:#e6ebf2;font-size:16px;text-align:left;padding:0 13px}.row{display:flex;gap:8px}.row>*{flex:1}.row button{text-align:center;padding:0;min-height:42px;font-size:13px}
 input,select{width:100%;height:38px;border:1px solid #354150;border-radius:8px;background:#0f151d;color:#e6ebf2;padding:0 9px;margin:3px 0}.field label{font-size:10px;color:#929dad}.muted,.status{font-size:11px;color:#9da8b7}.status{padding:10px 2px}.obj{font-size:11px;padding:8px;background:#202731;border:1px solid #354150;border-radius:7px;margin:4px 0}.obj.sel{border-color:#159df0;background:#263e52}
 #loading{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#080d14cc;z-index:4}.viewbar{position:absolute;left:12px;right:12px;top:10px;display:flex;gap:8px;z-index:3}.viewbar button{width:auto;min-width:72px;min-height:42px;text-align:center;padding:0 12px}
-.compact{min-height:38px;font-size:13px}.buttonlike{display:flex;align-items:center;box-sizing:border-box;width:100%;min-height:54px;padding:0 16px;border:1px solid #475569;border-radius:10px;background:#1f2937;color:#e5e7eb;cursor:pointer}.buttonlike:focus{outline:2px solid #0ea5e9;outline-offset:2px}#import-file{position:absolute;width:1px;height:1px;opacity:.01;pointer-events:none}.gate{border:1px solid #354150;border-radius:9px;padding:10px;background:#101720}.gate-badge{display:inline-block;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:1px}.gate-valid{background:#123c2a;color:#8df0b8}.gate-warning{background:#493b12;color:#ffe28a}.gate-invalid{background:#4c1f25;color:#ffabb4}.gate-empty{background:#29313c;color:#aeb8c6}.danger{color:#ffb2b2}.primary{border-color:#159df0;background:#263e52}
-@media(max-width:760px){body{grid-template-columns:210px minmax(620px,1fr);grid-template-rows:64px 1fr;overflow:auto;min-width:830px}header{grid-column:1/3;position:sticky;left:0;top:0}#right{display:none}#panel{position:sticky;left:0;z-index:5}.brand{font-size:13px}.tabs button{min-height:42px;font-size:14px}.viewbar{left:12px}}
+.compact{min-height:38px;font-size:13px}.buttonlike{display:flex;align-items:center;width:100%;min-height:54px;padding:0 16px;border:1px solid #475569;border-radius:10px;background:#1f2937;color:#e5e7eb;cursor:pointer}#import-file{position:absolute;width:1px;height:1px;opacity:.01;pointer-events:none}.gate{border:1px solid #354150;border-radius:9px;padding:10px;background:#101720}.gate-badge{display:inline-block;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:800}.gate-valid{background:#123c2a;color:#8df0b8}.gate-warning{background:#493b12;color:#ffe28a}.gate-invalid{background:#4c1f25;color:#ffabb4}.gate-empty{background:#29313c;color:#aeb8c6}.danger{color:#ffb2b2}.primary{border-color:#159df0;background:#263e52}
+@media(max-width:760px){body{grid-template-columns:210px minmax(620px,1fr);grid-template-rows:64px 1fr;overflow:auto;min-width:830px}header{grid-column:1/3}#right{display:none}}
 </style></head><body>
-<header><div class="brand">UNG-CAD STUDIO</div><div class="tabs"><button onclick="location.href='/drafting.html'">2D</button><button class="active">3D</button><button id="manufacturing-btn" type="button" onclick="location.href='/manufacturing.html'">Manufacturing</button></div></header>
-<aside id="panel">
-<h2>CREATE</h2>
-<select id="primitive-type"><option value="cube">Box</option><option value="cylinder">Cylinder</option><option value="sphere">Sphere</option></select>
-<div class="row"><input id="size" type="number" value="2" step=".5" title="Size"><input id="height" type="number" value="3" step=".5" title="Height"></div>
-<button id="add-btn" class="primary">Add Shape</button>
-<h3>Transform</h3>
-<input id="rename-input" placeholder="Object name" disabled>
-<div class="row"><input id="pos-x" type="number" step=".1" placeholder="X" disabled><input id="pos-y" type="number" step=".1" placeholder="Y" disabled><input id="pos-z" type="number" step=".1" placeholder="Z" disabled></div>
-<button id="move-btn" disabled>Move</button><button id="duplicate-btn" disabled>Duplicate</button>
-<h3>Parametric Model</h3>
-<div class="field"><label>Width / Diameter</label><input id="param-size" type="number" min=".01" step=".1" value="2"></div>
-<div class="field"><label>Height / Depth</label><input id="param-height" type="number" min=".01" step=".1" value="3"></div>
-<button id="apply-params" class="compact" disabled>Apply Dimensions</button>
-<div id="constraint-state" class="muted">Constraints — select one object</div>
-<h3>Feature Timeline</h3><div id="feature-timeline" class="muted">No features yet</div>
-<h3>Features</h3>
-<button class="compact" id="extrude-ui">Extrude</button><button class="compact" id="revolve-ui">Revolve</button><button class="compact" id="loft-ui">Loft</button><button class="compact" id="sweep-ui">Sweep</button><button class="compact" id="fillet-ui">Fillet</button><button class="compact" id="chamfer-ui">Chamfer</button><button class="compact" id="shell-ui">Shell</button>
-<h3>Boolean</h3>
-<button data-op="union">Union</button><button data-op="subtract">Subtract</button><button data-op="intersect">Intersect</button>
-<h3>File</h3><label id="import-btn" class="buttonlike" for="import-file" role="button" tabindex="0">Import STL</label><input id="import-file" type="file" accept=".stl,model/stl,application/sla,application/octet-stream"><div id="import-name" class="muted">No file selected</div><button id="export-btn">Export STL</button>
-<button id="delete-btn" class="danger" disabled>Delete</button>
-<h3>Scene</h3><input id="scene-name" value="Untitled scene"><button id="save-btn">Save</button><div id="saved-list"></div><div id="status" class="status"></div>
-</aside>
+<header><div class="brand">UNG-CAD STUDIO</div><div class="tabs"><button onclick="location.href='./drafting.html'">2D</button><button class="active">3D</button><button id="manufacturing-btn" type="button">Manufacturing</button></div></header>
+<aside id="panel"><h2>CREATE</h2><select id="primitive-type"><option value="cube">Box</option><option value="cylinder">Cylinder</option><option value="sphere">Sphere</option></select><div class="row"><input id="size" type="number" value="2" step=".5"><input id="height" type="number" value="3" step=".5"></div><button id="add-btn" class="primary">Add Shape</button>
+<h3>Transform</h3><input id="rename-input" placeholder="Object name" disabled><div class="row"><input id="pos-x" type="number" step=".1" placeholder="X" disabled><input id="pos-y" type="number" step=".1" placeholder="Y" disabled><input id="pos-z" type="number" step=".1" placeholder="Z" disabled></div><button id="move-btn" disabled>Move</button><button id="duplicate-btn" disabled>Duplicate</button>
+<h3>Parametric Model</h3><div class="field"><label>Width / Diameter</label><input id="param-size" type="number" min=".01" step=".1" value="2"></div><div class="field"><label>Height / Depth</label><input id="param-height" type="number" min=".01" step=".1" value="3"></div><button id="apply-params" class="compact" disabled>Apply Dimensions</button><div id="constraint-state" class="muted">Constraints — select one object</div>
+<h3>Feature Timeline</h3><div id="feature-timeline" class="muted">No features yet</div><h3>Features</h3><button class="compact" id="extrude-ui">Extrude</button><button class="compact" id="revolve-ui">Revolve</button><button class="compact" id="loft-ui">Loft</button><button class="compact" id="sweep-ui">Sweep</button><button class="compact" id="fillet-ui">Fillet</button><button class="compact" id="chamfer-ui">Chamfer</button><button class="compact" id="shell-ui">Shell</button>
+<h3>Boolean</h3><button data-op="union">Union</button><button data-op="subtract">Subtract</button><button data-op="intersect">Intersect</button>
+<h3>File</h3><label id="import-btn" class="buttonlike" for="import-file">Import STL</label><input id="import-file" type="file" accept=".stl,model/stl,application/sla,application/octet-stream"><div id="import-name" class="muted">No file selected</div><button id="export-btn">Export STL</button><button id="delete-btn" class="danger" disabled>Delete</button>
+<h3>Scene</h3><input id="scene-name" value="Untitled scene"><button id="save-btn">Save</button><div id="saved-list"></div><div id="status" class="status"></div></aside>
 <main id="viewport"><div class="viewbar"><button data-view="iso">ISO</button><button data-view="top">TOP</button><button data-view="front">FRONT</button><button data-view="side">SIDE</button><button id="fit-btn">FIT</button><button id="wireframe-btn">WIRE</button></div><div id="loading">Computing…</div></main>
-<aside id="right"><h3 style="border-top:0;padding-top:0">Objects</h3><div id="object-list"></div>
-<h3>Geometry Integrity</h3>
-<div class="gate">
-  <div id="integrity-badge" class="gate-badge gate-empty">NO MODEL</div>
-  <div id="integrity-summary" class="muted" style="margin-top:8px">Create or import geometry to validate it.</div>
-  <div id="integrity-topology" class="muted" style="margin-top:6px">Topology —</div>
-  <div id="integrity-envelope" class="muted" style="margin-top:6px">Envelope —</div>
-  <div id="integrity-manufacturing" class="muted" style="margin-top:6px">Manufacturing —</div>
-  <label class="muted" for="integrity-units" style="display:block;margin-top:9px">Display units</label>
-  <select id="integrity-units"><option value="mm">mm</option><option value="in">in</option></select>
-  <button id="integrity-run" class="compact" type="button">Run Integrity Check</button>
-</div>
-<h3>Data Twin</h3><div class="obj" id="twin-name">No object selected</div><div class="muted" id="twin-id">PART —</div><div class="muted" id="twin-geometry">Geometry —</div><div class="muted" id="twin-position">Position —</div><div class="muted" id="twin-links">Links —</div><button id="twin-open-btn" disabled>Open Data Twin</button></aside>
-<script src="./static/csg-engine.js"></script><script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.140.0/build/three.module.js"}}</script><script type="module" src="./static/viewer.js"></script>
+<aside id="right"><h3 style="border-top:0;padding-top:0">Objects</h3><div id="object-list"></div><h3>Geometry Integrity</h3><div class="gate"><div id="integrity-badge" class="gate-badge gate-empty">NO MODEL</div><div id="integrity-summary" class="muted">Create or import geometry to validate it.</div><div id="integrity-topology" class="muted">Topology —</div><div id="integrity-envelope" class="muted">Envelope —</div><div id="integrity-manufacturing" class="muted">Manufacturing —</div><select id="integrity-units"><option value="mm">mm</option><option value="in">in</option></select><button id="integrity-run" class="compact">Run Integrity Check</button></div><h3>Data Twin</h3><div class="obj" id="twin-name">No object selected</div><div class="muted" id="twin-id">PART —</div><div class="muted" id="twin-geometry">Geometry —</div><div class="muted" id="twin-position">Position —</div><div class="muted" id="twin-links">Links —</div><button id="twin-open-btn" disabled>Open Data Twin</button></aside>
+<script src="./csg-engine.js"></script>
+<script src="./ung-geometry-integration.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.140.0/build/three.module.js"}}</script>
+<script type="module" src="./viewer.js"></script>
 <script>document.querySelectorAll('#extrude-ui,#revolve-ui,#loft-ui,#sweep-ui,#fillet-ui,#chamfer-ui,#shell-ui').forEach(b=>b.onclick=()=>{document.getElementById('status').textContent=b.textContent+' tool is being restored to the production geometry engine.'})</script>
 </body></html>
