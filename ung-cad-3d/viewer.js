@@ -82,10 +82,12 @@ window.addEventListener('message',e=>{if(e.origin!==location.origin||e.data?.typ
 const explodeRange=document.getElementById("explode-range"),explodeBtn=document.getElementById("explode-btn"),assembleBtn=document.getElementById("assemble-btn"),isolateBtn=document.getElementById("isolate-btn"),showAllBtn=document.getElementById("show-all-btn"),explodeState=document.getElementById("explode-state");
 function assemblyObjects(){return objects.filter(o=>o&&o.mesh)}
 function rememberAssemblyPositions(){assemblyObjects().forEach(o=>{if(!o.__assembledPosition)o.__assembledPosition={x:o.mesh.position.x,y:o.mesh.position.y,z:o.mesh.position.z}})}
+function assemblyBounds(o){if(!o?.mesh?.geometry)return null;o.mesh.geometry.computeBoundingBox();const b=o.mesh.geometry.boundingBox;if(!b)return null;return {min:b.min.clone().add(o.mesh.position),max:b.max.clone().add(o.mesh.position)}}
+function orderedAssembly(){rememberAssemblyPositions();return assemblyObjects().slice().sort((a,b)=>{const A=assemblyBounds(a),B=assemblyBounds(b);const az=A?(A.min.z+A.max.z)/2:a.__assembledPosition.z,bz=B?(B.min.z+B.max.z)/2:b.__assembledPosition.z;return az-bz||String(a.name).localeCompare(String(b.name))})}
 function applyExplodedView(amount){
-  rememberAssemblyPositions(); const list=assemblyObjects(); const gap=Number(amount||0)*0.12;
-  list.forEach((o,i)=>{const p=o.__assembledPosition;o.mesh.position.set(p.x,p.y,p.z+i*gap);o.visible=true;o.mesh.visible=true});
-  if(explodeState)explodeState.textContent=gap>0?`Exploded inspection — ${list.length} parts · spacing ${gap.toFixed(1)}`:"Assembly view — assembled";
+  rememberAssemblyPositions(); const list=orderedAssembly(); const gap=Number(amount||0)*0.18;
+  list.forEach((o,i)=>{const p=o.__assembledPosition;o.mesh.position.set(p.x,p.y,p.z+i*gap);o.visible=true;o.mesh.visible=true;o.__explodeOrder=i+1});
+  if(explodeState)explodeState.textContent=gap>0?`Exploded inspection — ${list.length} parts · ordered bottom→top · spacing ${gap.toFixed(1)}`:"Assembly view — assembled";
   if(typeof render==="function")render();
 }
 if(explodeRange)explodeRange.oninput=()=>applyExplodedView(explodeRange.value);
@@ -94,3 +96,5 @@ if(assembleBtn)assembleBtn.onclick=()=>{explodeRange.value=0;applyExplodedView(0
 if(isolateBtn)isolateBtn.onclick=()=>{const list=assemblyObjects();if(selected.size!==1)return;const id=[...selected][0];list.forEach(o=>{const on=o.id===id;o.visible=on;o.mesh.visible=on});if(explodeState)explodeState.textContent="Isolated selected part";if(typeof render==="function")render()};
 if(showAllBtn)showAllBtn.onclick=()=>{assemblyObjects().forEach(o=>{o.visible=true;o.mesh.visible=true});applyExplodedView(explodeRange?explodeRange.value:0)};
 document.addEventListener("click",()=>{if(isolateBtn)isolateBtn.disabled=selected.size!==1});
+
+window.__ungExplodedAssembly={apply:applyExplodedView,assemble:()=>{if(explodeRange)explodeRange.value=0;applyExplodedView(0)},order:()=>orderedAssembly().map(o=>({id:o.id,name:o.name,order:o.__explodeOrder||null}))};
