@@ -82,9 +82,21 @@ module camera_module3_noir_tray(){
  translate([0,4,-camera_pcb_h/2+4]) cube([14,8,4],center=true);
 }
 
-// Thermal and radar trays stay fail-closed until their owned modules are measured/verified.
-module amg8833_tray(){ echo("UNVERIFIED: AMG8833 board envelope required before manufacturing export"); }
-module c4001_tray(){ echo("UNVERIFIED: C4001 board envelope required before manufacturing export"); }
+// AMG8833 tray profile based on Adafruit breakout envelope 25.6 x 25.3 x 6.0 mm.
+// This is valid ONLY for the Adafruit-style breakout; another AMG8833 carrier must be re-verified.
+amg_pcb_w=25.6; amg_pcb_h=25.3; amg_pcb_d=6.0;
+module amg8833_tray(){
+ sensor_tray(amg_pcb_w,amg_pcb_d+4,amg_pcb_h,0,18,18);
+}
+
+// C4001 comes in multiple carrier versions. DFRobot SEN0609 is 26 x 30 mm;
+// Gravity SEN0610 is 22 x 30 mm. Select the actual owned carrier before manufacturing.
+c4001_variant="UNVERIFIED"; // "SEN0609" or "SEN0610"
+module c4001_tray(){
+ if(c4001_variant=="SEN0609") sensor_tray(26,8,30,22);
+ else if(c4001_variant=="SEN0610") sensor_tray(22,8,30,20);
+ else echo("BLOCKED: select verified C4001 carrier SEN0609 or SEN0610 before manufacturing export");
+}
 
 // Preview assembly. Manufacturing exports call individual modules.
 module assembly(){
