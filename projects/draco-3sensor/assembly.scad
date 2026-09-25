@@ -56,10 +56,35 @@ module side_cover(side=1){
  }
 }
 
-module sensor_tray(width,depth,height,label_offset=0){
- // U-shaped tray: board rests on floor and is laterally retained; exact dimensions must come from verified twin.
- difference(){cube([width+2*fit+4,depth+2*fit+4,height+3],center=true);translate([0,0,2]) cube([width+2*fit,depth+2*fit,height+4],center=true);}
+module sensor_tray(width,depth,height,aperture_d=0,aperture_w=0,aperture_h=0){
+ // Simple removable U-tray. Dimensions are supplied by a verified component twin.
+ difference(){
+  cube([width+2*fit+4,depth+2*fit+4,height+3],center=true);
+  translate([0,0,2]) cube([width+2*fit,depth+2*fit,height+4],center=true);
+  if(aperture_d>0) rotate([90,0,0]) cylinder(h=depth+12,d=aperture_d,center=true);
+  if(aperture_w>0&&aperture_h>0) cube([aperture_w,depth+12,aperture_h],center=true);
+ }
+ // four corner retainers; no fabricated screw-hole coordinates
+ for(x=[-width/2,width/2]) for(z=[-height/2,height/2])
+   translate([x,0,z]) cube([2.2,depth+2*fit+2,2.2],center=true);
 }
+
+// Camera Module 3 NoIR tray.
+// PCB envelope intentionally remains configurable until its exact owned-board dimensions are verified.
+// The lens is centered on the optical axis; FFC exits rearward into the head cable channel.
+camera_pcb_w=25; // provisional envelope only — UNVERIFIED
+camera_pcb_h=24; // provisional envelope only — UNVERIFIED
+camera_pcb_d=2;  // provisional envelope only — UNVERIFIED
+camera_lens_clearance_d=18;
+module camera_module3_noir_tray(){
+ sensor_tray(camera_pcb_w,camera_pcb_d+4,camera_pcb_h,camera_lens_clearance_d);
+ // rear FFC cable exit
+ translate([0,4,-camera_pcb_h/2+4]) cube([14,8,4],center=true);
+}
+
+// Thermal and radar trays stay fail-closed until their owned modules are measured/verified.
+module amg8833_tray(){ echo("UNVERIFIED: AMG8833 board envelope required before manufacturing export"); }
+module c4001_tray(){ echo("UNVERIFIED: C4001 board envelope required before manufacturing export"); }
 
 // Preview assembly. Manufacturing exports call individual modules.
 module assembly(){
