@@ -48,13 +48,25 @@ module arm(){
 }
 
 module guard(){
- difference(){
-  cylinder(d=guard_od,h=guard_t);
-  translate([0,0,-1]) cylinder(d=guard_od-2*guard_wall,h=guard_t+2);
-  // open inner half for simple C guard
-  translate([-guard_od,-guard_od/2-1,-1]) cube([guard_od,guard_od+2,guard_t+2]);
+ // One connected C-shaped prop guard with a radial mounting bridge.
+ // The bridge overlaps the ring wall so the exported STL is one solid body.
+ union(){
+  difference(){
+   cylinder(d=guard_od,h=guard_t);
+   translate([0,0,-1]) cylinder(d=guard_od-2*guard_wall,h=guard_t+2);
+   // remove left half, leaving a right-side C arc
+   translate([-guard_od,-guard_od/2-1,-1])
+    cube([guard_od,guard_od+2,guard_t+2]);
+  }
+  // radial bridge from center mount to the C-ring inner wall
+  translate([0,-4,0])
+   cube([guard_od/2+2,8,guard_t]);
+  // reinforced center mounting boss
+  cylinder(d=14,h=guard_t);
  }
- translate([0,-4,0]) cube([12,8,guard_t]);
+ // M3 clearance through the center boss
+ difference(){
+ }
 }
 
 if(part==1) body();
