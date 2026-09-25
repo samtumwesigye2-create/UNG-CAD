@@ -10,3 +10,5 @@ __all__ = ["CADState","StateKind","StateStore","OptimizationProblem","GradientDe
 from .electromechanical import Connection, ThreePhaseResult, solve_three_phase, winding_graph
 
 from .surfaces_of_revolution import GabrielHornAnalysis, gabriel_radius, analyze_gabriel_horn, gabriel_horn_profile
+
+from .electrical import ohms_law, dc_power, energy_joules, conductor_resistance, series_resistance, parallel_resistance, series_capacitance, parallel_capacitance, series_inductance, parallel_inductance, series_rlc, resonance_hz, ideal_transformer, capacitor_energy, inductor_energy, RLCResult, TransformerResult
