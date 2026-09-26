@@ -117,6 +117,44 @@ def update_feature_node(feature_id:str,body:FeatureUpdateIn):
         return {"status":"updated","feature_id":feature_id,"regeneration_order":order,"features":feature_dependency_graph.serialize()}
     except KeyError as e: raise HTTPException(404,str(e))
 
+class ParametricExportIn(BaseModel):
+    primitive_type:str
+    params:dict={}
+    target_quality:str="export"
+    filename:str="UNG_parametric.stl"
+
+def _triangles_to_ascii_stl(triangles,name="UNG_PARAMETRIC"):
+    def normal(a,b,c):
+        ux,uy,uz=b["x"]-a["x"],b["y"]-a["y"],b["z"]-a["z"]; vx,vy,vz=c["x"]-a["x"],c["y"]-a["y"],c["z"]-a["z"]
+        nx,ny,nz=uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx; mag=(nx*nx+ny*ny+nz*nz)**.5
+        return (nx/mag,ny/mag,nz/mag) if mag>1e-15 else (0.,0.,0.)
+    out=["solid "+name]
+    for a,b,c in triangles:
+        n=normal(a,b,c);out.append(f" facet normal {n[0]:.9g} {n[1]:.9g} {n[2]:.9g}\n  outer loop")
+        for p in (a,b,c):out.append(f"   vertex {p['x']:.9g} {p['y']:.9g} {p['z']:.9g}")
+        out.append("  endloop\n endfacet")
+    out.append("endsolid "+name);return ("\n".join(out)+"\n").encode()
+
+def _parametric_triangles(typ,p,tol):
+    center=Point3D(*p.get("center",[0,0,0]))
+    if typ=="cylinder": return tessellated_surface_triangles(ParametricCylinder(center,float(p["radius"]),float(p["height"])).tessellate(tol))
+    if typ=="sphere": return sphere_manufacturing_triangles(ParametricSphere(center,float(p["radius"])),tol)
+    if typ=="extrusion": return tessellated_surface_triangles(ParametricExtrusion(tuple(tuple(x) for x in p["profile"]),float(p["height"])).tessellate())
+    if typ=="revolve": return tessellated_surface_triangles(ParametricRevolve(tuple(tuple(x) for x in p["profile"]),float(p.get("angle_deg",360))).tessellate())
+    raise ValueError("STL export supports cylinder, sphere, extrusion, and revolve; curves require a solid operation first")
+
+@app.post("/api/cad/parametric/export-stl")
+def export_parametric_stl(body:ParametricExportIn):
+    tol=UNGCadFeatureTimeline.QUALITY_TOLERANCES.get(body.target_quality)
+    if tol is None: raise HTTPException(400,"target_quality must be ui or export")
+    try: triangles=_parametric_triangles(body.primitive_type,body.params,tol)
+    except (KeyError,ValueError,ToleranceExceededError) as e: raise HTTPException(422,str(e))
+    if not triangles: raise HTTPException(422,"No printable triangles generated")
+    safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(body.filename).stem)+".stl"
+    out=BASE_DIR/"generated";out.mkdir(exist_ok=True);target=out/safe
+    target.write_bytes(_triangles_to_ascii_stl(triangles,Path(safe).stem))
+    return {"ok":True,"status":"exported","machine_source":safe,"triangles":len(triangles),"download":f"/api/manufacturing/download/{safe}","next":"/api/manufacturing/slice"}
+
 class TwinBindingIn(BaseModel):
     object_key:str
     object_name:str
