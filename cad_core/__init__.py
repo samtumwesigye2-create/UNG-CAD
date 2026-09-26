@@ -22,3 +22,5 @@ from .release_gate import GateState, GateCheck, ReleaseGateResult, evaluate_rele
 from .electromechanical_components import ComponentKind, ElectromechanicalComponent, WindingComponent, MachineAssembly
 
 from .circle_geometry import Point3D, CADCircle3D, scale_cad_circle, rotate_point_2d, rotate_cad_circle_z
+
+from .feature_timeline import ToleranceExceededError, ParametricCircle, PrecisionGeometryEngine, UNGCadFeatureTimeline
