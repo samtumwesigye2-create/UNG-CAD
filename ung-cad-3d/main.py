@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from orca_slicer import slice_stl_orca as slice_stl  # real AD5M slicing (fixed)
 from slicer_cnc import slice_shapes_to_gcode
-from fourd_engine import compile_ad5m_4d
+from fourd_engine import compile_ad5m_4d, Missing4DMetadataError
 BASE_DIR=Path(__file__).resolve().parent
 DB_PATH=Path(os.getenv("UNG_CAD_3D_DB",str(BASE_DIR/"ung_cad_3d.db")))
 app=FastAPI(title="UNG-CAD-3D",version="1.2.0")
@@ -183,7 +183,7 @@ async def manufacturing_preview_stl(file:UploadFile=File(...), selected:str=Form
         raise HTTPException(422,f"Could not convert model for preview: {e}")
 
 @app.post("/api/manufacturing/slice")
-async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_height:float=Form(0.20), quality:str=Form("balanced"), material:str=Form("PLA"), supports:str=Form("auto"), copies:int=Form(1), fourd_thermal:bool=Form(False), fourd_material:bool=Form(False), fourd_light:bool=Form(False), fourd_swap_layer:int=Form(15), fourd_light_every:int=Form(10)):
+async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_height:float=Form(0.20), quality:str=Form("balanced"), material:str=Form("PLA"), supports:str=Form("auto"), copies:int=Form(1), fourd_thermal:bool=Form(False), fourd_material:bool=Form(False), fourd_light:bool=Form(False), fourd_geometry_driven:bool=Form(False), fourd_transition_height:float|None=Form(None), fourd_light_interval_mm:float|None=Form(None)):
     if not (0.08 <= layer_height <= 0.4): raise HTTPException(400,"Layer height must be 0.08–0.40 mm")
     source_name, data=await read_selected(file,selected); low=source_name.lower()
     if low.endswith((".gcode",".gx")) or low.endswith(".gcode.3mf"):
@@ -205,9 +205,10 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
         gcode,stats=slice_stl(data,Path(source_name).name,layer_height=layer_height)
         if fourd_thermal or fourd_material or fourd_light:
             text_gcode=gcode.decode("utf-8","replace") if isinstance(gcode,bytes) else gcode
-            text_gcode=compile_ad5m_4d(text_gcode,layer_height=layer_height,thermal=fourd_thermal,material_swap=fourd_material,swap_layer=fourd_swap_layer,light=fourd_light,light_every=fourd_light_every)
+            text_gcode=compile_ad5m_4d(text_gcode,thermal=fourd_thermal,material_swap=fourd_material,transition_height_mm=fourd_transition_height,geometry_driven=fourd_geometry_driven,light=fourd_light,light_interval_mm=fourd_light_interval_mm)
             gcode=text_gcode.encode()
-            stats["experimental_4d"]={"thermal":fourd_thermal,"material_swap":fourd_material,"light":fourd_light,"swap_layer":fourd_swap_layer,"light_every":fourd_light_every,"manual_resume_required":bool(fourd_material or fourd_light)}
+            stats["experimental_4d"]={"thermal":fourd_thermal,"material_swap":fourd_material,"light":fourd_light,"geometry_driven":fourd_geometry_driven,"transition_height_mm":fourd_transition_height,"light_interval_mm":fourd_light_interval_mm,"manual_resume_required":bool(fourd_material or fourd_light)}
+    except Missing4DMetadataError as e: raise HTTPException(422,str(e))
     except Exception as e: raise HTTPException(422,f"Slicing/4D preparation failed: {e}")
     out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
     safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).stem); target=out/(safe+"_AD5M.gcode"); target.write_bytes(gcode)
