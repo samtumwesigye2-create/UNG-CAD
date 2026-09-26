@@ -1,4 +1,4 @@
-const assert=require('assert'),M=require('../ung-ml-engine.js');const close=(a,b,t=1e-9)=>assert.ok(Math.abs(a-b)<=t,\`${a} != ${b}\`);
+const assert=require('assert'),M=require('../ung-ml-engine.js');const close=(a,b,t=1e-9)=>assert.ok(Math.abs(a-b)<=t,`${a} != ${b}`);
 let r=M.linearRegression([1,2,3,4],[3,5,7,9]);close(r.slope,2);close(r.intercept,1);close(r.predict(5),11);
 close(M.sigmoid(0),.5);assert.equal(M.logisticPredict([0,2],[1]).class,1);
 close(M.gini([0,0,1,1]),.5);close(M.entropy([0,0,1,1]),1);close(M.informationGain([0,0,1,1],[[0,0],[1,1]]),1);
