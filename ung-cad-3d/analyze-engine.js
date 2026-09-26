@@ -185,8 +185,46 @@
     const b=bounds(tris),vol=volume(tris),area=surfaceArea(tris);
     return{volume:vol,surfaceArea:area,bounds:b,volumeCm3:vol/1000,surfaceAreaCm2:area/100};
   }
+  // Analytic geometry + rigid-body dynamics validation suite.
+  function napkinRingVolume(h){ h=+h; return h>0?Math.PI*h*h*h/6:0; }
+  function napkinRingGeometry(R,h){
+    R=+R; h=+h;
+    if(!(R>0&&h>0&&h<=2*R)) throw new Error('Require R > 0 and 0 < h <= 2R');
+    const holeRadius=Math.sqrt(Math.max(0,R*R-h*h/4));
+    return{sphereRadius:R,bandHeight:h,holeRadius,exactVolume:napkinRingVolume(h)};
+  }
+  function validateNapkinRingMesh(tris,h,{relativeTolerance=0.01}={}){
+    const meshVolume=volume(tris),exactVolume=napkinRingVolume(h);
+    const relativeError=exactVolume?Math.abs(meshVolume-exactVolume)/exactVolume:Infinity;
+    return{meshVolume,exactVolume,relativeError,pass:relativeError<=relativeTolerance,relativeTolerance};
+  }
+  function massProperties(tris,{density=1}={}){
+    let sv=0,cx=0,cy=0,cz=0;
+    for(const t of tris){const q=dot(t.a,cross(t.b,t.c))/6;sv+=q;cx+=q*(t.a.x+t.b.x+t.c.x)/4;cy+=q*(t.a.y+t.b.y+t.c.y)/4;cz+=q*(t.a.z+t.b.z+t.c.z)/4;}
+    const V=Math.abs(sv); if(V<EPS)return{volume:0,mass:0,centerOfMass:v(),inertia:null};
+    const c=v(cx/sv,cy/sv,cz/sv),m=V*density,b=bounds(tris),sx=b.size.x,sy=b.size.y,sz=b.size.z;
+    // Conservative mesh-envelope inertia estimate; exact polyhedral tensor can replace this without changing API.
+    const inertia={Ixx:m*(sy*sy+sz*sz)/12,Iyy:m*(sx*sx+sz*sz)/12,Izz:m*(sx*sx+sy*sy)/12,Ixy:0,Ixz:0,Iyz:0,method:'mesh-envelope-estimate'};
+    return{volume:V,mass:m,centerOfMass:c,inertia};
+  }
+  function principalMoments(mp){
+    if(!mp?.inertia)return null;
+    const a=[mp.inertia.Ixx,mp.inertia.Iyy,mp.inertia.Izz].sort((x,y)=>x-y);
+    return{I1:a[0],I2:a[1],I3:a[2],intermediate:a[1],method:mp.inertia.method};
+  }
+  function dzhanibekovRisk(mp,{relativeAxisTolerance=0.08}={}){
+    const p=principalMoments(mp); if(!p)return{risk:false,reason:'no inertia'};
+    const distinct=(p.I2-p.I1)>EPS&&(p.I3-p.I2)>EPS;
+    return{risk:distinct,principalMoments:p,unstableAxis:'intermediate',relativeAxisTolerance,note:distinct?'Rotation near the intermediate principal axis is dynamically unstable.':'No three distinct principal moments detected.'};
+  }
+  function eulerRigidBodyStep(state,moments,dt=0.001){
+    const w={...state},I1=moments.I1,I2=moments.I2,I3=moments.I3;
+    if(!(I1>0&&I2>0&&I3>0))return w;
+    const dw={x:((I2-I3)/I1)*w.y*w.z,y:((I3-I1)/I2)*w.z*w.x,z:((I1-I2)/I3)*w.x*w.y};
+    return{x:w.x+dw.x*dt,y:w.y+dw.y*dt,z:w.z+dw.z*dt};
+  }
   function mat4TransformPoint(m,p){const q=[0,0,0,0],vv=[p[0],p[1],p[2],1];for(let i=0;i<4;i++)for(let j=0;j<4;j++)q[i]+=m[i][j]*vv[j];const w=q[3]||1;return[q[0]/w,q[1]/w,q[2]/w];}
   function composeMat4(a,b){return a.map((r,i)=>r.map((_,j)=>a[i].reduce((sum,__,k)=>sum+a[i][k]*b[k][j],0)));}
   function cadFrameProduct(position,transform,sourceFrame="part",destinationFrame="assembly"){return{position:mat4TransformPoint(transform,position),source_frame:sourceFrame,destination_frame:destinationFrame,provenance:"DERIVED"};}
-  return{trianglesFromPolygons,measure,bounds,volume,surfaceArea,solidMetrics,derivative,kinematics,exponentialGrowth,gravityAcceleration,heatStep2D,printEstimate,assemblyEstimate,identity,multiply,rotationX,rotationY,rotationZ,scaling,mirror,translation,determinant3,transformPoint,applyMatrix,placeOnBed,triangleNormal,findOverhangs,rotationBetween,fitsBed,autoOrient,checkManifold,repairMesh,frameMatrix,invertRigid,toParent,fromParent,worldMatrix,explainTransform,boundsOverlap,pairwiseClashes,trianglesIntersect,makeBVH,bvhIntersections,pointInMesh,pairwiseGeometryClashes,triangleDistance,boxDistance,bvhMinDistance,pairwiseClearances,pairwiseDistances,toBinarySTL,mat4TransformPoint,composeMat4,cadFrameProduct};
+  return{trianglesFromPolygons,measure,bounds,volume,surfaceArea,solidMetrics,derivative,kinematics,exponentialGrowth,gravityAcceleration,heatStep2D,napkinRingVolume,napkinRingGeometry,validateNapkinRingMesh,massProperties,principalMoments,dzhanibekovRisk,eulerRigidBodyStep,printEstimate,assemblyEstimate,identity,multiply,rotationX,rotationY,rotationZ,scaling,mirror,translation,determinant3,transformPoint,applyMatrix,placeOnBed,triangleNormal,findOverhangs,rotationBetween,fitsBed,autoOrient,checkManifold,repairMesh,frameMatrix,invertRigid,toParent,fromParent,worldMatrix,explainTransform,boundsOverlap,pairwiseClashes,trianglesIntersect,makeBVH,bvhIntersections,pointInMesh,pairwiseGeometryClashes,triangleDistance,boxDistance,bvhMinDistance,pairwiseClearances,pairwiseDistances,toBinarySTL,mat4TransformPoint,composeMat4,cadFrameProduct};
 });
