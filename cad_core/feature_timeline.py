@@ -169,15 +169,56 @@ class ParametricRevolve:
         return {"rings":rings,"closed":abs(self.angle_deg)>=360}
 
 def tessellated_surface_triangles(data):
-    """Convert ring-based derived geometry to triangle coordinate triples."""
-    rings=data.get("rings",[]);tris=[]
+    """Convert ring-based derived geometry to manufacturing triangles.
+
+    Supports unequal ring sizes (including sphere poles) and optional planar
+    end caps. Open shells remain valid when closed=False.
+    """
+    rings=[list(r) for r in data.get("rings",[]) if r]
+    tris=[]
+    def tri(a,b,c):
+        # Reject zero-area triangles before they reach STL/slicer.
+        ab=(b["x"]-a["x"],b["y"]-a["y"],b["z"]-a["z"])
+        ac=(c["x"]-a["x"],c["y"]-a["y"],c["z"]-a["z"])
+        cr=(ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0])
+        if math.hypot(*cr)>1e-12: tris.append([a,b,c])
     for a,b in zip(rings,rings[1:]):
-        n=min(len(a),len(b))
-        for i in range(n):
-            j=(i+1)%n
-            tris += [[a[i],b[i],b[j]],[a[i],b[j],a[j]]]
+        na,nb=len(a),len(b)
+        if na==nb:
+            for i in range(na):
+                j=(i+1)%na;tri(a[i],b[i],b[j]);tri(a[i],b[j],a[j])
+        elif na==1:
+            for i in range(nb):tri(a[0],b[i],b[(i+1)%nb])
+        elif nb==1:
+            for i in range(na):tri(a[i],b[0],a[(i+1)%na])
+        else:
+            # General loft: normalized index mapping.
+            n=max(na,nb)
+            for i in range(n):
+                a0=a[(i*na)//n%na];a1=a[((i+1)*na)//n%na]
+                b0=b[(i*nb)//n%nb];b1=b[((i+1)*nb)//n%nb]
+                tri(a0,b0,b1);tri(a0,b1,a1)
+    if data.get("closed") and rings:
+        for ring,reverse in ((rings[0],True),(rings[-1],False)):
+            if len(ring)>=3:
+                center={"x":sum(p["x"] for p in ring)/len(ring),"y":sum(p["y"] for p in ring)/len(ring),"z":sum(p["z"] for p in ring)/len(ring)}
+                for i in range(len(ring)):
+                    j=(i+1)%len(ring)
+                    tri(center,ring[j],ring[i]) if reverse else tri(center,ring[i],ring[j])
     return tris
 
+def sphere_manufacturing_triangles(sphere, tol=.05, max_segments=10000):
+    """Pole-safe closed sphere tessellation for STL/manufacturing."""
+    equator=ParametricCircle(sphere.center,sphere.radius).tessellate(tol,max_segments)
+    lon=len(equator);lat=max(8,lon//2)
+    south={"x":sphere.center.x,"y":sphere.center.y,"z":sphere.center.z-sphere.radius}
+    north={"x":sphere.center.x,"y":sphere.center.y,"z":sphere.center.z+sphere.radius}
+    rings=[[south]]
+    for j in range(1,lat):
+        phi=-math.pi/2+math.pi*j/lat;r=sphere.radius*math.cos(phi);z=sphere.center.z+sphere.radius*math.sin(phi)
+        rings.append([{"x":sphere.center.x+r*math.cos(2*math.pi*i/lon),"y":sphere.center.y+r*math.sin(2*math.pi*i/lon),"z":z} for i in range(lon)])
+    rings.append([north])
+    return tessellated_surface_triangles({"rings":rings,"closed":False})
 
 @dataclass(frozen=True)
 class FeatureNode:
