@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.140.0/examples/jsm/controls/OrbitControls.js';
+// Manufacturing preview boot marker; keep module parseable on Safari.
+
 const A=window.UNGAnalyze,previewEl=document.getElementById('preview3d'),placeholder=document.getElementById('previewPlaceholder'),previewStats=document.getElementById('previewStats');
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x0f1b4d);
 const camera=new THREE.PerspectiveCamera(50,1,.1,4000);camera.up.set(0,0,1);
