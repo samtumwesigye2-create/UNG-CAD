@@ -3,7 +3,7 @@
  const V=(x=0,y=0,z=0)=>({x:+x,y:+y,z:+z});
  const primitives={
   sphere:(r=1,c=V())=>({kind:"sphere",r:+r,c}),
-  cylinder:(r=1,h=1,axis:"z",c=V())=>({kind:"cylinder",r:+r,h:+h,axis,c}),
+  cylinder:(r=1,h=1,axis="z",c=V())=>({kind:"cylinder",r:+r,h:+h,axis,c}),
   box:(x=1,y=1,z=1,c=V())=>({kind:"box",size:V(x,y,z),c})
  };
  const csg=(op,a,b)=>({kind:"csg",op,a,b});
