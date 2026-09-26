@@ -8,10 +8,12 @@ shell_x=96; shell_y=82; shell_z=78; wall=2.8;
 front_y=-shell_y/2;
 
 // Replace generic empty shell with three marked serviceable bays.
-// Dimensions are deliberately parameterized so measured sensor bodies can be tuned without remodeling the shell.
-bay_w=24; bay_d=22; bay_h=25; bay_gap=5;
+// Dimensions are deliberately parameterized. The values below are prototype placeholders only.
+// Final bay geometry MUST be regenerated from the three actual sensor measurements in BUILD_HANDOFF.md.
+bay_w=24; bay_d=22; bay_h=25; bay_gap=5; // PLACEHOLDERS — not production dimensions
 ledge=2.4; rail=2.2; clip=1.6; cable_w=7; cable_h=5;
-aperture_d=18;
+aperture_d=18; // PLACEHOLDER — derive from actual lens/body geometry
+sensor_release_gate = "PHYSICAL_MEASUREMENT_AND_FIT_COUPON_REQUIRED";
 
 module rounded_box(size=[10,10,10],r=3){
     minkowski(){ cube([size[0]-2*r,size[1]-2*r,size[2]-2*r],center=true); sphere(r=r,$fn=36); }
@@ -34,6 +36,8 @@ module front_aperture(cx){
     translate([cx,front_y,0]) rotate([90,0,0]) cylinder(d=aperture_d,h=wall*4,center=true,$fn=64);
 }
 module sensor_shell(){
+    // RELEASE GATE: verify all three sensor bodies, lens projections,
+    // connector positions and cable exits before exporting production mesh.
     difference(){
         rounded_box([shell_x,shell_y,shell_z],9);
         rounded_box([shell_x-2*wall,shell_y-2*wall,shell_z-2*wall],7);
