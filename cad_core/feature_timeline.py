@@ -90,3 +90,90 @@ class UNGCadFeatureTimeline:
         self.registry[entity_id]=new
         points=new.tessellate(self.QUALITY_TOLERANCES[target_quality])
         return {"entity_id":entity_id,"status":"synchronized","quality":target_quality,"meta":{"radius":new.radius,"center":new.center.to_array(),"normal":[new.normal.x,new.normal.y,new.normal.z]},"vertices":points}
+
+
+# Extended analytic primitives. Parameters remain authoritative; meshes are derived.
+@dataclass(frozen=True)
+class ParametricArc:
+    center: Point3D; radius: float; start_deg: float; end_deg: float
+    normal: Vector3D=field(default_factory=lambda:Vector3D(0,0,1))
+    def __post_init__(self):
+        if self.radius<=0: raise ValueError("Arc radius must be positive.")
+        object.__setattr__(self,"normal",self.normal.normalize())
+    def tessellate(self,tol=.05,max_segments=10000):
+        if tol<=0: raise ValueError("Tolerance must be positive.")
+        sweep=math.radians(self.end_deg-self.start_deg)
+        if abs(sweep)<1e-12:return []
+        step=2*math.acos(max(-1,min(1,1-tol/self.radius)))
+        if step<=1e-12: raise ToleranceExceededError("Arc tolerance exceeds tessellation capacity.")
+        n=max(2,int(math.ceil(abs(sweep)/step))+1)
+        if n>max_segments: raise ToleranceExceededError("Arc segment safety limit exceeded.")
+        N=self.normal;ref=Vector3D(1,0,0) if abs(N.x)<.9 else Vector3D(0,1,0);u=N.cross(ref).normalize();v=N.cross(u).normalize()
+        out=[]
+        for i in range(n):
+            t=math.radians(self.start_deg)+(sweep*i/(n-1));ct,st=math.cos(t),math.sin(t)
+            out.append({"x":self.center.x+self.radius*(ct*u.x+st*v.x),"y":self.center.y+self.radius*(ct*u.y+st*v.y),"z":self.center.z+self.radius*(ct*u.z+st*v.z)})
+        return out
+
+def _ring(center,r,z,tol):
+    return ParametricCircle(Point3D(center.x,center.y,center.z+z),r).tessellate(tol)
+
+@dataclass(frozen=True)
+class ParametricCylinder:
+    center: Point3D; radius: float; height: float
+    def __post_init__(self):
+        if self.radius<=0 or self.height<=0: raise ValueError("Cylinder radius and height must be positive.")
+    def tessellate(self,tol=.05):
+        a=_ring(self.center,self.radius,-self.height/2,tol);b=_ring(self.center,self.radius,self.height/2,tol);return {"rings":[a,b],"closed":True}
+
+@dataclass(frozen=True)
+class ParametricSphere:
+    center: Point3D; radius: float
+    def __post_init__(self):
+        if self.radius<=0: raise ValueError("Sphere radius must be positive.")
+    def tessellate(self,tol=.05,max_segments=10000):
+        equator=ParametricCircle(self.center,self.radius).tessellate(tol,max_segments);lon=len(equator);lat=max(8,lon//2)
+        if lon*lat>max_segments*8: raise ToleranceExceededError("Sphere tessellation safety limit exceeded.")
+        rings=[]
+        for j in range(1,lat):
+            phi=-math.pi/2+math.pi*j/lat;r=self.radius*math.cos(phi);z=self.radius*math.sin(phi)
+            rings.append([{"x":self.center.x+r*math.cos(2*math.pi*i/lon),"y":self.center.y+r*math.sin(2*math.pi*i/lon),"z":self.center.z+z} for i in range(lon)])
+        return {"rings":rings,"poles":[{"x":self.center.x,"y":self.center.y,"z":self.center.z-self.radius},{"x":self.center.x,"y":self.center.y,"z":self.center.z+self.radius}]}
+
+@dataclass(frozen=True)
+class ParametricHole:
+    center: Point3D; radius: float; depth: float
+    def __post_init__(self):
+        if self.radius<=0 or self.depth<=0: raise ValueError("Hole radius and depth must be positive.")
+    def tessellate(self,tol=.05): return ParametricCylinder(self.center,self.radius,self.depth).tessellate(tol)
+
+@dataclass(frozen=True)
+class ParametricExtrusion:
+    profile: tuple; height: float
+    def __post_init__(self):
+        if len(self.profile)<3 or self.height==0: raise ValueError("Extrusion requires >=3 profile points and nonzero height.")
+    def tessellate(self):
+        base=[{"x":float(p[0]),"y":float(p[1]),"z":0.0} for p in self.profile];top=[{**p,"z":self.height} for p in base]
+        return {"rings":[base,top],"closed":True}
+
+@dataclass(frozen=True)
+class ParametricRevolve:
+    profile: tuple; angle_deg: float=360.0
+    def __post_init__(self):
+        if len(self.profile)<2 or self.angle_deg==0: raise ValueError("Revolve requires >=2 profile points and nonzero angle.")
+    def tessellate(self,segments=64):
+        rings=[]
+        for i in range(segments+1):
+            a=math.radians(self.angle_deg*i/segments);ca,sa=math.cos(a),math.sin(a)
+            rings.append([{"x":float(r)*ca,"y":float(r)*sa,"z":float(z)} for r,z in self.profile])
+        return {"rings":rings,"closed":abs(self.angle_deg)>=360}
+
+def tessellated_surface_triangles(data):
+    """Convert ring-based derived geometry to triangle coordinate triples."""
+    rings=data.get("rings",[]);tris=[]
+    for a,b in zip(rings,rings[1:]):
+        n=min(len(a),len(b))
+        for i in range(n):
+            j=(i+1)%n
+            tris += [[a[i],b[i],b[j]],[a[i],b[j],a[j]]]
+    return tris
