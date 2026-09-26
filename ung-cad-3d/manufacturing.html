@@ -13,7 +13,7 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 <h2><span class="step">1</span>Choose model</h2>
 <label class="btn" style="display:inline-flex;position:relative;align-items:center;overflow:hidden;cursor:pointer">Choose model or project<input id="pkg" type="file" multiple style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"></label>
 <div id="meta" class="meta">Choose the actual printable files you want to use. Open folders normally in the picker, then select the files inside.</div>
-<div class="notice"><b>Automatic manufacturing</b><span id="engine"> Choose a model. UNG-CAD repairs, prepares, slices, validates and sends it to the printer automatically.</span></div><div id="preflightGate" class="notice"><b>Manufacturing Preflight</b><span id="preflightState"> LOCKED — choose an STL model to validate.</span></div>
+<div class="notice"><b>Automatic manufacturing</b><span id="engine"> Choose a model. UNG-CAD repairs, prepares, slices, validates and sends it to the printer automatically.</span></div><div id="preflightGate" class="notice"><b>Manufacturing Preflight</b><span id="preflightState"> LOCKED — choose an STL, GLB, GLTF or OBJ model to validate.</span></div>
 
 <h2><span class="step">2</span>Check model</h2>
 <div id="parts"><div class="small">Upload a package above to list its printable parts.</div></div>
@@ -113,8 +113,8 @@ window.__previewSTL=function(label,arrayBuffer){
   __fallbackPreview.tris=tris;__drawFallbackSTL();if(ph)ph.style.display='none';
   previewStats.textContent=label+'\\n\\nDimensions (W × D × H):\\n'+b.size.x.toFixed(1)+' × '+b.size.y.toFixed(1)+' × '+b.size.z.toFixed(1)+' mm\\nTriangles: '+tris.length+'\\n\\nSolid interactive preview — drag naturally to orbit · scroll to zoom.';
   if(!window.UNGAnalyze.fitsBed(tris)){setPreflight('BLOCKED','model exceeds the Adventurer 5M 220 × 220 × 220 mm build volume.');return;}
-  setPreflight('PASS','STL geometry loaded and fits the Adventurer 5M build volume.');
- }catch(e){previewStats.textContent='Preview failed — '+e.message;setPreflight('BLOCKED','preview could not validate STL geometry: '+e.message);}
+  setPreflight('PASS','3D geometry loaded and fits the Adventurer 5M build volume.');
+ }catch(e){previewStats.textContent='Preview failed — '+e.message;setPreflight('BLOCKED','preview could not validate 3D geometry: '+e.message);}
 };
 const qsPrinterId=new URLSearchParams(location.search).get('printer_id');
 if(qsPrinterId) document.getElementById('printer').value=qsPrinterId;
@@ -143,20 +143,25 @@ async function selectAndPreview(n,rowEl){
   document.querySelectorAll('.part').forEach(r=>r.classList.remove('active'));
   if(rowEl)rowEl.classList.add('active');
   const low=n.toLowerCase();
-  if(!low.endsWith('.stl')){
-    previewStats.textContent=low.endsWith('.gcode.3mf')
-      ? 'Machine-ready AD5M package detected. 3D geometry preview is skipped; use Prepare for AD5M, then Print from phone.'
-      : 'Preview is available for STL geometry. This file can still be prepared for the printer.';
-    const ph=document.getElementById('previewPlaceholder');
-    if(ph) ph.textContent='Machine-ready file selected — no STL preview required.';
+  if(low.endsWith('.gcode')||low.endsWith('.gx')||low.endsWith('.gcode.3mf')){
+    previewStats.textContent='Machine-ready AD5M package detected. Geometry preview is skipped; use Auto Prepare, then Print.';
+    const ph=document.getElementById('previewPlaceholder');if(ph)ph.textContent='Machine-ready file selected — no geometry preview required.';
     return;
   }
   previewStats.textContent='Loading geometry…';
   try{
-    const bytes=await extractPartBytes(selectedFile,n);
+    let bytes;
+    if(low.endsWith('.stl')) bytes=await extractPartBytes(selectedFile,n);
+    else if(/\.(glb|gltf|obj)$/i.test(low)){
+      const d=new FormData();d.append('file',selectedFile);d.append('selected',n);
+      const r=await fetch('/api/manufacturing/preview-stl',{method:'POST',body:d});
+      if(!r.ok){let msg='Model conversion failed';try{const j=await r.json();msg=j.detail||msg}catch{}throw Error(msg)}
+      bytes=await r.arrayBuffer();
+    } else throw Error('Unsupported geometry format: '+n);
     window.__previewSTL(n,bytes);
   }catch(e){
     previewStats.textContent='Preview failed — '+e.message;
+    setPreflight('BLOCKED','model could not be loaded: '+e.message);
   }
  }catch(outerErr){
   previewStats.textContent='Preview setup failed — '+outerErr.message;
