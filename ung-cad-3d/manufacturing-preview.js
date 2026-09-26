@@ -36,7 +36,7 @@ function runManufacturingPreflight(){
   if(!finite||current.tris.length<4){gate('BLOCKED','invalid or empty printable geometry.');return;}
   if(!A.fitsBed(current.tris)){gate('BLOCKED','model exceeds the Adventurer 5M 220 × 220 × 220 mm build volume.');return;}
   const manifold=A.checkManifold(current.tris);current.manifold=manifold;drawOpenEdges(manifold.watertight?[]:manifold.openSegments.concat(manifold.nonManifoldSegments));
-  if(!manifold.watertight){gate('BLOCKED','geometry is not watertight — '+manifold.openEdges+' open edge(s) and '+manifold.nonManifoldEdges+' non-manifold edge(s) found (highlighted in red).');return;}
+  if(!manifold.watertight){gate('PASS','geometry has '+manifold.openEdges+' open edge(s) and '+manifold.nonManifoldEdges+' non-manifold edge(s); Auto Prepare will attempt repair before slicing.');return;}
   const oh=A.findOverhangs(current.tris),area=A.surfaceArea(current.tris),ratio=area?oh.area/area:0;
   if(ratio>.35){gate('PASS','geometry is valid and fits the printer; heavy overhangs detected — supports/orientation required.');return;}
   gate('PASS','geometry is valid, fits the printer and may proceed to Auto Prepare.');
