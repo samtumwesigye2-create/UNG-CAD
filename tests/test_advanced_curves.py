@@ -17,3 +17,20 @@ def test_ellipse_closes_and_distributes_extrusion():
     g=ellipse_gcode(Ellipse(110,110,35,15,.2,2),64)
     assert g.count("G1 ")==64
     assert "X145.000 Y110.000" in g.splitlines()[-1]
+
+
+def test_nonplanar_curvature_and_accel_gate():
+    n=NonplanarOval(110,110,40,20,.2,.4,.2,0,3,.04)
+    g=nonplanar_oval_gcode(n,segments_per_turn=32,dynamic_accel_supported=False)
+    assert "M204" not in g
+    g2=nonplanar_oval_gcode(n,segments_per_turn=32,dynamic_accel_supported=True)
+    assert "M204 P" in g2
+
+def test_nonplanar_rejects_downward_z_by_default():
+    n=NonplanarOval(0,0,20,10,.2,2,.2,2.5,3,.04)
+    try:
+        nonplanar_oval_gcode(n,segments_per_turn=64)
+    except ValueError as e:
+        assert "downward Z" in str(e)
+    else:
+        raise AssertionError("expected downward-Z safety rejection")
