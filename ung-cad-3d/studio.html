@@ -29,8 +29,13 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;background:rad
   <article class="card"><h2>Analytic Geometry & Surfaces</h2><p>Exact primitive definitions, CSG intersection/union/difference, parametric surfaces, tessellation, surface development/unroll and symbolic engineering math.</p><a class="btn" href="./viewer.html?workspace=analytic">Open Analytic Workspace</a></article>
   <article class="card"><h2>3D Object ↔ Data Twin</h2><p>Select a physical CAD component and inspect its engineering data, material, dimensions, print profile, connections, BOM relationships and live-system links in one synchronized view.</p><a class="btn" href="./data-twin.html">Open Data Twin</a></article>
 </section>
-<div class="footer">UNG-CAD Studio • Internal engineering workstation</div>
+<section class="card" style="margin-top:18px;min-height:auto"><h2>Professional Platform Diagnostics</h2><p id="prodiag">Loading interoperability, geospatial, plugin and performance subsystems…</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="diag-run" type="button" style="border:0">Run Diagnostics</button><button class="btn" id="diag-export" type="button" style="border:0">Export Report</button></div></section><div class="footer">UNG-CAD Studio • Internal engineering workstation</div>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="./professional-core.js"></script>
+<script src="./interoperability.js"></script>
+<script src="./geospatial.js"></script>
+<script src="./performance-monitor.js"></script>
+<script src="./plugin-api.js"></script>
 <script src="./analytic_geometry.js"></script>
 <script src="./parametric_surfaces.js"></script>
 <script src="./surface_unroll.js"></script>
@@ -72,6 +77,7 @@ p.onclick=async()=>{const x=f.files[0];if(!x)return;p.disabled=true;try{
   st.textContent="PRINT START COMMAND ACCEPTED — "+j.file+(prepared.extracted?" (from Orca sliced package)":"");
 }catch(e){st.textContent="PRINT DID NOT START — "+e.message}finally{p.disabled=false}};
 health();
+const diag=document.getElementById("prodiag");let lastDiag=null;async function runDiag(){const checks={professionalCore:!!window.UNGCADPro,interop:window.UNGCADInterop?.registry?.capabilities?.()||[],geospatial:!!window.UNGCADGeo,performance:!!window.UNGCADPerformance,pluginAPI:!!window.UNGCADPluginAPI,geometry:!!window.UNGAnalyticGeometry,surfaces:!!window.UNGParametricSurfaces,manufacturingBridge:false};try{checks.manufacturingBridge=await health()}catch{}lastDiag={schema:"ung-cad.diagnostics.v1",at:new Date().toISOString(),checks,performance:window.UNGCADPerformance?.summary?.()||{}};diag.textContent=JSON.stringify(lastDiag,null,2);return lastDiag}document.getElementById("diag-run").onclick=runDiag;document.getElementById("diag-export").onclick=async()=>{const r=lastDiag||await runDiag(),u=URL.createObjectURL(new Blob([JSON.stringify(r,null,2)],{type:"application/json"})),a=document.createElement("a");a.href=u;a.download="UNG-CAD-diagnostics.json";a.click();setTimeout(()=>URL.revokeObjectURL(u),500)};runDiag();
 </script></main>
 </body>
 </html>
