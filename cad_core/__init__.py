@@ -18,3 +18,5 @@ from .electrical_binding import ElectricalMaterial, ConductorGeometry, Electrica
 from .engineering_dependencies import EngineeringState, EngineeringResult, EngineeringDependencyEngine
 
 from .release_gate import GateState, GateCheck, ReleaseGateResult, evaluate_release_gate
+
+from .electromechanical_components import ComponentKind, ElectromechanicalComponent, WindingComponent, MachineAssembly
