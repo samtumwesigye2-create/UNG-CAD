@@ -18,10 +18,25 @@
   ],
   "electronics": {
     "compute": {
-      "name": "Raspberry Pi Zero 2 W",
-      "envelope_mm": [
-        65,
-        30
+      "name": "Raspberry Pi — exact installed model to be verified from physical hardware",
+      "role": "compute_controller",
+      "power_subsystem": false,
+      "placement_zone": "compute_bay",
+      "dimensional_authority": "physical_hardware_measurement",
+      "required_measurements_mm": [
+        "board_length",
+        "board_width",
+        "board_height",
+        "mounting_hole_x_spacing",
+        "mounting_hole_y_spacing",
+        "mounting_hole_diameter",
+        "ethernet_connector_offset",
+        "usb_c_connector_offset",
+        "connector_projection"
+      ],
+      "port_alignment": [
+        "ethernet",
+        "usb_c_data"
       ]
     },
     "camera": {
@@ -40,6 +55,24 @@
         12.2,
         28.5
       ]
+    },
+    "power": {
+      "role": "power_input_distribution_conversion",
+      "placement_zone": "power_bay",
+      "separate_from_compute": true,
+      "dimensional_authority": "physical_hardware_measurement"
+    },
+    "cooling": {
+      "type": "fan",
+      "placement_zone": "cooling_bay",
+      "requirements": [
+        "dedicated_pocket",
+        "four_mounting_points",
+        "blade_keepout",
+        "wire_channel",
+        "clear_airflow_path"
+      ],
+      "dimensional_authority": "physical_hardware_measurement"
     }
   },
   "assembly": {
@@ -53,17 +86,22 @@
   },
   "validation": {
     "fit_coupon_required_before_full_print": true,
-    "production_geometry_status": "cad_complete_physical_fit_coupon_pending",
+    "production_geometry_status": "hardware_measurement_and_fit_coupon_required_before_release",
     "checks": [
       "three_sensor_bay_alignment",
       "sensor_retention",
       "harness_routing",
       "electronics_cartridge_alignment",
       "part_envelope",
-      "wall_thickness"
+      "wall_thickness",
+      "compute_power_zone_separation",
+      "ethernet_plug_boot_clearance",
+      "usb_c_plug_clearance",
+      "fan_mount_and_blade_clearance",
+      "cable_bend_and_routing"
     ]
   },
-  "design_revision": "three_sensor_retained_bay",
+  "design_revision": "corrected_compute_power_cooling_port_layout",
   "sensor_architecture": {
     "quantity": 3,
     "bay_pitch_mm": 29,
