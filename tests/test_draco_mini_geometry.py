@@ -14,9 +14,9 @@ def test_geometry_sources_lock_core_dimensions_and_clearance():
     assert "overall_x = 110" in combined
     assert "overall_y = 110" in combined
     assert "overall_z = 135" in combined
-    assert "camera_x = 25" in combined
-    assert "camera_y = 24" in combined
-    assert "camera_z = 11.5" in combined
+    assert "sensor_x = 25" in combined
+    assert "sensor_y = 24" in combined
+    assert "sensor_z = 11.5" in combined
     assert "servo_x = 22.8" in combined
     assert "servo_y = 12.2" in combined
     assert "servo_z = 28.5" in combined
