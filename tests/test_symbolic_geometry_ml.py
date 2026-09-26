@@ -18,3 +18,12 @@ def test_knn_and_registry():
     assert p.value==1 and p.confidence==1
     assert {"svm","decision_tree","random_forest","boosting","neural_network"} <= set(SUPPORTED_MODEL_FAMILIES)
     assert DETERMINISTIC_GATE_POLICY=="predictions_do_not_override_release_gate"
+
+def test_remaining_prediction_families():
+    assert svm_linear_predict([2],[1],-1).value==1
+    assert decision_stump_predict([2],0,1).value==1
+    forest=random_forest_predict([2],[{"feature_index":0,"threshold":1},{"feature_index":0,"threshold":3},{"feature_index":0,"threshold":1}])
+    assert forest.value==1 and forest.confidence==2/3
+    assert boosting_predict([2],[{"feature_index":0,"threshold":1,"weight":.5}]).value==.5
+    nn=neural_network_predict([2],[[1]],[-1],[2])
+    assert nn.value==2
