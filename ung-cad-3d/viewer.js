@@ -209,3 +209,10 @@ assembleBtn?.addEventListener("click",clearExplodeLabels);
  document.getElementById('symbolic-substitute')?.addEventListener('click',()=>{const k=Math.max(1,Math.round(+document.getElementById('symbolic-k').value||1)),r=window.UNGSymbolic.substitutePower(k);document.getElementById('symbolic-result').textContent='x = '+r.x+' • dx = '+r.dx});
  document.getElementById('symbolic-integral')?.addEventListener('click',()=>{const f=x=>Math.sqrt(x)/(1+Math.cbrt(x)),v=window.UNGSymbolic.integrateNumeric(f,0,1,4096);document.getElementById('symbolic-result').textContent='∫₀¹ √x/(1+∛x) dx ≈ '+v.toFixed(10)+' • Simpson n=4096'});
 })();
+
+/* AC/phasor and EM-wave UI */
+(function(){
+ const n=id=>Number(document.getElementById(id)?.value||0),out=document.getElementById('ac-result');
+ document.getElementById('ac-analyze')?.addEventListener('click',()=>{try{const f=n('ac-frequency'),amp=n('ac-amplitude'),phase=n('ac-phase')*Math.PI/180,C=n('ac-c');const s=window.UNGElectrical.sinusoid({amplitude:amp,frequency:f,phase});const a=window.UNGElectrical.acCurrent({voltageRms:window.UNGElectrical.peakToRms(amp),R:n('ac-r'),L:n('ac-l'),C:C>0?C:Infinity,frequency:f,sourcePhase:phase});out.textContent='T '+s.period.toPrecision(5)+' s • Vrms '+window.UNGElectrical.peakToRms(amp).toPrecision(6)+' V • |Z| '+a.impedancePolar.magnitude.toPrecision(6)+' Ω • Irms '+a.currentRms.toPrecision(6)+' A • phase '+(a.phase*180/Math.PI).toFixed(3)+'°';}catch(e){out.textContent='AC analysis error — '+e.message}});
+ document.getElementById('em-wave')?.addEventListener('click',()=>{try{const w=window.UNGElectrical.wave({E0:n('ac-amplitude'),frequency:n('ac-frequency'),phase:n('ac-phase')*Math.PI/180});out.textContent='Ideal EM wave • λ '+w.wavelength.toPrecision(7)+' m • E₀ '+w.E0+' V/m • B₀ '+w.B0.toExponential(5)+' T • E ⟂ B ⟂ propagation';}catch(e){out.textContent='Wave analysis error — '+e.message}});
+})();
