@@ -1,10 +1,11 @@
-// DRACO-Mini electronics cartridge — connector-aligned revision
-// USB-C cutouts are derived from the electronics mounting datum, not cosmetic shell positions.
-pi_zero_x = 65;
-pi_zero_y = 30;
+// DRACO-Mini electronics cartridge — corrected zone architecture
+// IMPORTANT: final dimensions come from BUILD_HANDOFF.md physical-hardware measurements.
+// The Raspberry Pi is COMPUTE, never the power subsystem.
+compute_board_x = 65; // PLACEHOLDER until actual installed Pi is measured
+compute_board_y = 30; // PLACEHOLDER until actual installed Pi is measured
 fit_clearance = 0.35;
 tray_x=72; tray_y=48; tray_z=12; wall=2.4;
-pi_clear_x=pi_zero_x+2*fit_clearance; pi_clear_y=pi_zero_y+2*fit_clearance;
+compute_clear_x=compute_board_x+2*fit_clearance; compute_clear_y=compute_board_y+2*fit_clearance;
 
 // Connector datums (mm), relative to cartridge center.
 // Keep these parameters tied to the measured board/adapter connector centerlines.
@@ -17,9 +18,10 @@ usb_c_corner_r = 2.25;
 connector_clearance = 0.35;
 rear_wall_y = tray_y/2;
 
-// Dedicated internal zones keep the power and data hardware directly behind their ports.
-power_zone_x = -22; power_zone_y = 10; power_zone_w = 22; power_zone_d = 18;
-data_zone_x  =  22; data_zone_y  = 10; data_zone_w  = 22; data_zone_d  = 18;
+// Explicit non-overlapping functional zones.
+compute_zone_x = 0; compute_zone_y = -7;
+power_zone_x = -24; power_zone_y = 12; power_zone_w = 18; power_zone_d = 16;
+data_zone_x  =  24; data_zone_y  = 12; data_zone_w  = 18; data_zone_d  = 16;
 post_d = 3.2; post_h = 4;
 // Three front sensor harness lanes line up with the redesigned shell bays.
 sensor_lane_x = [-29,0,29];
@@ -53,18 +55,20 @@ module electronics_cartridge(){
     difference(){
         cube([tray_x,tray_y,tray_z],center=true);
         // Main compute cavity.
-        translate([0,-5,wall]) cube([pi_clear_x,pi_clear_y,tray_z],center=true);
+        translate([0,-5,wall]) cube([compute_clear_x,compute_clear_y,tray_z],center=true);
         // Cable-routing corridor between electronics and connector wall.
         translate([0,19,wall]) cube([48,8,tray_z],center=true);
         // USB-C power and data openings, physically aligned to their internal zones.
         translate([usb_c_power_x,rear_wall_y,usb_c_center_z]) rounded_usb_c_cutout();
         translate([usb_c_data_x,rear_wall_y,usb_c_center_z]) rounded_usb_c_cutout();
     }
-    // Mounting references for power/data interface boards.
+    // Power interface posts are separate from the compute cavity.
     zone_posts(power_zone_x,power_zone_y,power_zone_w,power_zone_d);
     zone_posts(data_zone_x,data_zone_y,data_zone_w,data_zone_d);
     sensor_harness_guides();
     translate([-22,tray_y/2+1.1,2]) snap_tab();
     translate([22,tray_y/2+1.1,2]) snap_tab();
 }
+// Release gate: this source is architectural until the actual Pi, power hardware,
+// RJ45/USB-C plug envelopes and fan measurements pass the fit coupon.
 electronics_cartridge();
