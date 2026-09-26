@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, ParametricArc, ParametricCylinder, ParametricSphere, ParametricHole, ParametricExtrusion, ParametricRevolve, UNGCadFeatureTimeline, ToleranceExceededError, tessellated_surface_triangles, FeatureNode, ParametricDependencyGraph
+from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, ParametricArc, ParametricCylinder, ParametricSphere, ParametricHole, ParametricExtrusion, ParametricRevolve, UNGCadFeatureTimeline, ToleranceExceededError, tessellated_surface_triangles, sphere_manufacturing_triangles, FeatureNode, ParametricDependencyGraph
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -81,7 +81,7 @@ def create_parametric_primitive(body:ParametricPrimitiveIn):
         center=Point3D(*p.get("center",[0,0,0])); typ=body.primitive_type
         if typ=="arc": obj=ParametricArc(center,float(p["radius"]),float(p.get("start_deg",0)),float(p.get("end_deg",90)),Vector3D(*p.get("normal",[0,0,1]))); data={"vertices":obj.tessellate(tol)}
         elif typ=="cylinder": obj=ParametricCylinder(center,float(p["radius"]),float(p["height"])); s=obj.tessellate(tol); data={"triangles":tessellated_surface_triangles(s)}
-        elif typ=="sphere": obj=ParametricSphere(center,float(p["radius"])); s=obj.tessellate(tol); data={"triangles":tessellated_surface_triangles(s)}
+        elif typ=="sphere": obj=ParametricSphere(center,float(p["radius"])); data={"triangles":sphere_manufacturing_triangles(obj,tol)}
         elif typ=="hole": obj=ParametricHole(center,float(p["radius"]),float(p["depth"])); s=obj.tessellate(tol); data={"triangles":tessellated_surface_triangles(s),"operation":"subtract"}
         elif typ=="extrusion": obj=ParametricExtrusion(tuple(tuple(x) for x in p["profile"]),float(p["height"])); data={"triangles":tessellated_surface_triangles(obj.tessellate())}
         elif typ=="revolve": obj=ParametricRevolve(tuple(tuple(x) for x in p["profile"]),float(p.get("angle_deg",360))); data={"triangles":tessellated_surface_triangles(obj.tessellate())}
