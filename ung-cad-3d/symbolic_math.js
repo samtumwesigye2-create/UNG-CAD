@@ -43,5 +43,33 @@
   },p=checks[name]; if(!p)throw Error("Unknown trig identity");
   return {name,lhs:p[0],rhs:p[1],error:Math.abs(p[0]-p[1]),valid:Math.abs(p[0]-p[1])<1e-12};
  }
- g.UNGSymbolic={E,evalExpr,diff,integrateNumeric,substitutePower,trigIdentities,trigRewrite,verifyTrigIdentity};
+ 
+ // Extended trigonometry library: exact values and transformation identities.
+ const exactTrig=Object.freeze({
+  "sin(0)":0,"cos(0)":1,"sin(pi/6)":0.5,"cos(pi/6)":"sqrt(3)/2",
+  "sin(pi/4)":"sqrt(2)/2","cos(pi/4)":"sqrt(2)/2",
+  "sin(pi/3)":"sqrt(3)/2","cos(pi/3)":0.5,"sin(pi/2)":1,"cos(pi/2)":0
+ });
+ const trigFormulas=Object.freeze({
+  sinSum:"sin(a+b)=sin(a)cos(b)+cos(a)sin(b)",
+  sinDifference:"sin(a-b)=sin(a)cos(b)-cos(a)sin(b)",
+  cosSum:"cos(a+b)=cos(a)cos(b)-sin(a)sin(b)",
+  cosDifference:"cos(a-b)=cos(a)cos(b)+sin(a)sin(b)",
+  sinHalfAngle:"sin(x/2)^2=(1-cos(x))/2",
+  cosHalfAngle:"cos(x/2)^2=(1+cos(x))/2",
+  productSinCos:"sin(a)cos(b)=(sin(a+b)+sin(a-b))/2",
+  productCosCos:"cos(a)cos(b)=(cos(a+b)+cos(a-b))/2",
+  productSinSin:"sin(a)sin(b)=(cos(a-b)-cos(a+b))/2",
+  sumSin:"sin(a)+sin(b)=2sin((a+b)/2)cos((a-b)/2)",
+  sumCos:"cos(a)+cos(b)=2cos((a+b)/2)cos((a-b)/2)"
+ });
+ function exactTrigValue(expr){const k=String(expr).replace(/\\s+/g,"").toLowerCase();return Object.prototype.hasOwnProperty.call(exactTrig,k)?exactTrig[k]:null}
+ function inverseTrigSimplify(fn,value){
+  const v=Number(value),eps=1e-12;
+  if(fn==="asin"){if(Math.abs(v)<eps)return 0;if(Math.abs(v-.5)<eps)return "pi/6";if(Math.abs(v-1)<eps)return "pi/2";}
+  if(fn==="acos"){if(Math.abs(v-1)<eps)return 0;if(Math.abs(v-.5)<eps)return "pi/3";if(Math.abs(v)<eps)return "pi/2";}
+  if(fn==="atan"){if(Math.abs(v)<eps)return 0;if(Math.abs(v-1)<eps)return "pi/4";}
+  return null;
+ }
+ g.UNGSymbolic={E,evalExpr,diff,integrateNumeric,substitutePower,trigIdentities,trigRewrite,verifyTrigIdentity,trigFormulas,exactTrig,exactTrigValue,inverseTrigSimplify};
 })(window);
