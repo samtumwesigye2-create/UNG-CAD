@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
-const ctx={window:{},Math,console};ctx.globalThis=ctx.window;vm.createContext(ctx);
+const ctx={window:{},Math,console};ctx.window.window=ctx.window;ctx.window.Math=Math;ctx.globalThis=ctx.window;vm.createContext(ctx);
 for(const f of ['analytic_geometry.js','parametric_surfaces.js','surface_unroll.js','symbolic_math.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',f),'utf8'),ctx);
 const A=ctx.window.UNGAnalytic,S=ctx.window.UNGSurfaces,U=ctx.window.UNGUnroll,M=ctx.window.UNGSymbolic;
 assert.ok(A&&S&&U&&M,'all analytic engines load');
