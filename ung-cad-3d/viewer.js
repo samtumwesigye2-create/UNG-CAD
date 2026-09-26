@@ -85,15 +85,22 @@ function calculateThreePhase(){const c=document.getElementById('em-connection').
 function evaluateStudioReleaseGate(){
  const polys=[];objects.filter(o=>o.visible).forEach(o=>polys.push(...o.polygons));
  const topo=polys.length?inspectPolygons(polys):null;
- const checks=[
- ['Feature',objects.length>0],['Topology',!!topo&&topo.watertight],
- ['Dimensions',objects.length>0],['Tolerance',true],['Assembly',true],
- ['Manufacturability',!!topo&&topo.watertight],['Machine envelope',true],['Toolpath',false]
+ const evidence=[
+  {name:'Feature',source:'Studio feature/object state',evaluated:true,passed:objects.length>0},
+  {name:'Topology',source:'UNG-GEOMETRY mesh integrity',evaluated:!!topo,passed:topo?topo.watertight:null},
+  {name:'Dimensions',source:'Studio selected-part dimensions',evaluated:objects.length>0,passed:objects.length>0},
+  {name:'Tolerance',source:'Tolerance policy',evaluated:false,passed:null},
+  {name:'Assembly',source:'Assembly interference solver',evaluated:false,passed:null},
+  {name:'Manufacturability',source:'Topology-derived additive precheck',evaluated:!!topo,passed:topo?topo.watertight:null},
+  {name:'Machine envelope',source:'Machine profile/envelope validator',evaluated:false,passed:null},
+  {name:'Toolpath',source:'Slicer/CAM validation',evaluated:false,passed:null}
  ];
- const blocked=checks.some(([n,ok])=>!ok&&n!=='Toolpath'), stale=!blocked&&!checks.find(x=>x[0]==='Toolpath')[1];
- releaseGateState=blocked?'BLOCKED':stale?'STALE':'RELEASE';
+ const state=e=>!e.evaluated||e.passed===null?'STALE':e.passed?'RELEASE':'BLOCKED';
+ const states=evidence.map(state);
+ releaseGateState=states.includes('BLOCKED')?'BLOCKED':states.includes('STALE')?'STALE':states.includes('WARNING')?'WARNING':'RELEASE';
  const st=document.getElementById('release-gate-state'),list=document.getElementById('release-gate-checks');
- if(st)st.textContent=releaseGateState;if(list)list.textContent=checks.map(([n,ok])=>n+' '+(ok?'✓':n==='Toolpath'?'STALE':'✕')).join(' • ');
+ if(st)st.textContent=releaseGateState;
+ if(list)list.innerHTML=evidence.map(e=>'<div class="release-evidence-row"><strong>'+e.name+'</strong>: '+state(e)+' <span class="muted">— '+e.source+(e.evaluated?'':' (not evaluated)')+'</span></div>').join('');
  return releaseGateState;
 }
 function updateIntegrity(){const badge=document.getElementById('integrity-badge');if(!badge)return;const polys=[];objects.filter(o=>o.visible&&(selected.length!==1||selected.includes(o.id))).forEach(o=>polys.push(...o.polygons));const summary=document.getElementById('integrity-summary'),topology=document.getElementById('integrity-topology'),env=document.getElementById('integrity-envelope'),mfg=document.getElementById('integrity-manufacturing');if(!polys.length){badge.className='gate-badge gate-empty';badge.textContent='NO MODEL';summary.textContent='Create or import geometry to validate it.';topology.textContent='Topology —';env.textContent='Envelope —';mfg.textContent='Manufacturing —';return}const r=inspectPolygons(polys),state=r.nonmanifold||r.degenerate?'INVALID':r.boundary?'WARNING':'VALID';badge.className='gate-badge gate-'+state.toLowerCase();badge.textContent=state;summary.textContent=r.watertight?'Closed manifold geometry':'Geometry needs review before release';topology.textContent='Faces '+r.faces+' • boundary '+r.boundary+' • nonmanifold '+r.nonmanifold+' • degenerate '+r.degenerate;const bb=E.boundingBox(polys),unit=document.getElementById('integrity-units')?.value||'mm',scale=unit==='in'?1/25.4:1,sx=(bb.max.x-bb.min.x)*scale,sy=(bb.max.y-bb.min.y)*scale,sz=(bb.max.z-bb.min.z)*scale;env.textContent='Envelope '+sx.toFixed(2)+' × '+sy.toFixed(2)+' × '+sz.toFixed(2)+' '+unit;mfg.textContent='Manufacturing '+(state==='INVALID'?'BLOCKED':'STALE — regenerate after geometry changes')}function markGeometryChanged(){selected.forEach(markEngineeringStale);releaseGateState='STALE';updateIntegrity();evaluateStudioReleaseGate()}window.inspectPolygons=inspectPolygons;async function refreshTwinBindings(){try{const r=await fetch('/api/data-twin/bindings');if(!r.ok)return;const rows=await r.json();twinBindings=Object.fromEntries(rows.map(x=>[String(x.object_key),x]));refresh()}catch(e){console.warn('Twin bindings unavailable',e)}}
