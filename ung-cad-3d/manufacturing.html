@@ -61,6 +61,15 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 <div class="field"><label>Supports</label><select id="supports"><option value="auto" selected>Auto</option><option value="off">Off</option></select></div>
 <div class="field"><label>Copies</label><input id="copies" value="1" type="number" min="1" max="20"></div>
 <details class="field"><summary>Advanced controls</summary><label>Layer height (mm)</label><input id="layer" value="0.20" type="number" min="0.08" max="0.40" step="0.02"><div class="small">UNG-CAD automatically handles walls, infill, top/bottom layers, brim, extrusion, travel, cooling and validation. Open this only when you want manual control.</div></details>
+<details class="field" id="fourDPanel"><summary>Experimental 4D printing</summary>
+<div class="small">AD5M experimental post-processing. Keep the original slicer output as fallback. Manual material/light stages pause and require you to resume from the printer only after the operation is complete.</div>
+<label><input type="checkbox" id="fourdThermal"> Thermal stress programming</label>
+<label><input type="checkbox" id="fourdMaterial"> Manual moisture-material swap</label>
+<div class="an-row"><label>Swap layer <input id="fourdSwapLayer" type="number" min="1" value="15"></label></div>
+<label><input type="checkbox" id="fourdLight"> External light-treatment pause</label>
+<div class="an-row"><label>Light interval (layers) <input id="fourdLightEvery" type="number" min="1" value="10"></label></div>
+<div class="small">Use material swaps/light exposure only with materials and procedures you have validated. UNG-CAD does not assume ordinary PLA/PVA becomes photo-responsive.</div>
+</details>
 <button class="btn" id="slice" disabled>Auto Prepare</button>
 </div>
 
@@ -197,7 +206,7 @@ async function loadToolpath(machine){
  }catch(e){document.getElementById('toolpathPanel').style.display='none'}
 }
 
-sliceBtn.onclick=async()=>{if(!selectedFile||!part.value)return;if(!preflightPassed){status.textContent='BLOCKED — Manufacturing Preflight has not passed.';return;}sliceBtn.disabled=true;sendBtn.disabled=true;status.textContent='Preparing printable machine file…';const d=new FormData();d.append('file',selectedFile);d.append('selected',part.value);d.append('layer_height',document.getElementById('layer').value);d.append('quality',document.getElementById('quality').value);d.append('material',document.getElementById('material').value);d.append('supports',document.getElementById('supports').value);d.append('copies',document.getElementById('copies').value);
+sliceBtn.onclick=async()=>{if(!selectedFile||!part.value)return;if(!preflightPassed){status.textContent='BLOCKED — Manufacturing Preflight has not passed.';return;}sliceBtn.disabled=true;sendBtn.disabled=true;status.textContent='Preparing printable machine file…';const d=new FormData();d.append('file',selectedFile);d.append('selected',part.value);d.append('layer_height',document.getElementById('layer').value);d.append('quality',document.getElementById('quality').value);d.append('material',document.getElementById('material').value);d.append('supports',document.getElementById('supports').value);d.append('copies',document.getElementById('copies').value);d.append('fourd_thermal',document.getElementById('fourdThermal').checked);d.append('fourd_material',document.getElementById('fourdMaterial').checked);d.append('fourd_light',document.getElementById('fourdLight').checked);d.append('fourd_swap_layer',document.getElementById('fourdSwapLayer').value);d.append('fourd_light_every',document.getElementById('fourdLightEvery').value);
 try{const r=await fetch('/api/manufacturing/slice',{method:'POST',body:d}),j=await r.json();if(!r.ok)throw Error(j.detail||'Slicing failed');lastMachineUrl=j.download;lastMachineFile=j.machine_file;sendBtn.disabled=!bridgeOnline;if(!j.stats.pre_sliced)loadToolpath(j.machine_file);status.textContent=j.stats.pre_sliced?('MACHINE FILE READY — '+j.machine_file+'\n'):('AUTO PREPARE COMPLETE — '+j.stats.layers+' layers · '+j.stats.infill_percent+'% infill · '+j.stats.wall_count+' walls · supports '+j.stats.support_layers+' layers · '+j.stats.material_g+' g · ~'+j.stats.estimated_minutes+' min.\nValidation: '+j.stats.validation+' · Machine file: '+j.machine_file+'\n');const a=document.createElement('a');a.className='link';a.href=j.download;a.download=j.machine_file;a.textContent='Download AD5M G-code';status.appendChild(a)}catch(e){status.textContent='SLICE FAILED — '+e.message}finally{sliceBtn.disabled=false}};
 
 async function refreshBridge(){
