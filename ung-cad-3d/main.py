@@ -355,7 +355,7 @@ def manufacturing_bridge_status(printer_id:str="a51a5435"):
     c=get_connection(); row=c.execute(f"SELECT * FROM bridge_status WHERE printer_id IN ({marks}) ORDER BY last_seen DESC LIMIT 1",[*ids]).fetchone(); c.close()
     if not row:return {"online":False,"printer_id":printer_id,"reason":"bridge has never checked in"}
     r=dict(row); last=datetime.fromisoformat(r["last_seen"]); age=(datetime.now(timezone.utc)-last).total_seconds()
-    return {"online":age<20,"age_seconds":round(age,1),"last_seen":r["last_seen"],"version":r["version"],"printer":json.loads(r["printer_json"]) if r["printer_json"] else None,"error":r["error"]}
+    return {"online":age<45,"age_seconds":round(age,1),"last_seen":r["last_seen"],"version":r["version"],"printer":json.loads(r["printer_json"]) if r["printer_json"] else None,"error":r["error"]}
 
 @app.get("/api/bridge/jobs/next")
 def bridge_next(printer_id:str):
