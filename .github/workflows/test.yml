@@ -29,6 +29,7 @@ jobs:
           node ung-cad-3d/tests/ung-ml-engine.test.js
           node ung-cad-3d/tests/professional-core.test.js
           node ung-cad-3d/tests/professional-platform.test.js
+          node ung-cad-3d/tests/workspace-smoke.test.js
       - name: Validate Studio integration contracts
         run: |
           python - <<'PY'
