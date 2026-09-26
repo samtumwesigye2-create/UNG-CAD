@@ -192,3 +192,18 @@ assembleBtn?.addEventListener("click",clearExplodeLabels);
  });
  if(new URLSearchParams(location.search).get('workspace')==='analytic')state.textContent='Analytic workspace active • create a parametric surface or select two solids';
 })();
+
+/* 2D development preview/export + symbolic math controls */
+(function(){
+ let dev=null;
+ const canvas=document.getElementById('unroll-preview'),svgBtn=document.getElementById('unroll-svg'),csvBtn=document.getElementById('unroll-csv');
+ function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+ function points(d){if(!d)return[];if(d.outline)return d.outline;if(d.points)return d.points.map(p=>p.uv);return[]}
+ function draw(d){const p=points(d);if(!p.length)return;canvas.style.display='block';const x=p.map(q=>q[0]),y=p.map(q=>q[1]),mnx=Math.min(...x),mxx=Math.max(...x),mny=Math.min(...y),mxy=Math.max(...y),ctx=canvas.getContext('2d'),pad=16,s=Math.min((canvas.width-2*pad)/(mxx-mnx||1),(canvas.height-2*pad)/(mxy-mny||1));ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#111827';ctx.lineWidth=2;ctx.beginPath();p.forEach((q,i)=>{const X=pad+(q[0]-mnx)*s,Y=canvas.height-pad-(q[1]-mny)*s;i?ctx.lineTo(X,Y):ctx.moveTo(X,Y)});if(d.outline)ctx.closePath();ctx.stroke();svgBtn.disabled=csvBtn.disabled=false}
+ const old=document.getElementById('analytic-unroll');
+ old?.addEventListener('click',()=>setTimeout(()=>{const o=objects.find(x=>x.id===selected[0]);dev=o?.surfaceDevelopment||null;if(dev)draw(dev)},0));
+ svgBtn?.addEventListener('click',()=>{const p=points(dev);if(!p.length)return;const x=p.map(q=>q[0]),y=p.map(q=>q[1]),mnx=Math.min(...x),mny=Math.min(...y),mxx=Math.max(...x),mxy=Math.max(...y),path=p.map((q,i)=>(i?'L':'M')+' '+(q[0]-mnx)+' '+(mxy-q[1])).join(' ')+(dev.outline?' Z':'');download('UNG_surface_development.svg','<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+(mxx-mnx)+' '+(mxy-mny)+'"><path d="'+path+'" fill="none" stroke="black" stroke-width="0.2"/></svg>','image/svg+xml')});
+ csvBtn?.addEventListener('click',()=>{const p=points(dev);download('UNG_surface_development.csv','x,y\n'+p.map(q=>q[0]+','+q[1]).join('\n'),'text/csv')});
+ document.getElementById('symbolic-substitute')?.addEventListener('click',()=>{const k=Math.max(1,Math.round(+document.getElementById('symbolic-k').value||1)),r=window.UNGSymbolic.substitutePower(k);document.getElementById('symbolic-result').textContent='x = '+r.x+' • dx = '+r.dx});
+ document.getElementById('symbolic-integral')?.addEventListener('click',()=>{const f=x=>Math.sqrt(x)/(1+Math.cbrt(x)),v=window.UNGSymbolic.integrateNumeric(f,0,1,4096);document.getElementById('symbolic-result').textContent='∫₀¹ √x/(1+∛x) dx ≈ '+v.toFixed(10)+' • Simpson n=4096'});
+})();
