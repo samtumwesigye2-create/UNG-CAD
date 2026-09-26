@@ -26,3 +26,5 @@ from .circle_geometry import Point3D, CADCircle3D, scale_cad_circle, rotate_poin
 from .feature_timeline import ToleranceExceededError, ParametricCircle, PrecisionGeometryEngine, UNGCadFeatureTimeline
 
 from .orbital_dynamics import OrbitalState, schwarzschild_radius, weak_field_frame_dragging_scalar, lense_thirring_vector, two_body_acceleration, rk4_two_body_step, orbital_elements, fit_residuals, parameter_sweep
+
+from .ml_analytics import GaussianNaiveBayes, KNN, kmeans, Adam, gradient_descent, classification_metrics, mse, mae, r2, log_loss, kl_divergence, cosine_similarity, correlation, z_scores, MODEL_CATALOG
