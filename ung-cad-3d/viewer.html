@@ -80,9 +80,17 @@ body.embedded{display:block}.embedded header,.embedded #panel,.embedded #right{d
 })();
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="./viewer.js?v=viewer-runtime-20260926" defer></script>
 <script>
 (function(){
- const s=document.getElementById('status');
- function boot(){
-   if(!window.THREE){ if(s)s.textContent='3D runtime unavailable'; return; }
-   const sc=document.createElement('script'); sc.src='./viewer.js?v=electrical-wave-1"em-export-btn")?.addEventListener("click",()=>{if(!window.__ungLastEM){document.getElementById("status").textContent="Calculate transformer first.";return}try{const r=window.UNGElectromagneticsManufacturing.handoff(window.__ungLastEM);document.getElementById("status").textContent="Generated "+r.name+" for manufacturing validation."}catch(e){document.getElementById("status").textContent="Bobbin generation failed: "+e.message}});</script><script src="./electromagnetics-v2.js"></script><script>document.getElementById("quick-explode-btn")?.addEventListener("click",()=>document.getElementById("explode-btn")?.click());document.getElementById("quick-assemble-btn")?.addEventListener("click",()=>document.getElementById("assemble-btn")?.click());</script><script src="./professional-ui.js"></script></body></html>
+  const s=document.getElementById('status');
+  window.addEventListener('load',()=>{
+    setTimeout(()=>{
+      if(!window.__ungViewerStarted && s){
+        s.textContent='3D engine failed to start — verify WebGL and viewer assets';
+      }
+    },4000);
+  });
+})();
+</script>
+<script src="./professional-ui.js"></script></body></html>
