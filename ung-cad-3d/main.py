@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from orca_slicer import slice_stl_orca as slice_stl  # real AD5M slicing (fixed)
 from slicer_cnc import slice_shapes_to_gcode
+from fourd_engine import compile_ad5m_4d
 BASE_DIR=Path(__file__).resolve().parent
 DB_PATH=Path(os.getenv("UNG_CAD_3D_DB",str(BASE_DIR/"ung_cad_3d.db")))
 app=FastAPI(title="UNG-CAD-3D",version="1.2.0")
@@ -182,7 +183,7 @@ async def manufacturing_preview_stl(file:UploadFile=File(...), selected:str=Form
         raise HTTPException(422,f"Could not convert model for preview: {e}")
 
 @app.post("/api/manufacturing/slice")
-async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_height:float=Form(0.20), quality:str=Form("balanced"), material:str=Form("PLA"), supports:str=Form("auto"), copies:int=Form(1)):
+async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_height:float=Form(0.20), quality:str=Form("balanced"), material:str=Form("PLA"), supports:str=Form("auto"), copies:int=Form(1), fourd_thermal:bool=Form(False), fourd_material:bool=Form(False), fourd_light:bool=Form(False), fourd_swap_layer:int=Form(15), fourd_light_every:int=Form(10)):
     if not (0.08 <= layer_height <= 0.4): raise HTTPException(400,"Layer height must be 0.08–0.40 mm")
     source_name, data=await read_selected(file,selected); low=source_name.lower()
     if low.endswith((".gcode",".gx")) or low.endswith(".gcode.3mf"):
@@ -200,8 +201,14 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
             low=source_name.lower()
         except Exception as e: raise HTTPException(422,f"Model conversion failed: {e}")
     if not low.endswith(".stl"): raise HTTPException(400,"This build slices STL/GLB/GLTF/OBJ and sends pre-sliced G-code/GX/GCODE.3MF machine packages directly")
-    try: gcode,stats=slice_stl(data,Path(source_name).name,layer_height=layer_height)
-    except Exception as e: raise HTTPException(422,f"Slicing failed: {e}")
+    try:
+        gcode,stats=slice_stl(data,Path(source_name).name,layer_height=layer_height)
+        if fourd_thermal or fourd_material or fourd_light:
+            text_gcode=gcode.decode("utf-8","replace") if isinstance(gcode,bytes) else gcode
+            text_gcode=compile_ad5m_4d(text_gcode,layer_height=layer_height,thermal=fourd_thermal,material_swap=fourd_material,swap_layer=fourd_swap_layer,light=fourd_light,light_every=fourd_light_every)
+            gcode=text_gcode.encode()
+            stats["experimental_4d"]={"thermal":fourd_thermal,"material_swap":fourd_material,"light":fourd_light,"swap_layer":fourd_swap_layer,"light_every":fourd_light_every,"manual_resume_required":bool(fourd_material or fourd_light)}
+    except Exception as e: raise HTTPException(422,f"Slicing/4D preparation failed: {e}")
     out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
     safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).stem); target=out/(safe+"_AD5M.gcode"); target.write_bytes(gcode)
     return {"ok":True,"status":"sliced","source":Path(source_name).name,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","printer":"FlashForge Adventurer 5M","stats":stats,"transmission":"local AD5M bridge required"}
