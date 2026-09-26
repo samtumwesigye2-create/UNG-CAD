@@ -132,7 +132,7 @@ def printable_entries(names):
     out=[]
     for n in names:
         low=n.lower()
-        if low.endswith((".stl",".3mf",".gcode",".gx")) and not low.endswith("draco_gen1_full_assembly_reference.stl"): out.append(n)
+        if low.endswith((".stl",".glb",".gltf",".obj",".3mf",".gcode",".gx")) and not low.endswith("draco_gen1_full_assembly_reference.stl"): out.append(n)
     return out
 
 @app.post("/api/manufacturing/inspect")
@@ -142,7 +142,7 @@ async def inspect(file:UploadFile=File(...)):
         try:
             with zipfile.ZipFile(io.BytesIO(data)) as z: entries=printable_entries([n for n in z.namelist() if not n.endswith("/")])
         except zipfile.BadZipFile: raise HTTPException(400,"Invalid ZIP")
-    elif name.lower().endswith((".stl",".3mf",".gcode",".gx")): entries=[name]
+    elif name.lower().endswith((".stl",".glb",".gltf",".obj",".3mf",".gcode",".gx")): entries=[name]
     else: raise HTTPException(400,"Unsupported project type")
     if not entries: raise HTTPException(400,"No printable files found")
     return {"ok":True,"part_count":len(entries),"parts":[Path(n).name for n in entries],"printer_profile":"FlashForge Adventurer 5M","assembly_reference_excluded":True}
@@ -162,6 +162,24 @@ async def read_selected(file:UploadFile, selected:str):
     if Path(file.filename).name==selected or not selected: return file.filename,data
     raise HTTPException(404,"Selected part not found")
 
+@app.post("/api/manufacturing/preview-stl")
+async def manufacturing_preview_stl(file:UploadFile=File(...), selected:str=Form(...)):
+    source_name, data = await read_selected(file, selected)
+    low = source_name.lower()
+    if low.endswith(".stl"):
+        return Response(content=data, media_type="model/stl")
+    if not low.endswith((".glb",".gltf",".obj")):
+        raise HTTPException(400,"3D preview supports STL, GLB, GLTF and OBJ")
+    try:
+        mesh = trimesh.load(io.BytesIO(data), file_type=Path(source_name).suffix.lstrip("."), force="scene")
+        if isinstance(mesh, trimesh.Scene):
+            if not mesh.geometry: raise ValueError("No mesh geometry found")
+            mesh = trimesh.util.concatenate(tuple(mesh.geometry.values()))
+        out = mesh.export(file_type="stl")
+        return Response(content=out, media_type="model/stl")
+    except Exception as e:
+        raise HTTPException(422,f"Could not convert model for preview: {e}")
+
 @app.post("/api/manufacturing/slice")
 async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_height:float=Form(0.20), quality:str=Form("balanced"), material:str=Form("PLA"), supports:str=Form("auto"), copies:int=Form(1)):
     if not (0.08 <= layer_height <= 0.4): raise HTTPException(400,"Layer height must be 0.08–0.40 mm")
@@ -170,7 +188,17 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
         out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
         safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).name); target=out/safe; target.write_bytes(data)
         return {"ok":True,"status":"machine_file_ready","source":Path(source_name).name,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","printer":"FlashForge Adventurer 5M","stats":{"pre_sliced":True,"machine_package":low.endswith(".gcode.3mf")},"transmission":"local AD5M bridge required"}
-    if not low.endswith(".stl"): raise HTTPException(400,"This build slices STL and sends pre-sliced G-code/GX/GCODE.3MF machine packages directly")
+    if low.endswith((".glb",".gltf",".obj")):
+        try:
+            mesh=trimesh.load(io.BytesIO(data),file_type=Path(source_name).suffix.lstrip("."),force="scene")
+            if isinstance(mesh,trimesh.Scene):
+                if not mesh.geometry: raise ValueError("No mesh geometry found")
+                mesh=trimesh.util.concatenate(tuple(mesh.geometry.values()))
+            data=mesh.export(file_type="stl")
+            source_name=Path(source_name).stem+".stl"
+            low=source_name.lower()
+        except Exception as e: raise HTTPException(422,f"Model conversion failed: {e}")
+    if not low.endswith(".stl"): raise HTTPException(400,"This build slices STL/GLB/GLTF/OBJ and sends pre-sliced G-code/GX/GCODE.3MF machine packages directly")
     try: gcode,stats=slice_stl(data,Path(source_name).name,layer_height=layer_height)
     except Exception as e: raise HTTPException(422,f"Slicing failed: {e}")
     out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
