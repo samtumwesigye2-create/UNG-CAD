@@ -92,5 +92,27 @@
  function rotate2D(x,y,angleRad){const c=Math.cos(angleRad),s=Math.sin(angleRad);return{x:x*c-y*s,y:x*s+y*c}}
  function polarToCartesian(radius,angleRad){return{x:radius*Math.cos(angleRad),y:radius*Math.sin(angleRad)}}
  function cartesianToPolar(x,y){return{radius:Math.hypot(x,y),angleRad:Math.atan2(y,x),angleDeg:radToDeg(Math.atan2(y,x))}}
- g.UNGSymbolic={E,evalExpr,diff,integrateNumeric,substitutePower,trigIdentities,trigRewrite,verifyTrigIdentity,trigFormulas,exactTrig,exactTrigValue,inverseTrigSimplify,normalizeAngle,periodicEquivalent,degToRad,radToDeg,solveRightTriangle,rotate2D,polarToCartesian,cartesianToPolar};
+ 
+ // Vector/rotation helpers for 3D CAD constraints and kinematics.
+ function rotate3D(p,axis,angleRad){
+  const x=Number(p.x),y=Number(p.y),z=Number(p.z),ax=Number(axis.x),ay=Number(axis.y),az=Number(axis.z);
+  const m=Math.hypot(ax,ay,az);if(!m)throw Error("Rotation axis cannot be zero");
+  const u={x:ax/m,y:ay/m,z:az/m},c=Math.cos(angleRad),s=Math.sin(angleRad),d=u.x*x+u.y*y+u.z*z;
+  return {x:x*c+(u.y*z-u.z*y)*s+u.x*d*(1-c),y:y*c+(u.z*x-u.x*z)*s+u.y*d*(1-c),z:z*c+(u.x*y-u.y*x)*s+u.z*d*(1-c)};
+ }
+ function angleBetweenVectors(a,b){
+  const da=Math.hypot(a.x,a.y,a.z),db=Math.hypot(b.x,b.y,b.z);if(!da||!db)throw Error("Zero-length vector");
+  const q=(a.x*b.x+a.y*b.y+a.z*b.z)/(da*db);return Math.acos(Math.max(-1,Math.min(1,q)));
+ }
+ function vectorFromYawPitch(yaw,pitch,length=1){
+  const cp=Math.cos(pitch);return{x:length*cp*Math.cos(yaw),y:length*Math.sin(pitch),z:length*cp*Math.sin(yaw)};
+ }
+ function yawPitchFromVector(v){
+  const r=Math.hypot(v.x,v.y,v.z);if(!r)throw Error("Zero-length vector");
+  return{yaw:Math.atan2(v.z,v.x),pitch:Math.asin(v.y/r),length:r};
+ }
+ function arcLength(radius,angleRad){return Math.abs(Number(radius)*Number(angleRad))}
+ function chordLength(radius,angleRad){return 2*Math.abs(Number(radius))*Math.sin(Math.abs(Number(angleRad))/2)}
+ function radiusFromChord(chord,angleRad){const s=2*Math.sin(Math.abs(Number(angleRad))/2);if(Math.abs(s)<1e-15)throw Error("Angle produces undefined radius");return Math.abs(Number(chord)/s)}
+ g.UNGSymbolic={E,evalExpr,diff,integrateNumeric,substitutePower,trigIdentities,trigRewrite,verifyTrigIdentity,trigFormulas,exactTrig,exactTrigValue,inverseTrigSimplify,normalizeAngle,periodicEquivalent,degToRad,radToDeg,solveRightTriangle,rotate2D,polarToCartesian,cartesianToPolar,rotate3D,angleBetweenVectors,vectorFromYawPitch,yawPitchFromVector,arcLength,chordLength,radiusFromChord};
 })(window);
