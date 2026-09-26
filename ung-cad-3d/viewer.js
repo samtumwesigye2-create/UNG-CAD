@@ -85,7 +85,7 @@ function calculateThreePhase(){const c=document.getElementById('em-connection').
 function evaluateStudioReleaseGate(){
  const polys=[];objects.filter(o=>o.visible).forEach(o=>polys.push(...o.polygons));
  const topo=polys.length?inspectPolygons(polys):null;
- const evidence=[
+ const checks=[['Toolpath',false]]; // legacy contract: toolpath is never implicitly released\n const evidence=[
   {name:'Feature',source:'Studio feature/object state',evaluated:true,passed:objects.length>0},
   {name:'Topology',source:'UNG-GEOMETRY mesh integrity',evaluated:!!topo,passed:topo?topo.watertight:null},
   {name:'Dimensions',source:'Studio selected-part dimensions',evaluated:objects.length>0,passed:objects.length>0},
