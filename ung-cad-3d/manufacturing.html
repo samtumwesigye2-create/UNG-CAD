@@ -8,7 +8,7 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 @media(max-width:820px){body{min-width:830px}.wrap{margin:0;padding:14px}.preview-wrap{grid-template-columns:1fr 260px}.controls{grid-template-columns:1fr 180px 150px}.top{position:fixed}.box{border-radius:8px}}
 </style></head>
 <body><div class="top"><button onclick="location.href='/studio.html'">Home</button><button onclick="location.href='/viewer.html'">3D</button></div>
-<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-26.5</div>
+<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-26.6</div>
 
 <h2><span class="step">1</span>Choose model</h2>
 <label class="btn" style="display:inline-flex;position:relative;align-items:center;overflow:hidden;cursor:pointer">Choose model or project<input id="pkg" type="file" multiple style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"></label>
@@ -97,12 +97,12 @@ function __drawFallbackSTL(){
  for(const t of tris){const q3=[rot(t.a),rot(t.b),rot(t.c)];for(const p of q3)extent=Math.max(extent,Math.abs(p.x),Math.abs(p.y));faces.push({q3,depth:(q3[0].z+q3[1].z+q3[2].z)/3});}
  const sc=Math.min(w,h)*.42/extent*__fallbackPreview.zoom;faces.sort((u,v)=>u.depth-v.depth);
  const light={x:-.25,y:-.35,z:.9};
- for(const f of faces){const p=f.q3,q=p.map(v=>[w/2+v.x*sc,h/2-v.y*sc]);const ux=p[1].x-p[0].x,uy=p[1].y-p[0].y,uz=p[1].z-p[0].z,vx=p[2].x-p[0].x,vy=p[2].y-p[0].y,vz=p[2].z-p[0].z;let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const nl=Math.hypot(nx,ny,nz)||1;nx/=nl;ny/=nl;nz/=nl;const lum=Math.max(.48,Math.min(1,.62+.38*Math.abs(nx*light.x+ny*light.y+nz*light.z)));const base=[105,190,232];ctx.fillStyle='rgb('+Math.round(base[0]*lum)+','+Math.round(base[1]*lum)+','+Math.round(base[2]*lum)+')';ctx.globalAlpha=.98;ctx.beginPath();ctx.moveTo(q[0][0],q[0][1]);ctx.lineTo(q[1][0],q[1][1]);ctx.lineTo(q[2][0],q[2][1]);ctx.closePath();ctx.fill();}
+ for(const f of faces){const p=f.q3,q=p.map(v=>[w/2+v.x*sc,h/2-v.y*sc]);const ux=p[1].x-p[0].x,uy=p[1].y-p[0].y,uz=p[1].z-p[0].z,vx=p[2].x-p[0].x,vy=p[2].y-p[0].y,vz=p[2].z-p[0].z;let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const nl=Math.hypot(nx,ny,nz)||1;nx/=nl;ny/=nl;nz/=nl;const lum=Math.max(.58,Math.min(1,.68+.32*Math.abs(nx*light.x+ny*light.y+nz*light.z)));const base=[198,205,214];ctx.fillStyle='rgb('+Math.round(base[0]*lum)+','+Math.round(base[1]*lum)+','+Math.round(base[2]*lum)+')';ctx.globalAlpha=.98;ctx.beginPath();ctx.moveTo(q[0][0],q[0][1]);ctx.lineTo(q[1][0],q[1][1]);ctx.lineTo(q[2][0],q[2][1]);ctx.closePath();ctx.fill();}
  ctx.globalAlpha=1;
 }
 function __installFallbackInteraction(cv){
  cv.style.cursor='grab';cv.onpointerdown=e=>{__fallbackPreview.drag=true;__fallbackPreview.x=e.clientX;__fallbackPreview.y=e.clientY;cv.setPointerCapture?.(e.pointerId);cv.style.cursor='grabbing';};
- cv.onpointermove=e=>{if(!__fallbackPreview.drag)return;const dx=e.clientX-__fallbackPreview.x,dy=e.clientY-__fallbackPreview.y;__fallbackPreview.rz+=dx*.006;__fallbackPreview.rx=Math.max(-1.45,Math.min(1.45,__fallbackPreview.rx+dy*.006));__fallbackPreview.x=e.clientX;__fallbackPreview.y=e.clientY;__drawFallbackSTL();};
+ cv.onpointermove=e=>{if(!__fallbackPreview.drag)return;const dx=e.clientX-__fallbackPreview.x,dy=e.clientY-__fallbackPreview.y;__fallbackPreview.rz-=dx*.006;__fallbackPreview.rx=Math.max(-1.45,Math.min(1.45,__fallbackPreview.rx-dy*.006));__fallbackPreview.x=e.clientX;__fallbackPreview.y=e.clientY;__drawFallbackSTL();};
  cv.onpointerup=cv.onpointercancel=()=>{__fallbackPreview.drag=false;cv.style.cursor='grab';};cv.onwheel=e=>{e.preventDefault();__fallbackPreview.zoom=Math.max(.55,Math.min(2.5,__fallbackPreview.zoom*(e.deltaY>0?.92:1.08)));__drawFallbackSTL();};
 }
 window.__previewSTL=function(label,arrayBuffer){
