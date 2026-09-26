@@ -48,6 +48,13 @@ def radius_from_sphere_volume(volume: float) -> float:
     return (3.0 * volume / (4.0 * math.pi)) ** (1.0 / 3.0)
 
 
+def radius_from_sphere_surface_area(surface_area: float) -> float:
+    """Calculate sphere radius from surface area."""
+    if surface_area < 0:
+        raise ValueError("surface_area must be non-negative")
+    return math.sqrt(surface_area / (4.0 * math.pi))
+
+
 if __name__ == "__main__":
     r = 5.0
     values = radial_metrics(r)
@@ -60,3 +67,5 @@ if __name__ == "__main__":
     demo_volume = 523.60
     print(f"Given Circle Area {demo_area} -> Calculated Radius: {radius_from_circle_area(demo_area):.2f}")
     print(f"Given Sphere Volume {demo_volume} -> Calculated Radius: {radius_from_sphere_volume(demo_volume):.2f}")
+    demo_surface_area = 314.16
+    print(f"Given Sphere Surface Area {demo_surface_area} -> Calculated Radius: {radius_from_sphere_surface_area(demo_surface_area):.2f}")
