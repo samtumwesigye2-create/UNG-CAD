@@ -130,5 +130,12 @@
   function rec(a,b,pa,pb,d){const m=(a+b)/2,pm=fn(m),ch=Math.hypot(pb.x-pa.x,pb.y-pa.y,pb.z-pa.z),sp=Math.hypot(pm.x-pa.x,pm.y-pa.y,pm.z-pa.z)+Math.hypot(pb.x-pm.x,pb.y-pm.y,pb.z-pm.z);return d>=maxDepth||Math.abs(sp-ch)<=tol?sp:rec(a,m,pa,pm,d+1)+rec(m,b,pm,pb,d+1)}
   return rec(t0,t1,fn(t0),fn(t1),0);
  }
- g.UNGSymbolic={E,evalExpr,diff,integrateNumeric,substitutePower,trigIdentities,trigRewrite,verifyTrigIdentity,trigFormulas,exactTrig,exactTrigValue,inverseTrigSimplify,normalizeAngle,periodicEquivalent,degToRad,radToDeg,solveRightTriangle,rotate2D,polarToCartesian,cartesianToPolar,rotate3D,angleBetweenVectors,vectorFromYawPitch,yawPitchFromVector,arcLength,chordLength,radiusFromChord,derivative3,secondDerivative3,curveKinematics,sampleParametricCurve,polylineLength,adaptiveCurveLength};
+ 
+ // Surface differential geometry for parametric CAD faces and manufacturing analysis.
+ function partial3(fn,u,v,axis,h=1e-5){const a=axis==="u"?fn(u-h,v):fn(u,v-h),b=axis==="u"?fn(u+h,v):fn(u,v+h);return{x:(b.x-a.x)/(2*h),y:(b.y-a.y)/(2*h),z:(b.z-a.z)/(2*h)}}
+ function surfaceNormal(fn,u,v,h=1e-5){const a=partial3(fn,u,v,"u",h),b=partial3(fn,u,v,"v",h),x=a.y*b.z-a.z*b.y,y=a.z*b.x-a.x*b.z,z=a.x*b.y-a.y*b.x,m=Math.hypot(x,y,z);if(!m)throw Error("Degenerate surface normal");return{x:x/m,y:y/m,z:z/m}}
+ function sampleParametricSurface(fn,u0,u1,v0,v1,uSegments=24,vSegments=24){const points=[];for(let j=0;j<=vSegments;j++){const v=v0+(v1-v0)*j/vSegments;for(let i=0;i<=uSegments;i++){const u=u0+(u1-u0)*i/uSegments;points.push({u,v,...fn(u,v)})}}return{points,uSegments,vSegments}}
+ function surfaceAreaApprox(fn,u0,u1,v0,v1,uSegments=40,vSegments=40){let area=0;const du=(u1-u0)/uSegments,dv=(v1-v0)/vSegments;for(let j=0;j<vSegments;j++)for(let i=0;i<uSegments;i++){const u=u0+(i+.5)*du,v=v0+(j+.5)*dv,a=partial3(fn,u,v,"u"),b=partial3(fn,u,v,"v"),cx=a.y*b.z-a.z*b.y,cy=a.z*b.x-a.x*b.z,cz=a.x*b.y-a.y*b.x;area+=Math.hypot(cx,cy,cz)*Math.abs(du*dv)}return area}
+ function tangentPlane(fn,u,v){const p=fn(u,v),n=surfaceNormal(fn,u,v);return{point:p,normal:n,d:-(n.x*p.x+n.y*p.y+n.z*p.z)}}
+ g.UNGSymbolic={E,evalExpr,diff,integrateNumeric,substitutePower,trigIdentities,trigRewrite,verifyTrigIdentity,trigFormulas,exactTrig,exactTrigValue,inverseTrigSimplify,normalizeAngle,periodicEquivalent,degToRad,radToDeg,solveRightTriangle,rotate2D,polarToCartesian,cartesianToPolar,rotate3D,angleBetweenVectors,vectorFromYawPitch,yawPitchFromVector,arcLength,chordLength,radiusFromChord,derivative3,secondDerivative3,curveKinematics,sampleParametricCurve,polylineLength,adaptiveCurveLength,partial3,surfaceNormal,sampleParametricSurface,surfaceAreaApprox,tangentPlane};
 })(window);
