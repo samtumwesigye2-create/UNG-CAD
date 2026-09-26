@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'https://esm.sh/three@0.140.0/examples/jsm/controls/OrbitControls.js';
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.140.0/examples/jsm/controls/OrbitControls.js';
 window.__ungViewerStarted=true;document.documentElement.dataset.ung3d='module-loaded';
 window.UNGElectromagneticsManufacturing={
  buildBobbinSTL(detail){
