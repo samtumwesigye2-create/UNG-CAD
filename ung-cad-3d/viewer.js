@@ -92,6 +92,15 @@ window.UNGParametric={
   const payload=await parametricRequest('/api/cad/parametric/'+encodeURIComponent(entity_id)+'/action',{method:'POST',body:JSON.stringify({action:'rotate_z',value:0,target_quality:'ui'})});
   const o={id:nextId++,name:'Parametric Circle',polygons:[],position:E.v3(0,0,0),mesh:null,visible:true,parametric:{entity_id}};objects.push(o);replaceParametricRender(o,payload);selected=[o.id];recordFeature('Parametric Circle',o.id,{entity_id,radius});refresh();fitParametric(payload.vertices);return meta;
  },
+ createPrimitive:async function(primitive_type,params={},target_quality='ui'){
+  const entity_id='param-'+primitive_type+'-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
+  const payload=await parametricRequest('/api/cad/parametric/primitive',{method:'POST',body:JSON.stringify({entity_id,primitive_type,params,target_quality})});
+  let mesh=null;
+  if(payload.vertices)mesh=parametricLineMesh(payload.vertices,objects.length);
+  else if(payload.triangles){const pos=[];payload.triangles.forEach(t=>t.forEach(p=>pos.push(+p.x,+p.y,+p.z)));const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.computeVertexNormals();mesh=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:colors[objects.length%colors.length],side:THREE.DoubleSide,wireframe:wire}));}
+  if(!mesh)throw new Error('Parametric primitive returned no render geometry');
+  scene.add(mesh);const o={id:nextId++,name:'Parametric '+primitive_type,polygons:[],position:E.v3(0,0,0),mesh,visible:true,parametric:{entity_id,primitive_type,params,quality:target_quality}};objects.push(o);selected=[o.id];recordFeature('Parametric '+primitive_type,o.id,params);refresh();renderer.render(scene,camera);status('Parametric '+primitive_type+' regenerated from exact parameters');return payload;
+ },
  async action(objectId,action,value,target_quality='ui'){
   const o=objects.find(x=>x.id===objectId);if(!o?.parametric?.entity_id)throw new Error('Selected object is not parametric');
   const payload=await parametricRequest('/api/cad/parametric/'+encodeURIComponent(o.parametric.entity_id)+'/action',{method:'POST',body:JSON.stringify({action,value,target_quality})});
