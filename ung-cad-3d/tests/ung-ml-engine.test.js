@@ -1,0 +1,11 @@
+const assert=require('assert'),M=require('../ung-ml-engine.js');const close=(a,b,t=1e-9)=>assert.ok(Math.abs(a-b)<=t,\`${a} != ${b}\`);
+let r=M.linearRegression([1,2,3,4],[3,5,7,9]);close(r.slope,2);close(r.intercept,1);close(r.predict(5),11);
+close(M.sigmoid(0),.5);assert.equal(M.logisticPredict([0,2],[1]).class,1);
+close(M.gini([0,0,1,1]),.5);close(M.entropy([0,0,1,1]),1);close(M.informationGain([0,0,1,1],[[0,0],[1,1]]),1);
+close(M.mse([1,2],[1,4]),2);close(M.mae([1,2],[1,4]),1);assert.ok(M.varianceReduction([1,1,5,5],[[1,1],[5,5]])>0);
+close(M.kernels.linear([1,2],[3,4]),11);close(M.kernels.rbf([0],[0]),1);close(M.svmMargin([2,0]),1);
+let k=M.kmeans([[0,0],[0,.1],[10,10],[10,10.1]],2);assert.equal(new Set(k.labels).size,2);
+let z=M.anomalyZScores([[0,0],[0,0],[10,10]]);assert.ok(z[2]>z[0]);
+let g=M.graphShortestPath({A:{B:1,C:5},B:{C:1},C:{}},'A','C');assert.deepEqual(g.path,['A','B','C']);close(g.distance,2);
+let d=M.modelDiagnostics([1,2,3],[1,2,4]);assert.ok(d.rmse>0);
+console.log('ung-ml-engine: all tests passed');
