@@ -23,9 +23,11 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
  .an-row input,.an-row select{max-width:none;flex:1 1 120px}
  select,input,.btn{max-width:100%}
 }
-</style></head>
-<body><div class="top"><button onclick="location.href='/studio.html'">Home</button><button onclick="location.href='/viewer.html'">3D</button></div>
-<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-26.8</div>
+</style>
+<script src="./analytic_geometry.js"></script><script src="./parametric_surfaces.js"></script><script src="./surface_unroll.js"></script><script src="./symbolic_math.js"></script>
+</head>
+<body><script>addEventListener('DOMContentLoaded',()=>{const e=document.getElementById('analyticEngineState');if(e)e.textContent=(window.UNGAnalytic&&window.UNGSurfaces&&window.UNGUnroll&&window.UNGSymbolic)?' READY — analytic geometry, parametric surfaces, unroll and symbolic math loaded.':' ERROR — one or more analytic engines failed to load.';});</script><div class="top"><button onclick="location.href='/studio.html'">Home</button><button onclick="location.href='/viewer.html'">3D</button></div>
+<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-26.9</div>
 
 <h2><span class="step">1</span>Choose model</h2>
 <label class="btn" style="display:inline-flex;position:relative;align-items:center;overflow:hidden;cursor:pointer">Choose model or project<input id="pkg" type="file" multiple style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"></label>
@@ -43,6 +45,7 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
     <div class="controls"><div class="field"><label>Layer</label><input id="toolpathLayer" type="range" min="1" max="1" value="1"></div><div id="toolpathLabel" class="small">Layer 1</div></div>
   </div>
 </div>
+<div class="notice"><b>Analytic manufacturing engines</b><span id="analyticEngineState"> Loading exact geometry, parametric surfaces, unroll and symbolic math…</span></div>
 <div id="analyzeBox" class="analyze">
 <b>Analyze</b>
 <div class="an-tabs">
