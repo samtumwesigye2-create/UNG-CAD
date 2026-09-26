@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, UNGCadFeatureTimeline, ToleranceExceededError
+from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, ParametricArc, ParametricCylinder, ParametricSphere, ParametricHole, ParametricExtrusion, ParametricRevolve, UNGCadFeatureTimeline, ToleranceExceededError, tessellated_surface_triangles
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -64,6 +64,29 @@ def parametric_action(entity_id:str,body:ParametricActionIn):
     try: return feature_timeline_core.process_api_action(entity_id,body.action,body.value,body.target_quality)
     except KeyError as e: raise HTTPException(404,str(e))
     except (ValueError,NotImplementedError,ToleranceExceededError) as e: raise HTTPException(422,str(e))
+
+class ParametricPrimitiveIn(BaseModel):
+    entity_id:str
+    primitive_type:str
+    params:dict={}
+    target_quality:str="ui"
+
+@app.post("/api/cad/parametric/primitive")
+def create_parametric_primitive(body:ParametricPrimitiveIn):
+    tol=UNGCadFeatureTimeline.QUALITY_TOLERANCES.get(body.target_quality)
+    if tol is None: raise HTTPException(400,"target_quality must be ui or export")
+    p=body.params
+    try:
+        center=Point3D(*p.get("center",[0,0,0])); typ=body.primitive_type
+        if typ=="arc": obj=ParametricArc(center,float(p["radius"]),float(p.get("start_deg",0)),float(p.get("end_deg",90)),Vector3D(*p.get("normal",[0,0,1]))); data={"vertices":obj.tessellate(tol)}
+        elif typ=="cylinder": obj=ParametricCylinder(center,float(p["radius"]),float(p["height"])); s=obj.tessellate(tol); data={"triangles":tessellated_surface_triangles(s)}
+        elif typ=="sphere": obj=ParametricSphere(center,float(p["radius"])); s=obj.tessellate(tol); data={"triangles":tessellated_surface_triangles(s)}
+        elif typ=="hole": obj=ParametricHole(center,float(p["radius"]),float(p["depth"])); s=obj.tessellate(tol); data={"triangles":tessellated_surface_triangles(s),"operation":"subtract"}
+        elif typ=="extrusion": obj=ParametricExtrusion(tuple(tuple(x) for x in p["profile"]),float(p["height"])); data={"triangles":tessellated_surface_triangles(obj.tessellate())}
+        elif typ=="revolve": obj=ParametricRevolve(tuple(tuple(x) for x in p["profile"]),float(p.get("angle_deg",360))); data={"triangles":tessellated_surface_triangles(obj.tessellate())}
+        else: raise ValueError("primitive_type must be arc, cylinder, sphere, hole, extrusion, or revolve")
+        return {"entity_id":body.entity_id,"type":typ,"quality":body.target_quality,**data}
+    except (KeyError,ValueError,ToleranceExceededError) as e: raise HTTPException(422,str(e))
 
 class TwinBindingIn(BaseModel):
     object_key:str
