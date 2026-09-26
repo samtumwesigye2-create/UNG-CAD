@@ -1,0 +1,17 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const ctx={window:{},Math,console};ctx.globalThis=ctx.window;vm.createContext(ctx);
+for(const f of ['analytic_geometry.js','parametric_surfaces.js','surface_unroll.js','symbolic_math.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',f),'utf8'),ctx);
+const A=ctx.window.UNGAnalytic,S=ctx.window.UNGSurfaces,U=ctx.window.UNGUnroll,M=ctx.window.UNGSymbolic;
+assert.ok(A&&S&&U&&M,'all analytic engines load');
+const cyl=S.cylinder(5,20),mesh=S.tessellate(cyl,24,12);
+assert.equal(mesh.vertices.length,25*13);assert.equal(mesh.triangles.length,24*12*2);
+const dev=U.develop(cyl);assert.equal(dev.kind,'developed-surface');assert.equal(U.distortion(dev).developable,true);
+const w=dev.outline[1][0]-dev.outline[0][0];assert.ok(Math.abs(w-2*Math.PI*5)<1e-9);
+const sph=S.sphere(3),uv=U.develop(sph,12,8);assert.equal(U.distortion(uv).developable,false);
+const sub=M.substitutePower(6);assert.equal(sub.power,6);assert.equal(sub.x,'u^6');
+const val=M.integrateNumeric(x=>Math.sqrt(x)/(1+Math.cbrt(x)),0,1,4096);assert.ok(val>0&&val<1);
+const c1=A.primitives.cylinder(2,10,'z'),c2=A.primitives.cylinder(2,10,'x'),ix=A.intersection(c1,c2);
+assert.equal(ix.op,'intersection');assert.equal(A.contains(ix,{x:0,y:0,z:0}),true);assert.equal(A.contains(ix,{x:3,y:0,z:0}),false);
+const viewer=fs.readFileSync(path.join(__dirname,'..','viewer.js'),'utf8');
+for(const token of ['analyticManufacturingGate','analyticRecord','restoreAnalytic','surfaceDevelopment','analytic:objects.map'])assert.ok(viewer.includes(token),'viewer integration missing '+token);
+console.log('analytic-workflow: all required tests passed');
