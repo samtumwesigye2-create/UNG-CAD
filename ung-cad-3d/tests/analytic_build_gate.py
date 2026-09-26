@@ -5,7 +5,8 @@ required={
  "analytic_geometry.js":["UNGAnalytic","intersection","contains"],
  "parametric_surfaces.js":["UNGSurfaces","tessellate","cylinder","sphere"],
  "surface_unroll.js":["UNGUnroll","develop","distortion"],
- "symbolic_math.js":["UNGSymbolic","integrateNumeric","substitutePower","trigIdentities","trigRewrite","verifyTrigIdentity"],\n "electrical_wave_engine.js":["UNGElectrical","sinusoid","peakToRms","impedanceRLC","acCurrent","wave"],
+ "symbolic_math.js":["UNGSymbolic","integrateNumeric","substitutePower","trigIdentities","trigRewrite","verifyTrigIdentity"],
+ "electrical_wave_engine.js":["UNGElectrical","sinusoid","peakToRms","impedanceRLC","acCurrent","wave"],
  "viewer.js":["analyticManufacturingGate","analyticRecord","restoreAnalytic","surfaceDevelopment","analytic:objects.map"],
  "viewer.html":["analytic-cylinder","analytic-intersect","analytic-unroll","unroll-svg","symbolic-integral"],
 }
