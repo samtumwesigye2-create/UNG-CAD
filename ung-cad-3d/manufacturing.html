@@ -8,7 +8,7 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 @media(max-width:820px){body{min-width:830px}.wrap{margin:0;padding:14px}.preview-wrap{grid-template-columns:1fr 260px}.controls{grid-template-columns:1fr 180px 150px}.top{position:fixed}.box{border-radius:8px}}
 </style></head>
 <body><div class="top"><button onclick="location.href='/studio.html'">Home</button><button onclick="location.href='/viewer.html'">3D</button></div>
-<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-26.3</div>
+<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-26.4</div>
 
 <h2><span class="step">1</span>Choose model</h2>
 <label class="btn" style="display:inline-flex;position:relative;align-items:center;overflow:hidden;cursor:pointer">Choose model or project<input id="pkg" type="file" multiple style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"></label>
@@ -83,29 +83,35 @@ const preflightState=document.getElementById('preflightState');
 function setPreflight(state,message){preflightPassed=state==='PASS';preflightState.textContent=' '+state+' — '+message;sliceBtn.disabled=!preflightPassed||!selectedFile||!part.value;if(!preflightPassed){lastMachineUrl=null;lastMachineFile=null;sendBtn.disabled=true;}}
 window.__setManufacturingPreflight=setPreflight;
 
-/* Safari-safe local STL preview fallback. The Three.js module may replace this later. */
+/* Safari-safe interactive STL preview. */
+let __fallbackPreview={tris:null,rx:-0.45,rz:0.72,drag:false,x:0,y:0};
+function __drawFallbackSTL(){
+ const tris=__fallbackPreview.tris;if(!tris||!tris.length)return;
+ const host=document.getElementById('preview3d'),cv=document.getElementById('fallbackPreviewCanvas');if(!cv)return;
+ const w=Math.max(640,host.clientWidth||640),h=Math.max(360,host.clientHeight||420),dpr=window.devicePixelRatio||1;
+ cv.width=w*dpr;cv.height=h*dpr;const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+ const b=window.UNGAnalyze.bounds(tris),cx=(b.min.x+b.max.x)/2,cy=(b.min.y+b.max.y)/2,cz=(b.min.z+b.max.z)/2;
+ const cr=Math.cos(__fallbackPreview.rx),sr=Math.sin(__fallbackPreview.rx),czr=Math.cos(__fallbackPreview.rz),szr=Math.sin(__fallbackPreview.rz);
+ function rot(p){let x=p.x-cx,y=p.y-cy,z=p.z-cz;const x1=x*czr-y*szr,y1=x*szr+y*czr;const y2=y1*cr-z*sr,z2=y1*sr+z*cr;return{x:x1,y:z2,z:y2};}
+ let extent=1;const faces=[];
+ for(const t of tris){const q3=[rot(t.a),rot(t.b),rot(t.c)];for(const p of q3)extent=Math.max(extent,Math.abs(p.x),Math.abs(p.y));faces.push({q3,depth:(q3[0].z+q3[1].z+q3[2].z)/3});}
+ const sc=Math.min(w,h)*.42/extent;faces.sort((u,v)=>u.depth-v.depth);
+ const light={x:-.35,y:-.45,z:.82};
+ for(const f of faces){const p=f.q3,q=p.map(v=>[w/2+v.x*sc,h/2-v.y*sc]);const ux=p[1].x-p[0].x,uy=p[1].y-p[0].y,uz=p[1].z-p[0].z,vx=p[2].x-p[0].x,vy=p[2].y-p[0].y,vz=p[2].z-p[0].z;let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const nl=Math.hypot(nx,ny,nz)||1;nx/=nl;ny/=nl;nz/=nl;const lum=Math.max(.12,Math.min(1,.25+.75*Math.abs(nx*light.x+ny*light.y+nz*light.z)));const base=[32,150,205];ctx.fillStyle='rgb('+Math.round(base[0]*lum)+','+Math.round(base[1]*lum)+','+Math.round(base[2]*lum)+')';ctx.globalAlpha=.98;ctx.beginPath();ctx.moveTo(q[0][0],q[0][1]);ctx.lineTo(q[1][0],q[1][1]);ctx.lineTo(q[2][0],q[2][1]);ctx.closePath();ctx.fill();}
+ ctx.globalAlpha=1;
+}
+function __installFallbackInteraction(cv){
+ cv.style.cursor='grab';cv.onpointerdown=e=>{__fallbackPreview.drag=true;__fallbackPreview.x=e.clientX;__fallbackPreview.y=e.clientY;cv.setPointerCapture?.(e.pointerId);cv.style.cursor='grabbing';};
+ cv.onpointermove=e=>{if(!__fallbackPreview.drag)return;__fallbackPreview.rz+=(e.clientX-__fallbackPreview.x)*.01;__fallbackPreview.rx+=(e.clientY-__fallbackPreview.y)*.01;__fallbackPreview.x=e.clientX;__fallbackPreview.y=e.clientY;__drawFallbackSTL();};
+ cv.onpointerup=cv.onpointercancel=()=>{__fallbackPreview.drag=false;cv.style.cursor='grab';};
+}
 window.__previewSTL=function(label,arrayBuffer){
  try{
-  const polys=window.CSGEngine.parseSTL(arrayBuffer);
-  const tris=window.UNGAnalyze.trianglesFromPolygons(polys);
-  if(!tris.length) throw new Error('Could not read STL geometry');
-  const b=window.UNGAnalyze.bounds(tris);
-  const host=document.getElementById('preview3d');
-  const ph=document.getElementById('previewPlaceholder');
-  let cv=document.getElementById('fallbackPreviewCanvas');
-  if(!cv){cv=document.createElement('canvas');cv.id='fallbackPreviewCanvas';cv.style.cssText='width:100%;height:100%;display:block';host.appendChild(cv);}
-  const w=Math.max(640,host.clientWidth||640),h=Math.max(360,host.clientHeight||420),dpr=window.devicePixelRatio||1;
-  cv.width=w*dpr;cv.height=h*dpr;const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
-  const cx=(b.min.x+b.max.x)/2,cy=(b.min.y+b.max.y)/2,cz=(b.min.z+b.max.z)/2;
-  const pts=[];for(const t of tris)for(const p of [t.a,t.b,t.c]){const x=p.x-cx,y=p.y-cy,z=p.z-cz;pts.push([x-y,(x+y)*.48-z]);}
-  let max=1;for(const p of pts)max=Math.max(max,Math.abs(p[0]),Math.abs(p[1]));const sc=Math.min(w,h)*.42/max;
-  ctx.lineJoin='round';ctx.lineCap='round';let k=0;const faces=[];
-  for(const t of tris){const q=[];let depth=0;for(let j=0;j<3;j++){const p=pts[k++];q.push([w/2+p[0]*sc,h/2+p[1]*sc]);const v=[t.a,t.b,t.c][j];depth+=(v.x+v.y+v.z);}faces.push({q,depth:depth/3});}
-  faces.sort((a,b)=>a.depth-b.depth);
-  for(const face of faces){const q=face.q;const ux=q[1][0]-q[0][0],uy=q[1][1]-q[0][1],vx=q[2][0]-q[0][0],vy=q[2][1]-q[0][1];const facing=Math.abs(ux*vy-uy*vx);const alpha=Math.max(.16,Math.min(.68,.22+facing/(w*h)*22));ctx.globalAlpha=alpha;ctx.fillStyle='#169bd5';ctx.beginPath();ctx.moveTo(q[0][0],q[0][1]);ctx.lineTo(q[1][0],q[1][1]);ctx.lineTo(q[2][0],q[2][1]);ctx.closePath();ctx.fill();ctx.globalAlpha=.34;ctx.strokeStyle='#7ddcff';ctx.lineWidth=.45;ctx.stroke();}
-  ctx.globalAlpha=1;
-  if(ph)ph.style.display='none';
-  previewStats.textContent=label+'\n\nDimensions (W × D × H):\n'+b.size.x.toFixed(1)+' × '+b.size.y.toFixed(1)+' × '+b.size.z.toFixed(1)+' mm\nTriangles: '+tris.length+'\n\nSolid Safari-safe local preview active.';
+  const polys=window.CSGEngine.parseSTL(arrayBuffer),tris=window.UNGAnalyze.trianglesFromPolygons(polys);if(!tris.length)throw new Error('Could not read STL geometry');
+  const b=window.UNGAnalyze.bounds(tris),host=document.getElementById('preview3d'),ph=document.getElementById('previewPlaceholder');
+  let cv=document.getElementById('fallbackPreviewCanvas');if(!cv){cv=document.createElement('canvas');cv.id='fallbackPreviewCanvas';cv.style.cssText='width:100%;height:100%;display:block;touch-action:none';host.appendChild(cv);__installFallbackInteraction(cv);}
+  __fallbackPreview.tris=tris;__drawFallbackSTL();if(ph)ph.style.display='none';
+  previewStats.textContent=label+'\\n\\nDimensions (W × D × H):\\n'+b.size.x.toFixed(1)+' × '+b.size.y.toFixed(1)+' × '+b.size.z.toFixed(1)+' mm\\nTriangles: '+tris.length+'\\n\\nSolid interactive preview — drag to rotate.';
   if(!window.UNGAnalyze.fitsBed(tris)){setPreflight('BLOCKED','model exceeds the Adventurer 5M 220 × 220 × 220 mm build volume.');return;}
   setPreflight('PASS','STL geometry loaded and fits the Adventurer 5M build volume.');
  }catch(e){previewStats.textContent='Preview failed — '+e.message;setPreflight('BLOCKED','preview could not validate STL geometry: '+e.message);}
