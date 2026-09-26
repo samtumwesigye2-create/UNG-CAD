@@ -1,5 +1,13 @@
 const canvas=document.getElementById('canvas'),wrap=document.getElementById('wrap'),ctx=canvas.getContext('2d'),statusEl=document.getElementById('status');
 const CSS_PX_PER_MM=96/25.4;
+const GEOMETRY_EPSILON_MM=1e-6;
+function nearlyEqual(a,b,epsilon=GEOMETRY_EPSILON_MM){return Math.abs(a-b)<=epsilon}
+function pointsEqual(a,b,epsilon=GEOMETRY_EPSILON_MM){return nearlyEqual(a.x,b.x,epsilon)&&nearlyEqual(a.y,b.y,epsilon)}
+function snapToGrid(value,step=1){if(!(step>0))throw new RangeError('grid step must be > 0');return Math.round(value/step)*step}
+function enforceLineLength(startPoint,currentPoint,targetLength){if(!(targetLength>=0))throw new RangeError('target length must be >= 0');const dx=currentPoint.x-startPoint.x,dy=currentPoint.y-startPoint.y,len=Math.hypot(dx,dy);if(len<=GEOMETRY_EPSILON_MM)return{x:startPoint.x,y:startPoint.y};const k=targetLength/len;return{x:startPoint.x+dx*k,y:startPoint.y+dy*k}}
+function snapMicroZero(value,epsilon=1e-9){return Math.abs(value)<epsilon?0:value}
+function rotatePoint(point,origin,angleDegrees){const r=angleDegrees*Math.PI/180,co=snapMicroZero(Math.cos(r)),si=snapMicroZero(Math.sin(r)),dx=point.x-origin.x,dy=point.y-origin.y;return{x:origin.x+dx*co-dy*si,y:origin.y+dx*si+dy*co}}
+function scalePoint(point,origin,factor){return{x:origin.x+(point.x-origin.x)*factor,y:origin.y+(point.y-origin.y)*factor}}
 let tool='line',start=null,shapes=[],selected=-1,zoomFactor=1,panX=0,panY=0;
 
 function modelScale(){return CSS_PX_PER_MM*zoomFactor}
@@ -9,7 +17,7 @@ function resize(){const dpr=window.devicePixelRatio||1,r=wrap.getBoundingClientR
 addEventListener('resize',resize);
 document.querySelectorAll('.tool').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tool').forEach(x=>x.classList.remove('active'));b.classList.add('active');tool=b.dataset.tool;start=null});
 function gridMM(){return Math.max(.1,+document.getElementById('grid-size').value||5)}
-function snap(v){const g=gridMM();return Math.round(v/g)*g}
+function snap(v){return snapToGrid(v,gridMM())}
 function pt(e){const r=canvas.getBoundingClientRect(),p=screenToModel(e.clientX-r.left,e.clientY-r.top);return{x:snap(p.x),y:snap(p.y)}}
 function dist(a,b){return Math.hypot(b.x-a.x,b.y-a.y)}
 function drawGrid(){const dpr=window.devicePixelRatio||1,w=canvas.width/dpr,h=canvas.height/dpr,g=gridMM(),s=modelScale();ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1/(dpr*zoomFactor);const a=screenToModel(0,0),b=screenToModel(w,h);for(let x=Math.floor(a.x/g)*g;x<=b.x;x+=g){ctx.beginPath();ctx.moveTo(x*s,Math.min(a.y,b.y)*s);ctx.lineTo(x*s,Math.max(a.y,b.y)*s);ctx.stroke()}for(let y=Math.floor(a.y/g)*g;y<=b.y;y+=g){ctx.beginPath();ctx.moveTo(Math.min(a.x,b.x)*s,y*s);ctx.lineTo(Math.max(a.x,b.x)*s,y*s);ctx.stroke()}}
@@ -24,4 +32,4 @@ addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&selec
 document.getElementById('save').onclick=()=>{localStorage.setItem('ung-cad-2d',JSON.stringify({version:2,units:'mm',name:document.getElementById('drawing-name').value,shapes}));statusEl.textContent='Saved locally in mm model space.'};
 document.getElementById('export').onclick=()=>{let svg='<svg xmlns="http://www.w3.org/2000/svg">';for(const s of shapes){if(s.t==='line'||s.t==='dim')svg+=`<line x1="${s.a.x}mm" y1="${s.a.y}mm" x2="${s.b.x}mm" y2="${s.b.y}mm" stroke="#111"/>`;else if(s.t==='rect')svg+=`<rect x="${Math.min(s.a.x,s.b.x)}mm" y="${Math.min(s.a.y,s.b.y)}mm" width="${Math.abs(s.b.x-s.a.x)}mm" height="${Math.abs(s.b.y-s.a.y)}mm" fill="none" stroke="#111"/>`;else if(s.t==='circle')svg+=`<circle cx="${s.a.x}mm" cy="${s.a.y}mm" r="${dist(s.a,s.b)}mm" fill="none" stroke="#111"/>`;else if(s.t==='label')svg+=`<text x="${s.a.x}mm" y="${s.a.y}mm">${s.text.replace(/[&<>]/g,'')}</text>`}svg+='</svg>';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));a.download=(document.getElementById('drawing-name').value||'drawing')+'.svg';a.click();statusEl.textContent='SVG exported with mm geometry.'};
 try{const saved=JSON.parse(localStorage.getItem('ung-cad-2d')||'null');if(saved&&saved.version===2){shapes=saved.shapes||[];document.getElementById('drawing-name').value=saved.name||'Untitled'}}catch{}
-window.__ung2dViewport={screenToModel,modelToScreen,get zoom(){return zoomFactor},get pan(){return{x:panX,y:panY}}};resize();
+window.__ung2dViewport={screenToModel,modelToScreen,snapToGrid,pointsEqual,enforceLineLength,rotatePoint,scalePoint,get zoom(){return zoomFactor},get pan(){return{x:panX,y:panY}}};resize();
