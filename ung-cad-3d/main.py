@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, ParametricArc, ParametricCylinder, ParametricSphere, ParametricHole, ParametricExtrusion, ParametricRevolve, UNGCadFeatureTimeline, ToleranceExceededError, tessellated_surface_triangles
+from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, ParametricArc, ParametricCylinder, ParametricSphere, ParametricHole, ParametricExtrusion, ParametricRevolve, UNGCadFeatureTimeline, ToleranceExceededError, tessellated_surface_triangles, FeatureNode, ParametricDependencyGraph
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -38,6 +38,7 @@ def home_page():
 def startup(): init_db()
 
 feature_timeline_core=UNGCadFeatureTimeline()
+feature_dependency_graph=ParametricDependencyGraph()
 
 class ParametricCircleIn(BaseModel):
     entity_id:str
@@ -87,6 +88,34 @@ def create_parametric_primitive(body:ParametricPrimitiveIn):
         else: raise ValueError("primitive_type must be arc, cylinder, sphere, hole, extrusion, or revolve")
         return {"entity_id":body.entity_id,"type":typ,"quality":body.target_quality,**data}
     except (KeyError,ValueError,ToleranceExceededError) as e: raise HTTPException(422,str(e))
+
+class FeatureNodeIn(BaseModel):
+    id:str
+    kind:str
+    entity_id:str
+    params:dict={}
+    parents:list[str]=[]
+
+class FeatureUpdateIn(BaseModel):
+    params:dict
+
+@app.post("/api/cad/features")
+def add_feature_node(body:FeatureNodeIn):
+    try:
+        n=feature_dependency_graph.add(FeatureNode(body.id,body.kind,body.entity_id,body.params,tuple(body.parents)))
+        return {"status":"created","feature":{"id":n.id,"kind":n.kind,"entity_id":n.entity_id,"params":n.params,"parents":list(n.parents),"revision":n.revision}}
+    except (KeyError,ValueError) as e: raise HTTPException(422,str(e))
+
+@app.get("/api/cad/features")
+def list_feature_nodes():
+    return {"features":feature_dependency_graph.serialize()}
+
+@app.put("/api/cad/features/{feature_id}")
+def update_feature_node(feature_id:str,body:FeatureUpdateIn):
+    try:
+        order=feature_dependency_graph.replace(feature_id,body.params)
+        return {"status":"updated","feature_id":feature_id,"regeneration_order":order,"features":feature_dependency_graph.serialize()}
+    except KeyError as e: raise HTTPException(404,str(e))
 
 class TwinBindingIn(BaseModel):
     object_key:str
