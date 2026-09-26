@@ -34,6 +34,20 @@ def radial_metrics(radius: float) -> dict[str, dict[str, float]]:
     }
 
 
+def radius_from_circle_area(area: float) -> float:
+    """Calculate circle radius from area."""
+    if area < 0:
+        raise ValueError("area must be non-negative")
+    return math.sqrt(area / math.pi)
+
+
+def radius_from_sphere_volume(volume: float) -> float:
+    """Calculate sphere radius from volume."""
+    if volume < 0:
+        raise ValueError("volume must be non-negative")
+    return (3.0 * volume / (4.0 * math.pi)) ** (1.0 / 3.0)
+
+
 if __name__ == "__main__":
     r = 5.0
     values = radial_metrics(r)
@@ -42,3 +56,7 @@ if __name__ == "__main__":
     print(f"Circle Circumference: {values['circle']['circumference']:.2f}")
     print(f"Sphere Surface Area: {values['sphere']['surface_area']:.2f}")
     print(f"Sphere Volume: {values['sphere']['volume']:.2f}")
+    demo_area = 78.54
+    demo_volume = 523.60
+    print(f"Given Circle Area {demo_area} -> Calculated Radius: {radius_from_circle_area(demo_area):.2f}")
+    print(f"Given Sphere Volume {demo_volume} -> Calculated Radius: {radius_from_sphere_volume(demo_volume):.2f}")
