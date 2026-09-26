@@ -177,3 +177,50 @@ def tessellated_surface_triangles(data):
             j=(i+1)%n
             tris += [[a[i],b[i],b[j]],[a[i],b[j],a[j]]]
     return tris
+
+
+@dataclass(frozen=True)
+class FeatureNode:
+    id: str
+    kind: str
+    entity_id: str
+    params: dict
+    parents: tuple=()
+    revision: int=1
+
+class ParametricDependencyGraph:
+    """Dependency-aware regeneration graph for non-destructive CAD history."""
+    def __init__(self):
+        self.nodes: Dict[str,FeatureNode]={}
+        self.children: Dict[str,set]={}
+    def add(self,node:FeatureNode):
+        if node.id in self.nodes: raise KeyError(f"Feature {node.id} already exists.")
+        missing=[p for p in node.parents if p not in self.nodes]
+        if missing: raise KeyError(f"Missing parent features: {missing}")
+        self.nodes[node.id]=node
+        for p in node.parents:self.children.setdefault(p,set()).add(node.id)
+        self._assert_acyclic()
+        return node
+    def replace(self,node_id:str,params:dict):
+        old=self.nodes[node_id]
+        self.nodes[node_id]=FeatureNode(old.id,old.kind,old.entity_id,dict(params),old.parents,old.revision+1)
+        return self.regeneration_order(node_id)
+    def regeneration_order(self,node_id:str):
+        if node_id not in self.nodes: raise KeyError(node_id)
+        seen=set();out=[]
+        def walk(n):
+            if n in seen:return
+            seen.add(n);out.append(n)
+            for ch in sorted(self.children.get(n,())):walk(ch)
+        walk(node_id);return out
+    def _assert_acyclic(self):
+        visiting=set();done=set()
+        def dfs(n):
+            if n in visiting: raise ValueError("Feature dependency cycle detected.")
+            if n in done:return
+            visiting.add(n)
+            for ch in self.children.get(n,()):dfs(ch)
+            visiting.remove(n);done.add(n)
+        for n in self.nodes:dfs(n)
+    def serialize(self):
+        return [{"id":n.id,"kind":n.kind,"entity_id":n.entity_id,"params":n.params,"parents":list(n.parents),"revision":n.revision} for n in self.nodes.values()]
