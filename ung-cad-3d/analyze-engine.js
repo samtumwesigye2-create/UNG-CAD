@@ -199,13 +199,26 @@
     return{meshVolume,exactVolume,relativeError,pass:relativeError<=relativeTolerance,relativeTolerance};
   }
   function massProperties(tris,{density=1}={}){
-    let sv=0,cx=0,cy=0,cz=0;
-    for(const t of tris){const q=dot(t.a,cross(t.b,t.c))/6;sv+=q;cx+=q*(t.a.x+t.b.x+t.c.x)/4;cy+=q*(t.a.y+t.b.y+t.c.y)/4;cz+=q*(t.a.z+t.b.z+t.c.z)/4;}
-    const V=Math.abs(sv); if(V<EPS)return{volume:0,mass:0,centerOfMass:v(),inertia:null};
-    const c=v(cx/sv,cy/sv,cz/sv),m=V*density,b=bounds(tris),sx=b.size.x,sy=b.size.y,sz=b.size.z;
-    // Conservative mesh-envelope inertia estimate; exact polyhedral tensor can replace this without changing API.
-    const inertia={Ixx:m*(sy*sy+sz*sz)/12,Iyy:m*(sx*sx+sz*sz)/12,Izz:m*(sx*sx+sy*sy)/12,Ixy:0,Ixz:0,Iyz:0,method:'mesh-envelope-estimate'};
-    return{volume:V,mass:m,centerOfMass:c,inertia};
+    // Exact closed-triangle-mesh volume integrals using signed tetrahedra (origin,a,b,c).
+    // Integrates first and second moments, then shifts inertia to center of mass.
+    let V=0,mx=0,my=0,mz=0,x2=0,y2=0,z2=0,xy=0,xz=0,yz=0;
+    for(const t of tris){
+      const a=t.a,b=t.b,c=t.c,q=dot(a,cross(b,c))/6; V+=q;
+      mx+=q*(a.x+b.x+c.x)/4; my+=q*(a.y+b.y+c.y)/4; mz+=q*(a.z+b.z+c.z)/4;
+      const sx2=a.x*a.x+b.x*b.x+c.x*c.x+a.x*b.x+a.x*c.x+b.x*c.x;
+      const sy2=a.y*a.y+b.y*b.y+c.y*c.y+a.y*b.y+a.y*c.y+b.y*c.y;
+      const sz2=a.z*a.z+b.z*b.z+c.z*c.z+a.z*b.z+a.z*c.z+b.z*c.z;
+      x2+=q*sx2/10; y2+=q*sy2/10; z2+=q*sz2/10;
+      const cross2=(u,v)=>2*(a[u]*a[v]+b[u]*b[v]+c[u]*c[v])+a[u]*b[v]+b[u]*a[v]+a[u]*c[v]+c[u]*a[v]+b[u]*c[v]+c[u]*b[v];
+      xy+=q*cross2('x','y')/20; xz+=q*cross2('x','z')/20; yz+=q*cross2('y','z')/20;
+    }
+    if(Math.abs(V)<EPS)return{volume:0,mass:0,centerOfMass:v(),inertia:null};
+    const sign=V<0?-1:1; V*=sign; mx*=sign;my*=sign;mz*=sign;x2*=sign;y2*=sign;z2*=sign;xy*=sign;xz*=sign;yz*=sign;
+    const c=v(mx/V,my/V,mz/V),mass=V*density;
+    let Ixx=density*(y2+z2),Iyy=density*(x2+z2),Izz=density*(x2+y2),Ixy=-density*xy,Ixz=-density*xz,Iyz=-density*yz;
+    Ixx-=mass*(c.y*c.y+c.z*c.z); Iyy-=mass*(c.x*c.x+c.z*c.z); Izz-=mass*(c.x*c.x+c.y*c.y);
+    Ixy+=mass*c.x*c.y; Ixz+=mass*c.x*c.z; Iyz+=mass*c.y*c.z;
+    return{volume:V,mass,centerOfMass:c,inertia:{Ixx,Iyy,Izz,Ixy,Ixz,Iyz,method:'exact-polyhedral-tetrahedral-integration'}};
   }
   function principalMoments(mp){
     if(!mp?.inertia)return null;
