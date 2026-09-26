@@ -114,5 +114,21 @@
  function arcLength(radius,angleRad){return Math.abs(Number(radius)*Number(angleRad))}
  function chordLength(radius,angleRad){return 2*Math.abs(Number(radius))*Math.sin(Math.abs(Number(angleRad))/2)}
  function radiusFromChord(chord,angleRad){const s=2*Math.sin(Math.abs(Number(angleRad))/2);if(Math.abs(s)<1e-15)throw Error("Angle produces undefined radius");return Math.abs(Number(chord)/s)}
- g.UNGSymbolic={E,evalExpr,diff,integrateNumeric,substitutePower,trigIdentities,trigRewrite,verifyTrigIdentity,trigFormulas,exactTrig,exactTrigValue,inverseTrigSimplify,normalizeAngle,periodicEquivalent,degToRad,radToDeg,solveRightTriangle,rotate2D,polarToCartesian,cartesianToPolar,rotate3D,angleBetweenVectors,vectorFromYawPitch,yawPitchFromVector,arcLength,chordLength,radiusFromChord};
+ 
+ // Curve differential geometry for CAD paths, sweeps, CAM and trajectory analysis.
+ function derivative3(fn,t,h=1e-5){const a=fn(t-h),b=fn(t+h);return{x:(b.x-a.x)/(2*h),y:(b.y-a.y)/(2*h),z:(b.z-a.z)/(2*h)}}
+ function secondDerivative3(fn,t,h=1e-4){const a=fn(t-h),b=fn(t),d=fn(t+h),q=h*h;return{x:(d.x-2*b.x+a.x)/q,y:(d.y-2*b.y+a.y)/q,z:(d.z-2*b.z+a.z)/q}}
+ function curveKinematics(fn,t,h=1e-5){
+  const v=derivative3(fn,t,h),a=secondDerivative3(fn,t,Math.sqrt(h));
+  const speed=Math.hypot(v.x,v.y,v.z),cx=v.y*a.z-v.z*a.y,cy=v.z*a.x-v.x*a.z,cz=v.x*a.y-v.y*a.x;
+  const curvature=speed?Math.hypot(cx,cy,cz)/Math.pow(speed,3):0;
+  return{position:fn(t),velocity:v,acceleration:a,speed,curvature,radiusOfCurvature:curvature?1/curvature:Infinity};
+ }
+ function sampleParametricCurve(fn,t0,t1,segments=64){const out=[];for(let i=0;i<=segments;i++){const t=t0+(t1-t0)*i/segments;out.push({t,...fn(t)})}return out}
+ function polylineLength(points){let s=0;for(let i=1;i<points.length;i++)s+=Math.hypot(points[i].x-points[i-1].x,points[i].y-points[i-1].y,points[i].z-points[i-1].z);return s}
+ function adaptiveCurveLength(fn,t0,t1,tol=1e-5,maxDepth=16){
+  function rec(a,b,pa,pb,d){const m=(a+b)/2,pm=fn(m),ch=Math.hypot(pb.x-pa.x,pb.y-pa.y,pb.z-pa.z),sp=Math.hypot(pm.x-pa.x,pm.y-pa.y,pm.z-pa.z)+Math.hypot(pb.x-pm.x,pb.y-pm.y,pb.z-pm.z);return d>=maxDepth||Math.abs(sp-ch)<=tol?sp:rec(a,m,pa,pm,d+1)+rec(m,b,pm,pb,d+1)}
+  return rec(t0,t1,fn(t0),fn(t1),0);
+ }
+ g.UNGSymbolic={E,evalExpr,diff,integrateNumeric,substitutePower,trigIdentities,trigRewrite,verifyTrigIdentity,trigFormulas,exactTrig,exactTrigValue,inverseTrigSimplify,normalizeAngle,periodicEquivalent,degToRad,radToDeg,solveRightTriangle,rotate2D,polarToCartesian,cartesianToPolar,rotate3D,angleBetweenVectors,vectorFromYawPitch,yawPitchFromVector,arcLength,chordLength,radiusFromChord,derivative3,secondDerivative3,curveKinematics,sampleParametricCurve,polylineLength,adaptiveCurveLength};
 })(window);
