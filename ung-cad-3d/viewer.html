@@ -23,6 +23,12 @@ body.embedded{display:block}.embedded header,.embedded #panel,.embedded #right{d
 <div class="row"><button id="analytic-intersect" class="compact">Exact Intersect</button><button id="analytic-unroll" class="compact">Unroll Surface</button></div>
 <div class="field"><label>Surface resolution</label><input id="analytic-resolution" type="number" min="8" max="128" step="1" value="48"></div>
 <div id="analytic-state" class="muted">Analytic engines — ready for exact/parametric operations</div>
+<canvas id="unroll-preview" width="320" height="180" style="display:none;width:100%;height:auto;margin-top:7px;background:#fff;border-radius:7px"></canvas>
+<div class="row"><button id="unroll-svg" class="compact" disabled>Export SVG</button><button id="unroll-csv" class="compact" disabled>Export CSV</button></div>
+<h3>Symbolic Math</h3>
+<div class="field"><label>Power substitution x = u^k</label><input id="symbolic-k" type="number" min="1" step="1" value="6"></div>
+<div class="row"><button id="symbolic-substitute" class="compact">Substitute</button><button id="symbolic-integral" class="compact">Evaluate Demo Integral</button></div>
+<div id="symbolic-result" class="muted">Symbolic engine — ready</div>
 <h3>Surface of Revolution</h3>
 <div class="field"><label>Gabriel Horn truncation X</label><input id="horn-x" type="number" min="1.01" step="1" value="10"></div>
 <div class="field"><label>Radial segments</label><input id="horn-radial" type="number" min="8" max="96" step="1" value="32"></div>
@@ -71,6 +77,6 @@ body.embedded{display:block}.embedded header,.embedded #panel,.embedded #right{d
   setTimeout(()=>{if(!window.__ungViewerStarted&&v){v.style.background='#111827';if(s)s.textContent='3D module blocked before startup — external module loading failed';}},4000);
 })();
 </script>
-<script type="module" src="./viewer.js?v=analytic-ui-1"></script>
+<script type="module" src="./viewer.js?v=analytic-ui-2"></script>
 <script>document.querySelectorAll('#extrude-ui,#revolve-ui,#loft-ui,#sweep-ui,#fillet-ui,#chamfer-ui,#shell-ui').forEach(b=>b.onclick=()=>{document.getElementById('status').textContent=b.textContent+' tool is being restored to the production geometry engine.'})</script>
 <script>document.getElementById("em-export-btn")?.addEventListener("click",()=>{if(!window.__ungLastEM){document.getElementById("status").textContent="Calculate transformer first.";return}try{const r=window.UNGElectromagneticsManufacturing.handoff(window.__ungLastEM);document.getElementById("status").textContent="Generated "+r.name+" for manufacturing validation."}catch(e){document.getElementById("status").textContent="Bobbin generation failed: "+e.message}});</script><script src="./electromagnetics-v2.js"></script><script>document.getElementById("quick-explode-btn")?.addEventListener("click",()=>document.getElementById("explode-btn")?.click());document.getElementById("quick-assemble-btn")?.addEventListener("click",()=>document.getElementById("assemble-btn")?.click());</script></body></html>
