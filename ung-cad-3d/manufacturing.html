@@ -5,10 +5,27 @@
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#080d14;color:#e7edf6}
 body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-index:50;display:flex;align-items:center;gap:10px;padding:10px 14px;background:#151a22;border-bottom:1px solid #303946}.top:before{content:"UNG-CAD STUDIO";font-weight:800;letter-spacing:3px;margin-right:8px}.top button{width:auto;min-height:42px;padding:0 18px;border:1px solid #354150;border-radius:10px;background:#202731;color:#e6ebf2;font-size:15px}.top:after{content:"Manufacturing";display:flex;align-items:center;min-height:42px;padding:0 18px;border:1px solid #18a8ff;border-radius:10px;background:#29485f;color:#fff;box-shadow:inset 0 0 0 1px #18a8ff}
 .wrap{padding:18px;max-width:1280px;margin:auto}.box{background:#151a22;border:1px solid #303946;border-radius:12px;padding:22px}h1{margin:0 0 8px;font-size:25px}h2{font-size:15px;margin:26px 0 12px;border-top:1px solid #303946;padding-top:18px;display:flex;align-items:center;gap:8px}h2 .step{background:#18a8ff;color:#07111a;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}.meta,.status,.small{font-size:12px;color:#9da8b7;white-space:pre-line}.notice,.machine,#previewStats,#toolpathPanel,.analyze,.an-out{background:#0f151d!important;border:1px solid #303946!important;border-radius:10px}.notice{margin:16px 0;padding:14px;border-left:4px solid #18a8ff!important}.controls{display:grid;grid-template-columns:minmax(220px,1fr) 180px 150px;gap:10px;align-items:end;margin:15px 0}.field label{display:block;font-size:11px;color:#a8b1c0;margin-bottom:6px}.field input,.field select,.an-row input,.an-row select{width:100%;height:42px;padding:0 10px;border:1px solid #354150;border-radius:8px;background:#0f151d;color:#e6ebf2}.btn{min-height:44px;padding:0 14px;border:1px solid #354150;border-radius:9px;background:#202731;color:#e6ebf2;font-weight:600;cursor:pointer}.btn:hover,.btn:active{border-color:#18a8ff}.btn:disabled{opacity:.45;cursor:default}.part{display:grid;grid-template-columns:1fr 70px 160px;gap:8px;align-items:center;border-top:1px solid #303946;padding:10px 0;font-size:12px}.part.active{background:#263e52}.tag{padding:7px;border-radius:6px;text-align:center;background:#202731;font-size:11px}.ready{background:#17654d}.link{color:#55c9ef;text-decoration:underline}.machine{margin-top:0;padding:16px}.preview-wrap{display:grid;grid-template-columns:1fr 260px;gap:14px;margin-top:6px}#preview3d{height:420px;background:#080d14;border:1px solid #303946;border-radius:10px;overflow:hidden;position:relative}#preview3d canvas{display:block;width:100%;height:100%}#previewStats{padding:14px;white-space:pre-line;line-height:1.6}#previewPlaceholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#929dad;font-size:13px;text-align:center;padding:20px}.analyze{display:none;margin-top:16px;padding:14px}.an-tabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}.an-tabs button{background:#202731;color:#e6ebf2;border:1px solid #354150;border-radius:8px;padding:8px 10px;font-weight:600;cursor:pointer}.an-tabs button.active{background:#29485f;border-color:#18a8ff}.an-panel{display:none}.an-panel.active{display:block}.an-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}.an-row input,.an-row select{max-width:130px}.an-out{white-space:pre-line;padding:10px;margin-top:8px;font-size:12px}.changedbar{display:none;margin-top:12px;padding:10px;border-left:4px solid #18a8ff;background:#0f151d}.assembly-row{border-top:1px solid #303946;padding:9px 0}.assembly-row input,.assembly-row select{margin:3px;padding:6px;border-radius:6px;border:1px solid #354150;background:#0f151d;color:#e6ebf2;width:82px}button:focus,input:focus,select:focus,summary:focus{outline:2px solid #18a8ff;outline-offset:2px}
-@media(max-width:820px){body{min-width:830px}.wrap{margin:0;padding:14px}.preview-wrap{grid-template-columns:1fr 260px}.controls{grid-template-columns:1fr 180px 150px}.top{position:fixed}.box{border-radius:8px}}
+@media(max-width:820px){
+ html,body{width:100%;max-width:100%;overflow-x:hidden}
+ body{min-width:0;padding-top:126px}
+ .top{height:auto;min-height:112px;position:fixed;flex-wrap:wrap;align-content:center;padding:10px 12px;gap:8px}
+ .top:before{width:100%;font-size:14px;letter-spacing:2px;margin:0}
+ .top button,.top:after{min-height:44px;padding:0 15px;font-size:15px}
+ .wrap{width:100%;max-width:100%;margin:0;padding:10px}
+ .box{width:100%;padding:14px;border-radius:8px}
+ .preview-wrap{display:block;width:100%}
+ #preview3d{width:100%;height:min(68vh,520px);min-height:340px}
+ #previewStats{margin-top:10px;width:100%}
+ .controls{grid-template-columns:1fr;gap:10px}
+ .part{grid-template-columns:minmax(0,1fr) 58px 92px}
+ .machine{padding:12px}
+ .an-row{align-items:stretch}
+ .an-row input,.an-row select{max-width:none;flex:1 1 120px}
+ select,input,.btn{max-width:100%}
+}
 </style></head>
 <body><div class="top"><button onclick="location.href='/studio.html'">Home</button><button onclick="location.href='/viewer.html'">3D</button></div>
-<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-26.6</div>
+<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-26.7</div>
 
 <h2><span class="step">1</span>Choose model</h2>
 <label class="btn" style="display:inline-flex;position:relative;align-items:center;overflow:hidden;cursor:pointer">Choose model or project<input id="pkg" type="file" multiple style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"></label>
