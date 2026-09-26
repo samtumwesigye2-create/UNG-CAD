@@ -1,4 +1,5 @@
-import json, os, sqlite3, zipfile, io, re, secrets, urllib.request, urllib.error, urllib.parse\nimport trimesh
+import json, os, sqlite3, zipfile, io, re, secrets, urllib.request, urllib.error, urllib.parse
+import trimesh
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
