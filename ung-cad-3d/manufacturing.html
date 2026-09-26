@@ -104,6 +104,7 @@ window.__replacePart=async(name,stlBuffer)=>{
 window.__partNames=()=>[...part.options].map(o=>o.value).filter(Boolean);
 async function waitForPreviewEngine(timeout=8000){const start=Date.now();while(typeof window.__previewSTL!=='function'&&Date.now()-start<timeout)await new Promise(r=>setTimeout(r,50));return typeof window.__previewSTL==='function';}
 async function selectAndPreview(n,rowEl){
+ try{
   part.value=n;setPreflight('RUNNING','checking geometry, build volume and manufacturability…');
   document.querySelectorAll('.part').forEach(r=>r.classList.remove('active'));
   if(rowEl)rowEl.classList.add('active');
@@ -119,13 +120,17 @@ async function selectAndPreview(n,rowEl){
   previewStats.textContent='Loading geometry…';
   try{
     const bytes=await extractPartBytes(selectedFile,n);
-    if(!(await waitForPreviewEngine()))throw new Error('3D preview engine did not initialize');
     window.__previewSTL(n,bytes);
   }catch(e){
     previewStats.textContent='Preview failed — '+e.message;
   }
+ }catch(outerErr){
+  previewStats.textContent='Preview setup failed — '+outerErr.message;
+  const ph=document.getElementById('previewPlaceholder');
+  if(ph) ph.textContent='Could not load this part: '+outerErr.message;
+  console.error('selectAndPreview failed before reaching STL load:', outerErr);
+ }
 }
-
 async function handleChosenFiles(fileList,sourceLabel='files'){if(!fileList||!fileList.length)return;const chosen=[...fileList];parts.innerHTML='';part.innerHTML='';status.textContent='Preparing selected '+sourceLabel+'…';previewStats.textContent='No part selected yet.';
 if(chosen.length===1){selectedFile=chosen[0]}else{const zip=new JSZip();for(const file of chosen)zip.file(file.name,await file.arrayBuffer());const blob=await zip.generateAsync({type:'blob'});selectedFile=new File([blob],'UNG-CAD-selected-files.zip',{type:'application/zip'});}
 status.textContent='Inspecting actual package…';const d=new FormData();d.append('file',selectedFile);
