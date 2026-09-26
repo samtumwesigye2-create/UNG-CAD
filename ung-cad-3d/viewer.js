@@ -161,3 +161,34 @@ explodeLabels?.addEventListener("change",updateExplodeLabels);
 explodeRange?.addEventListener("input",()=>requestAnimationFrame(updateExplodeLabels));
 explodeBtn?.addEventListener("click",()=>requestAnimationFrame(updateExplodeLabels));
 assembleBtn?.addEventListener("click",clearExplodeLabels);
+
+/* Analytic/parametric workspace integration */
+(function(){
+ const state=document.getElementById('analytic-state');
+ const res=()=>Math.max(8,Math.min(128,Number(document.getElementById('analytic-resolution')?.value)||48));
+ function surfacePolys(s){
+  const t=window.UNGSurfaces.tessellate(s,res(),res()),ps=[];
+  for(const tri of t.triangles){const a=t.vertices[tri[0]],b=t.vertices[tri[1]],d=t.vertices[tri[2]];ps.push(E.polygon([E.v3(a.x,a.y,a.z),E.v3(b.x,b.y,b.z),E.v3(d.x,d.y,d.z)]));}
+  return ps;
+ }
+ function addSurface(name,s){
+  const polys=surfacePolys(s);addObj(name,polys,E.v3(0,0,0));const o=objects[objects.length-1];o.analyticSurface=s;selected=[o.id];recordFeature('Parametric Surface',o.id,{type:s.meta?.type||'custom'});refresh();fitPolygons(polys);state.textContent=name+' created • analytic source retained';status(name+' created');
+ }
+ document.getElementById('analytic-cylinder')?.addEventListener('click',()=>addSurface('Parametric Cylinder',window.UNGSurfaces.cylinder(Math.max(.01,+document.getElementById('size').value/2||1),Math.max(.01,+document.getElementById('height').value||3))));
+ document.getElementById('analytic-sphere')?.addEventListener('click',()=>addSurface('Parametric Sphere',window.UNGSurfaces.sphere(Math.max(.01,+document.getElementById('size').value/2||1))));
+ document.getElementById('analytic-intersect')?.addEventListener('click',()=>{
+  if(selected.length!==2){state.textContent='Select exactly two solids for intersection';return;}
+  const a=objects.find(o=>o.id===selected[0]),b=objects.find(o=>o.id===selected[1]);if(!a||!b)return;
+  const p=E.csgIntersect(a.polygons,b.polygons);if(!p.length){state.textContent='Intersection is empty';return;}
+  addObj('Analytic Intersection',p,E.v3(0,0,0));const o=objects[objects.length-1];selected=[o.id];recordFeature('Analytic Intersection',o.id,{sources:[a.id,b.id]});refresh();fitPolygons(p);state.textContent='Intersection created • CSG boundary generated for manufacturing';status('Analytic intersection complete');
+ });
+ document.getElementById('analytic-unroll')?.addEventListener('click',()=>{
+  if(selected.length!==1){state.textContent='Select one parametric surface to unroll';return;}
+  const o=objects.find(x=>x.id===selected[0]);if(!o?.analyticSurface){state.textContent='Selected object has no retained parametric surface';return;}
+  const d=window.UNGUnroll.develop(o.analyticSurface,res(),res()),check=window.UNGUnroll.distortion(d);o.surfaceDevelopment=d;
+  recordFeature('Surface Development',o.id,{developable:!!check.developable});
+  state.textContent=check.developable?'Surface unrolled • zero theoretical strain for this developable surface':'UV development generated • strain analysis required before fabrication';
+  status(state.textContent);
+ });
+ if(new URLSearchParams(location.search).get('workspace')==='analytic')state.textContent='Analytic workspace active • create a parametric surface or select two solids';
+})();
