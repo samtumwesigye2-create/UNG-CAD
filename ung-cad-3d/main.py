@@ -1,8 +1,8 @@
-import json, os, sqlite3, zipfile, io, re, secrets, urllib.request, urllib.error, urllib.parse
+import json, os, sqlite3, zipfile, io, re, secrets, urllib.request, urllib.error, urllib.parse\nimport trimesh
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from orca_slicer import slice_stl_orca as slice_stl  # real AD5M slicing (fixed)
