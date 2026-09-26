@@ -180,6 +180,8 @@ function refresh(){const list=document.getElementById('object-list');list.innerH
 window.__ungCadCommandBridge={
  getSelection(){return window.__ungCadSelection()},
  getObjects(){return objects.slice()},
+ extract(){return window.UNGCADPro?.extract?window.UNGCADPro.extract(objects):objects.map(o=>({id:o.id,name:o.name,visible:o.visible!==false,polygonCount:o.polygons?.length||0,position:o.position}));},
+ transform(cmd,ids,delta){return String(cmd).toUpperCase()==='COPY'?this.copy(delta):this.move(delta)},
  move(delta={}){const o=objects.find(x=>x.id===selected[0]);if(!o)throw new Error('Select one object first');const d=E.v3(+delta.x||0,+delta.y||0,+delta.z||0);o.polygons=E.translatePolygons(o.polygons,d);o.position=E.add(o.position,d);scene.remove(o.mesh);o.mesh=meshFromPolys(o.polygons,colors[(o.id-1)%colors.length]);scene.add(o.mesh);refresh();status('Moved '+o.name);return o;},
  copy(delta={}){const o=objects.find(x=>x.id===selected[0]);if(!o)throw new Error('Select one object first');const d=E.v3(+delta.x||0,+delta.y||0,+delta.z||0),p=E.translatePolygons(o.polygons,d),pos=E.add(o.position,d);addObj(o.name+' copy',p,pos);selected=[objects[objects.length-1].id];refresh();status('Copied '+o.name);return objects[objects.length-1];},
  union(){if(selected.length!==2)throw new Error('Select exactly two objects');const [a,b]=selected.map(id=>objects.find(o=>o.id===id)),p=E.csgUnion(a.polygons,b.polygons);if(E.isDegenerateResult(p))throw new Error('Union result empty/degenerate');[a,b].forEach(o=>scene.remove(o.mesh));objects=objects.filter(o=>o.id!==a.id&&o.id!==b.id);selected=[];addObj('union('+a.name+','+b.name+')',p,E.v3(0,0,0));refresh();status('Union complete');return objects[objects.length-1];}
