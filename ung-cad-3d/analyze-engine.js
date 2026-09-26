@@ -152,8 +152,41 @@
     }return out;
   }
   function toBinarySTL(tris,name='UNG-CAD'){const buf=new ArrayBuffer(84+50*tris.length),dv=new DataView(buf),u8=new Uint8Array(buf),enc=new TextEncoder().encode(name.slice(0,80));u8.set(enc.slice(0,80));dv.setUint32(80,tris.length,true);let off=84;for(const t of tris){const n=triangleNormal(t);for(const q of[n.x,n.y,n.z]){dv.setFloat32(off,q,true);off+=4;}for(const p of[t.a,t.b,t.c])for(const q of[p.x,p.y,p.z]){dv.setFloat32(off,q,true);off+=4;}dv.setUint16(off,0,true);off+=2;}return buf;}
+  // Engineering calculus helpers used by CAD analysis and simulation layers.
+  function derivative(samples,dt=1){
+    if(!Array.isArray(samples)||samples.length<2||!(dt>0))return[];
+    return samples.map((x,i)=>{
+      if(i===0)return (samples[1]-samples[0])/dt;
+      if(i===samples.length-1)return (samples[i]-samples[i-1])/dt;
+      return (samples[i+1]-samples[i-1])/(2*dt);
+    });
+  }
+  function kinematics(positionSamples,dt=1){
+    const velocity=derivative(positionSamples,dt),acceleration=derivative(velocity,dt);
+    return{position:positionSamples.slice(),velocity,acceleration,dt};
+  }
+  function exponentialGrowth(P0,k,t){return P0*Math.exp(k*t);}
+  function gravityAcceleration(position,{G=6.67430e-11,M=1}={}){
+    const r=Math.hypot(position.x,position.y,position.z);
+    if(r<EPS)return v();
+    const q=-G*M/(r*r*r);return v(position.x*q,position.y*q,position.z*q);
+  }
+  function heatStep2D(field,{alpha=1,dt=0.01,dx=1,dy=dx}={}){
+    const rows=field?.length||0,cols=rows?(field[0]?.length||0):0;
+    if(rows<3||cols<3||!(dx>0)||!(dy>0)||dt<0)return (field||[]).map(r=>r.slice());
+    const out=field.map(r=>r.slice()),cx=alpha*dt/(dx*dx),cy=alpha*dt/(dy*dy);
+    for(let y=1;y<rows-1;y++)for(let x=1;x<cols-1;x++){
+      const u=field[y][x];
+      out[y][x]=u+cx*(field[y][x+1]-2*u+field[y][x-1])+cy*(field[y+1][x]-2*u+field[y-1][x]);
+    }
+    return out;
+  }
+  function solidMetrics(tris){
+    const b=bounds(tris),vol=volume(tris),area=surfaceArea(tris);
+    return{volume:vol,surfaceArea:area,bounds:b,volumeCm3:vol/1000,surfaceAreaCm2:area/100};
+  }
   function mat4TransformPoint(m,p){const q=[0,0,0,0],vv=[p[0],p[1],p[2],1];for(let i=0;i<4;i++)for(let j=0;j<4;j++)q[i]+=m[i][j]*vv[j];const w=q[3]||1;return[q[0]/w,q[1]/w,q[2]/w];}
   function composeMat4(a,b){return a.map((r,i)=>r.map((_,j)=>a[i].reduce((sum,__,k)=>sum+a[i][k]*b[k][j],0)));}
   function cadFrameProduct(position,transform,sourceFrame="part",destinationFrame="assembly"){return{position:mat4TransformPoint(transform,position),source_frame:sourceFrame,destination_frame:destinationFrame,provenance:"DERIVED"};}
-  return{trianglesFromPolygons,measure,bounds,volume,surfaceArea,printEstimate,assemblyEstimate,identity,multiply,rotationX,rotationY,rotationZ,scaling,mirror,translation,determinant3,transformPoint,applyMatrix,placeOnBed,triangleNormal,findOverhangs,rotationBetween,fitsBed,autoOrient,checkManifold,repairMesh,frameMatrix,invertRigid,toParent,fromParent,worldMatrix,explainTransform,boundsOverlap,pairwiseClashes,trianglesIntersect,makeBVH,bvhIntersections,pointInMesh,pairwiseGeometryClashes,triangleDistance,boxDistance,bvhMinDistance,pairwiseClearances,pairwiseDistances,toBinarySTL,mat4TransformPoint,composeMat4,cadFrameProduct};
+  return{trianglesFromPolygons,measure,bounds,volume,surfaceArea,solidMetrics,derivative,kinematics,exponentialGrowth,gravityAcceleration,heatStep2D,printEstimate,assemblyEstimate,identity,multiply,rotationX,rotationY,rotationZ,scaling,mirror,translation,determinant3,transformPoint,applyMatrix,placeOnBed,triangleNormal,findOverhangs,rotationBetween,fitsBed,autoOrient,checkManifold,repairMesh,frameMatrix,invertRigid,toParent,fromParent,worldMatrix,explainTransform,boundsOverlap,pairwiseClashes,trianglesIntersect,makeBVH,bvhIntersections,pointInMesh,pairwiseGeometryClashes,triangleDistance,boxDistance,bvhMinDistance,pairwiseClearances,pairwiseDistances,toBinarySTL,mat4TransformPoint,composeMat4,cadFrameProduct};
 });
