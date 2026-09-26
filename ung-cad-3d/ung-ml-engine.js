@@ -1,0 +1,21 @@
+(function(root,factory){const api=factory();if(typeof module!=='undefined'&&module.exports)module.exports=api;if(root)root.UNGML=api;})(typeof window!=='undefined'?window:globalThis,function(){
+const EPS=1e-12,mean=a=>a.reduce((s,x)=>s+x,0)/(a.length||1),dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0);
+function linearRegression(x,y){if(x.length!==y.length||x.length<2)throw Error('x/y length');const n=x.length,sx=x.reduce((a,b)=>a+b,0),sy=y.reduce((a,b)=>a+b,0),sxy=x.reduce((s,v,i)=>s+v*y[i],0),sx2=x.reduce((s,v)=>s+v*v,0),d=n*sx2-sx*sx;if(Math.abs(d)<EPS)throw Error('singular x');const slope=(n*sxy-sx*sy)/d,intercept=(sy-slope*sx)/n;return{slope,intercept,predict:v=>intercept+slope*v};}
+const sigmoid=z=>1/(1+Math.exp(-Math.max(-709,Math.min(709,z))));
+function logisticPredict(beta,x){const z=beta[0]+dot(beta.slice(1),x);return{z,probability:sigmoid(z),class:sigmoid(z)>=.5?1:0};}
+function mse(y,p){return mean(y.map((v,i)=>(v-p[i])**2));} function mae(y,p){return mean(y.map((v,i)=>Math.abs(v-p[i])));}
+function gini(labels){const n=labels.length;if(!n)return 0;const c={};labels.forEach(x=>c[x]=(c[x]||0)+1);return 1-Object.values(c).reduce((s,v)=>s+(v/n)**2,0);}
+function entropy(labels){const n=labels.length;if(!n)return 0;const c={};labels.forEach(x=>c[x]=(c[x]||0)+1);return-Object.values(c).reduce((s,v)=>{const p=v/n;return s+p*Math.log2(p);},0);}
+function informationGain(parent,children){const n=parent.length;return entropy(parent)-children.reduce((s,c)=>s+(c.length/n)*entropy(c),0);}
+function variance(a){const m=mean(a);return mean(a.map(x=>(x-m)**2));}
+function varianceReduction(parent,children){const n=parent.length;return variance(parent)-children.reduce((s,c)=>s+(c.length/n)*variance(c),0);}
+const kernels={linear:(a,b)=>dot(a,b),polynomial:(a,b,{degree=3,coef0=1,gamma=1}={})=>(gamma*dot(a,b)+coef0)**degree,rbf:(a,b,{gamma=1}={})=>Math.exp(-gamma*a.reduce((s,x,i)=>s+(x-b[i])**2,0))};
+function svmDecision(model,x){if(model.w)return dot(model.w,x)+(model.b||0);return(model.supportVectors||[]).reduce((s,v,i)=>s+(model.alpha[i]||0)*(model.y[i]||1)*(model.kernel||kernels.rbf)(v,x,model.kernelOptions||{}),model.b||0);}
+function svmPredict(model,x){const score=svmDecision(model,x);return{score,class:score>=0?1:-1};}
+function svmMargin(w){return 2/Math.sqrt(dot(w,w));}
+function standardize(rows){const d=rows[0]?.length||0,m=Array(d).fill(0),sd=Array(d).fill(0);for(let j=0;j<d;j++){m[j]=mean(rows.map(r=>r[j]));sd[j]=Math.sqrt(mean(rows.map(r=>(r[j]-m[j])**2)))||1;}return{rows:rows.map(r=>r.map((v,j)=>(v-m[j])/sd[j])),mean:m,std:sd};}
+function kmeans(rows,k,{iterations=100}={}){if(!rows.length||k<1||k>rows.length)throw Error('invalid k');let c=rows.slice(0,k).map(r=>r.slice()),labels=[];for(let it=0;it<iterations;it++){const next=rows.map(r=>{let bi=0,bd=Infinity;c.forEach((q,i)=>{const d=r.reduce((s,x,j)=>s+(x-q[j])**2,0);if(d<bd){bd=d;bi=i;}});return bi;});const nc=c.map((q,i)=>{const pts=rows.filter((_,j)=>next[j]===i);return pts.length?q.map((_,j)=>mean(pts.map(p=>p[j]))):q;});if(next.every((v,i)=>v===labels[i])){labels=next;c=nc;break;}labels=next;c=nc;}return{centroids:c,labels};}
+function anomalyZScores(rows){const s=standardize(rows);return s.rows.map(r=>Math.sqrt(mean(r.map(x=>x*x))));}
+function graphShortestPath(graph,start,goal){const dist={[start]:0},prev={},q=new Set(Object.keys(graph));while(q.size){let u=null;q.forEach(n=>{if(u===null||(dist[n]??Infinity)<(dist[u]??Infinity))u=n;});if(u===null||(dist[u]??Infinity)===Infinity)break;q.delete(u);if(u===goal)break;for(const [v,w] of Object.entries(graph[u]||{})){const a=dist[u]+w;if(a<(dist[v]??Infinity)){dist[v]=a;prev[v]=u;}}}const path=[];let u=goal;if((dist[goal]??Infinity)<Infinity){while(u!==undefined){path.unshift(u);u=prev[u];}}return{distance:dist[goal]??Infinity,path};}
+function modelDiagnostics(y,p){return{mse:mse(y,p),mae:mae(y,p),rmse:Math.sqrt(mse(y,p))};}
+return{linearRegression,sigmoid,logisticPredict,mse,mae,gini,entropy,informationGain,variance,varianceReduction,kernels,svmDecision,svmPredict,svmMargin,standardize,kmeans,anomalyZScores,graphShortestPath,modelDiagnostics};});
