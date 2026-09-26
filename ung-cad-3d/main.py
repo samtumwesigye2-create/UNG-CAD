@@ -2,6 +2,9 @@ import json, os, sqlite3, zipfile, io, re, secrets, urllib.request, urllib.error
 import trimesh
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, UNGCadFeatureTimeline, ToleranceExceededError
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -33,6 +36,34 @@ def home_page():
 
 @app.on_event("startup")
 def startup(): init_db()
+
+feature_timeline_core=UNGCadFeatureTimeline()
+
+class ParametricCircleIn(BaseModel):
+    entity_id:str
+    center:list[float]=[0.0,0.0,0.0]
+    radius:float
+    normal:list[float]=[0.0,0.0,1.0]
+
+class ParametricActionIn(BaseModel):
+    action:str
+    value:float
+    target_quality:str="ui"
+
+@app.post("/api/cad/parametric/circle")
+def create_parametric_circle(body:ParametricCircleIn):
+    if len(body.center)!=3 or len(body.normal)!=3: raise HTTPException(400,"center and normal must contain exactly 3 values")
+    try:
+        circle=ParametricCircle(Point3D(*body.center),body.radius,Vector3D(*body.normal))
+        feature_timeline_core.add_circle(body.entity_id,circle)
+        return {"entity_id":body.entity_id,"status":"created","meta":{"radius":circle.radius,"center":circle.center.to_array(),"normal":[circle.normal.x,circle.normal.y,circle.normal.z]}}
+    except (ValueError,KeyError) as e: raise HTTPException(400,str(e))
+
+@app.post("/api/cad/parametric/{entity_id}/action")
+def parametric_action(entity_id:str,body:ParametricActionIn):
+    try: return feature_timeline_core.process_api_action(entity_id,body.action,body.value,body.target_quality)
+    except KeyError as e: raise HTTPException(404,str(e))
+    except (ValueError,NotImplementedError,ToleranceExceededError) as e: raise HTTPException(422,str(e))
 
 class TwinBindingIn(BaseModel):
     object_key:str
