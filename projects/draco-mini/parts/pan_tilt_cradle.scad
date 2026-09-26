@@ -1,8 +1,8 @@
 // DRACO-Mini pan/tilt cradle — connected print-ready U-frame
-servo_x=22.8;
-servo_y=12.2;
-servo_z=28.5;
-fit_clearance=0.35;
+servo_x = 22.8;
+servo_y = 12.2;
+servo_z = 28.5;
+fit_clearance = 0.35;
 
 wall=3;
 inner_w=74;
