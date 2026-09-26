@@ -71,5 +71,26 @@
   if(fn==="atan"){if(Math.abs(v)<eps)return 0;if(Math.abs(v-1)<eps)return "pi/4";}
   return null;
  }
- g.UNGSymbolic={E,evalExpr,diff,integrateNumeric,substitutePower,trigIdentities,trigRewrite,verifyTrigIdentity,trigFormulas,exactTrig,exactTrigValue,inverseTrigSimplify};
+ 
+// CAD-oriented trig solver: angle normalization, periodic equivalence, and triangle solving.
+ function normalizeAngle(rad){const tau=2*Math.PI;let r=Number(rad)%tau;if(r<0)r+=tau;return r}
+ function periodicEquivalent(a,b,tol=1e-10){const d=normalizeAngle(a)-normalizeAngle(b);return Math.abs(d)<tol||Math.abs(Math.abs(d)-2*Math.PI)<tol}
+ function degToRad(d){return Number(d)*Math.PI/180}
+ function radToDeg(r){return Number(r)*180/Math.PI}
+ function solveRightTriangle({opposite,adjacent,hypotenuse,angleRad}={}){
+  let o=Number(opposite),a=Number(adjacent),h=Number(hypotenuse),t=Number(angleRad);
+  const ok=n=>Number.isFinite(n)&&n>=0;
+  if(ok(t)&&ok(h)){if(!ok(o))o=h*Math.sin(t);if(!ok(a))a=h*Math.cos(t)}
+  if(ok(o)&&ok(a)){if(!ok(h))h=Math.hypot(o,a);if(!ok(t))t=Math.atan2(o,a)}
+  if(ok(h)&&ok(o)&&!ok(a))a=Math.sqrt(Math.max(0,h*h-o*o));
+  if(ok(h)&&ok(a)&&!ok(o))o=Math.sqrt(Math.max(0,h*h-a*a));
+  if(!ok(t)&&ok(o)&&ok(h)&&h>0)t=Math.asin(Math.min(1,o/h));
+  if(!ok(t)&&ok(a)&&ok(h)&&h>0)t=Math.acos(Math.min(1,a/h));
+  if(!(ok(o)&&ok(a)&&ok(h)&&ok(t)))throw Error("Insufficient triangle constraints");
+  return {opposite:o,adjacent:a,hypotenuse:h,angleRad:t,angleDeg:radToDeg(t)};
+ }
+ function rotate2D(x,y,angleRad){const c=Math.cos(angleRad),s=Math.sin(angleRad);return{x:x*c-y*s,y:x*s+y*c}}
+ function polarToCartesian(radius,angleRad){return{x:radius*Math.cos(angleRad),y:radius*Math.sin(angleRad)}}
+ function cartesianToPolar(x,y){return{radius:Math.hypot(x,y),angleRad:Math.atan2(y,x),angleDeg:radToDeg(Math.atan2(y,x))}}
+ g.UNGSymbolic={E,evalExpr,diff,integrateNumeric,substitutePower,trigIdentities,trigRewrite,verifyTrigIdentity,trigFormulas,exactTrig,exactTrigValue,inverseTrigSimplify,normalizeAngle,periodicEquivalent,degToRad,radToDeg,solveRightTriangle,rotate2D,polarToCartesian,cartesianToPolar};
 })(window);
