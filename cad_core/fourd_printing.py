@@ -7,8 +7,8 @@ from feed rate to residual strain or final shape.
 from dataclasses import dataclass
 import math, re
 
-_MOVE_RE=re.compile(r"^(G0|G1)\\b",re.I)
-_AXIS_RE={a:re.compile(rf"\\b{a}(-?\\d+(?:\\.\\d+)?)",re.I) for a in "XYZEF"}
+_MOVE_RE=re.compile(r"^(G0|G1)\b",re.I)
+_AXIS_RE={a:re.compile(rf"\b{a}(-?\d+(?:\.\d+)?)",re.I) for a in "XYZEF"}
 
 @dataclass(frozen=True)
 class FourDProfile:
