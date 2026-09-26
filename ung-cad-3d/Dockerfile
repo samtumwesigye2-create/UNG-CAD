@@ -4,6 +4,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends libopengl0 libg
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
+# Railway root directory is ung-cad-3d; include the shared CAD kernel explicitly.
+COPY ../cad_core /cad_core
+ENV PYTHONPATH=/
 RUN python tests/analytic_build_gate.py
 ENV QT_QPA_PLATFORM=offscreen
 CMD ["sh","-c","python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
