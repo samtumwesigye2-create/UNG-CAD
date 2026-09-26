@@ -24,3 +24,5 @@ from .electromechanical_components import ComponentKind, ElectromechanicalCompon
 from .circle_geometry import Point3D, CADCircle3D, scale_cad_circle, rotate_point_2d, rotate_cad_circle_z
 
 from .feature_timeline import ToleranceExceededError, ParametricCircle, PrecisionGeometryEngine, UNGCadFeatureTimeline
+
+from .orbital_dynamics import OrbitalState, schwarzschild_radius, weak_field_frame_dragging_scalar, lense_thirring_vector, two_body_acceleration, rk4_two_body_step, orbital_elements, fit_residuals, parameter_sweep
