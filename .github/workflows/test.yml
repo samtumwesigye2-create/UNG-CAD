@@ -20,8 +20,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Run Analyze engine tests
-        run: node ung-cad-3d/tests/analyze-engine.test.js
+      - name: Run browser-engine regression suite
+        run: |
+          set -euo pipefail
+          node ung-cad-3d/tests/analyze-engine.test.js
+          node ung-cad-3d/tests/analytic-workflow.test.js
+          node ung-cad-3d/tests/fourd-geometry-playback.test.js
+          node ung-cad-3d/tests/ung-ml-engine.test.js
+          node ung-cad-3d/tests/professional-core.test.js
+          node ung-cad-3d/tests/professional-platform.test.js
+      - name: Validate Studio integration contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          studio=Path("ung-cad-3d/studio.html").read_text()
+          viewer=Path("ung-cad-3d/viewer.html").read_text()
+          drafting=Path("ung-cad-3d/drafting.html").read_text()
+          required=["professional-core.js","interoperability.js","geospatial.js","performance-monitor.js","plugin-api.js"]
+          missing=[x for x in required if x not in studio]
+          assert not missing, f"Studio missing professional modules: {missing}"
+          assert "professional-ui.js" in viewer
+          assert "drafting-professional.js" in drafting
+          assert "Professional Platform Diagnostics" in studio
+          print("Studio integration contracts passed")
+          PY
       - name: Install OpenSCAD
         run: |
           sudo apt-get update
