@@ -77,7 +77,8 @@
         "3d_print_petg",
         "3d_print_abs",
         "cnc_mill_aluminum",
-        "laser_cut"
+        "laser_cut",
+        "waterjet"
       ]
     },
     "geometry_payload": {
