@@ -62,3 +62,25 @@ User-defined vector maps p[n+1]=f(p[n]); iteration history; fixed/periodic point
 
 ## DRACO tilt application
 Use mechanism synthesis to evaluate the base-mounted MG90S TILT transmission while simultaneously sweeping PAN -90..+90 degrees and TILT -25..+25 degrees. Reject mechanisms that bind, collide, slip, excessively backlash, contact wiring, pull connectors, stall servos or change commanded tilt as pan moves. Physical P0 validation remains mandatory.
+
+
+## Chiplet / multi-core / SRAM floorplan architecture
+The approved processor-floorplan reference adds a general hierarchical compute-layout model; it is architectural inspiration, not a claim about the exact pictured die.
+
+- Model repeated compute CORE tiles and distributed local SRAM/cache banks as first-class floorplan objects.
+- Support heterogeneous core groups, symmetric/asymmetric clusters, chiplets/dielets, shared fabric and central/inter-cluster regions.
+- Represent memory locality explicitly: register/local SRAM/cache -> shared on-die cache/SRAM -> accelerator memory/VRAM/HBM -> system RAM -> storage.
+- NUMA/locality-aware scheduling: prefer work and data on the core/cluster nearest the owning memory bank; account for migration/interconnect cost.
+- Work partitioning across independent geometry tiles, mesh regions, voxels, rays, simulation cells, sensor streams and ML batches.
+- Per-tile queues, work stealing/load balancing, affinity/pinning hints and topology-aware batch sizing.
+- Cache/SRAM-aware tiling and blocking so hot geometry/array working sets are reused locally before eviction.
+- Model shared-fabric bandwidth, contention and communication cost between compute clusters and memory regions.
+- Expose topology telemetry: utilization, queue depth, local/remote memory traffic, bandwidth, latency estimates, cache pressure and thermal/power metadata.
+- Add floorplan visualization for cores, SRAM/cache banks, chiplets, fabrics, memory controllers and package-level HBM/interposer regions.
+- Electronics/packaging CAD may run placement/thermal/power/interconnect studies over these abstract blocks without claiming transistor-level semiconductor fabrication.
+
+### UNG-CAD execution mapping
+Partition large meshes and fields spatially, assign partitions to compute tiles, retain local vertex/index/field data near each worker, exchange only boundary/halo data when possible, and merge deterministic results before manufacturing validation. Use the same topology model for curvature fields, collision grids, ray batches, linkage parameter sweeps and nonlinear-map iterations.
+
+### Portability
+The topology layer must discover real hardware rather than assume the reference image's core/SRAM counts. It must scale from a single CPU and Pi-class edge hardware through multicore CPUs, integrated/discrete GPUs and future chiplet/HBM accelerators.
