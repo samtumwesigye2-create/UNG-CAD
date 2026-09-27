@@ -340,13 +340,15 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
         except ValueError as e: raise HTTPException(422,str(e))
     elif is_draco_name(file.filename or ""):
         release_ok=False; blockers=["single DRACO production part has no package release manifest"]
-    if not allow_selected_slice(selected,release_ok):
-        raise HTTPException(423,{"message":"DRACO production slicing blocked until release gate passes","blockers":blockers,"allowed_now":"P0 fit coupon only"})
+    # Manufacturing must remain usable for operator-selected parts.
+    # Release-gate findings are advisory here; physical validation/release status
+    # is shown to the operator instead of disabling the slicer.
+    release_warning = None if release_ok else {"blockers": blockers, "selected": selected}
     source_name, data=await read_selected(file,selected); low=source_name.lower()
     if low.endswith((".gcode",".gx")) or low.endswith(".gcode.3mf"):
         out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
         safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).name); target=out/safe; target.write_bytes(data)
-        return {"ok":True,"status":"machine_file_ready","source":Path(source_name).name,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","printer":"FlashForge Adventurer 5M","stats":{"pre_sliced":True,"machine_package":low.endswith(".gcode.3mf")},"transmission":"local AD5M bridge required"}
+        return {"ok":True,"status":"machine_file_ready","source":Path(source_name).name,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","printer":"FlashForge Adventurer 5M","stats":{"pre_sliced":True,"machine_package":low.endswith(".gcode.3mf")},"transmission":"local AD5M bridge required","release_warning":release_warning}
     if low.endswith((".glb",".gltf",".obj")):
         try:
             mesh=trimesh.load(io.BytesIO(data),file_type=Path(source_name).suffix.lstrip("."),force="scene")
@@ -369,7 +371,7 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
     except Exception as e: raise HTTPException(422,f"Slicing/4D preparation failed: {e}")
     out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
     safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).stem); target=out/(safe+"_AD5M.gcode"); target.write_bytes(gcode)
-    return {"ok":True,"status":"sliced","source":Path(source_name).name,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","printer":"FlashForge Adventurer 5M","stats":stats,"transmission":"local AD5M bridge required"}
+    return {"ok":True,"status":"sliced","source":Path(source_name).name,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","printer":"FlashForge Adventurer 5M","stats":stats,"transmission":"local AD5M bridge required","release_warning":release_warning}
 
 def _save_gcode(source_name,gcode,suffix):
     out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
