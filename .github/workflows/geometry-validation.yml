@@ -1,0 +1,35 @@
+name: UNG-CAD Core Geometric Validation Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  validate-geometry:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install Geometry Validation Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest ezdxf
+
+      - name: Execute Geometric Verification and Collision Tests
+        run: |
+          set -euo pipefail
+          python -m pytest -v             tests/test_cutout_contract.py             tests/test_custom_cutout_segments.py             tests/test_cutout_component.py             tests/test_layout_boundary.py             tests/test_process_compensation.py             tests/test_dxf_exporter.py             tests/test_gcode_generator.py             tests/test_structural_ribs.py             tests/test_cutout_manufacturing_integration.py
