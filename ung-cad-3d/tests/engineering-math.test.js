@@ -1,0 +1,10 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const ctx={window:{},Math};ctx.window.window=ctx.window;vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname,'..','engineering-math.js'),'utf8'),ctx);
+const M=ctx.window.UNGEngineeringMath;assert.ok(M);
+const p=M.ramanujanPi({terms:3});assert.ok(Math.abs(p.value-Math.PI)<1e-12);
+const c=M.cubeProof(2);assert.ok(Math.abs(c.faceDiagonal.value-2*Math.SQRT2)<1e-12);assert.strictEqual(c.volume,8);
+const t=M.regularTetrahedronFromCube(1);assert.ok(Math.abs(t.keptFraction-1/3)<1e-12);
+const o=M.ohmsLaw({voltage:12,resistance:6});assert.strictEqual(o.current,2);assert.strictEqual(o.power,24);
+const z=M.acRLC({resistance:10,inductance:.01,capacitance:100e-6,frequency:60,voltage:120});assert.ok(z.impedance.magnitude>10);assert.ok(Number.isFinite(z.current));
+console.log('engineering math tests passed');
