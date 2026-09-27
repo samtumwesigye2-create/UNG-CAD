@@ -39,7 +39,8 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;background:rad
 <script src="./analytic_geometry.js"></script>
 <script src="./parametric_surfaces.js"></script>
 <script src="./surface_unroll.js"></script>
-<script src="./symbolic_math.js"></script>\n<script src="./engineering-math.js"></script>
+<script src="./symbolic_math.js"></script>
+<script src="./engineering-math.js"></script>
 <script>
 const B="http://127.0.0.1:8765",f=document.getElementById("pf"),st=document.getElementById("ps"),p=document.getElementById("pp"),pair=document.getElementById("pair"),pid=document.getElementById("pid");
 async function health(){try{const j=await fetch(B+"/health",{cache:"no-store"}).then(r=>r.json());if(j.version!=="2026-09-20-3"){st.textContent="OLD BRIDGE DETECTED — restart/update the Mac bridge before printing.";return false}st.textContent=j.printer?"PAIRED — "+j.printer.name+" • "+j.printer.firmware+" • bridge "+j.version:"Bridge ready — version "+j.version+" — enter Printer ID to pair.";return true}catch{st.textContent="Local print bridge is not running on this Mac.";return false}}
