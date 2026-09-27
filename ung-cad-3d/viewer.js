@@ -302,3 +302,15 @@ window.addEventListener('ung:electromagnetics',e=>{
  const flux=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),fluxMat);g.add(flux);
  g.position.set(0,0,0);g.scale.setScalar(.75);scene.add(g);renderer.render(scene,camera);window.__ungLastEM=d;
 });
+
+/* Field-analysis UI binding */
+(function(){
+ const q=id=>document.getElementById(id),msg=q('field-state');
+ function chosen(){return objects.find(o=>o.id===selected[0])||null}
+ function mesh(){const o=chosen();if(!o?.mesh){if(msg)msg.textContent='Select one object first';return null}return o.mesh}
+ q('field-vectors')?.addEventListener('click',()=>{const m=mesh();if(!m)return;const ctr=new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3());UNGFieldViz.vectorArrows(scene,m,UNGFieldViz.radialField(ctr));if(msg)msg.textContent='Vector field overlay — radial sample'});
+ q('field-streamlines')?.addEventListener('click',()=>{const m=mesh();if(!m)return;const ctr=new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3());UNGFieldViz.streamlines(scene,m,UNGFieldViz.vortexField(ctr));if(msg)msg.textContent='Streamlines — RK-style directional visualization'});
+ q('field-normals')?.addEventListener('click',()=>{const m=mesh();if(!m)return;UNGFieldViz.normals(scene,m);if(msg)msg.textContent='Surface normals overlay'});
+ q('field-curvature')?.addEventListener('click',()=>{const m=mesh();if(!m)return;UNGFieldViz.curvature(scene,m);if(msg)msg.textContent='Curvature/concavity diagnostic overlay'});
+ q('field-clear')?.addEventListener('click',()=>{UNGFieldViz.clear(scene);if(msg)msg.textContent='Field overlays cleared'});
+})();
