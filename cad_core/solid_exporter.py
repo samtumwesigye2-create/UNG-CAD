@@ -1,7 +1,8 @@
 """Optional CadQuery STEP/STL solid compiler for flat manufactured panels."""
 import math,os,re
 from pathlib import Path
-from typing import Dict,Any\nfrom cad_core.solid_features import validate_features
+from typing import Dict,Any
+from cad_core.solid_features import validate_features
 
 class UngCadSolidExporter:
  @staticmethod
@@ -12,7 +13,8 @@ class UngCadSolidExporter:
   if fmt not in {"STEP","STL"}: raise ValueError("output_format must be STEP or STL")
   w=float(panel_json["width_mm"]);h=float(panel_json["height_mm"]);t=float(panel_json["thickness_mm"])
   if min(w,h,t)<=0: raise ValueError("panel dimensions and thickness must be positive")
-  solid=cq.Workplane("XY").box(w,h,t)\n  validate_features(panel_json.get("features",[]))
+  solid=cq.Workplane("XY").box(w,h,t)
+  validate_features(panel_json.get("features",[]))
   def geom(c): return c.get("geometry_payload") or c.get("dimensions") or {}
   def xy(pos): return float(pos["x_mm"])-w/2,float(pos["y_mm"])-h/2
   for c in panel_json.get("cutouts",[]):
