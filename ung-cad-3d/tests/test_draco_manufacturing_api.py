@@ -35,12 +35,14 @@ def test_inspect_incomplete_draco_is_p0_only():
     assert state["ready"] is False and state["p0_only_until_release"] is True
     assert state["blockers"]
 
-def test_production_slice_blocked_without_release():
+def test_production_slice_allowed_with_release_warning():
     data=pack(p0=True)
     r=client.post("/api/manufacturing/slice",files=upload(data),
                   data={"selected":"DRACO_K2_P2_PART.gcode"})
-    assert r.status_code==423
-    assert "release gate" in r.json()["detail"]["message"].lower()
+    assert r.status_code==200
+    body=r.json()
+    assert body["status"]=="machine_file_ready"
+    assert body.get("release_warning") is not None
 
 def test_p0_machine_file_allowed_before_release():
     data=pack(p0=True)
