@@ -78,3 +78,31 @@ Before production:
 - Harnesses must not become taut, snag, rub sharp edges, enter servo/horn/fan sweep, pull connectors, or leave an uncontrolled loose coil at any motion limit.
 - Final wire cut lengths are derived from validated routed path lengths plus only required connector/service/motion allowance; do not invent fixed lengths before physical routing is locked.
 - P0-v3 remains the production gate: no remaining production part is approved to print until real interfaces, component retention, connector seating, representative harness routing, and full-motion cable behavior pass.
+
+
+## Rev-K.2.1 servo relocation — superseding yoke-mounted tilt servo
+Both MG90S servos are required inside the base. This supersedes the earlier yoke-arm TILT-servo location.
+
+### Base servo seats
+- Add separate retained, labeled `PAN` and `TILT` MG90S seats inside the base.
+- Use the established 22.8 x 12.2 x 28.5 mm MG90S envelope plus physically validated print clearance.
+- Both servo bodies/connectors must clear REGULATOR, PI, USB HUB, LAN ADAPTER, PWR DIST, fan, port hardware, lid screws and ribs.
+- PAN drives the yoke/head through the central pan axis.
+- TILT drives the head from the base through a mechanical transmission to the head tilt axis; remove the exposed yoke-arm servo body.
+- The tilt transmission must remain independent through pan motion and must not bind, back-drive, collide or alter commanded tilt.
+- Preserve pan +/-90 degrees and tilt +/-25 degrees.
+
+### Servo power and control
+Never power servo motor current through Raspberry Pi GPIO.
+- `PWR DIST -> PAN PWR -> PAN MG90S`
+- `PWR DIST -> TILT PWR -> TILT MG90S`
+- `PI/PWM CONTROLLER -> PAN PWM -> PAN MG90S`
+- `PI/PWM CONTROLLER -> TILT PWM -> TILT MG90S`
+- Servo power ground and controller signal ground share the required common reference.
+- Add labeled connection points `PAN PWR`, `TILT PWR`, `PAN PWM`, `TILT PWM`.
+- Size the servo-power branch for simultaneous real servo demand using verified hardware voltage/current limits; do not invent electrical ratings.
+- Keep both servo power/PWM harnesses fixed and clipped inside the base. Neither servo harness crosses the moving joint.
+- Only the sensor/head harness crosses the pan/tilt assembly through the controlled flex zone.
+
+### Servo relocation validation gate
+With real MG90S hardware installed, test simultaneous powered motion at pan -90/0/+90 degrees and tilt -25/0/+25 degrees. Fail for collision, binding, transmission slip, excessive backlash, cable contact, connector pull, servo stall, or interference with electronics/fan.
