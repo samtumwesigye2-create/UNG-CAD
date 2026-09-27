@@ -21,7 +21,9 @@ except ImportError:
 
 BASE_DIR=Path(__file__).resolve().parent
 DB_PATH=Path(os.getenv("UNG_CAD_3D_DB",str(BASE_DIR/"ung_cad_3d.db")))
-app=FastAPI(title="UNG-CAD-3D",version="1.2.0")\nif evidence_router is not None:\n    app.include_router(evidence_router)
+app=FastAPI(title="UNG-CAD-3D",version="1.2.0")
+if evidence_router is not None:
+    app.include_router(evidence_router)
 
 def now_iso(): return datetime.now(timezone.utc).isoformat()
 def get_connection():
