@@ -58,10 +58,19 @@ Status: approved architecture and implementation roadmap. This document defines 
 33. **Collaboration/security** — permissions, review/markup, audit trail, signed release artifacts and reproducible manufacturing packages.
 34. **AI-assisted CAD with deterministic authority** — intent-to-feature suggestions, repair/DFM assistance and optimization guidance; AI output never bypasses geometry/manufacturing release gates.
 
+
+35. **Validated CFD + thermal simulation core** — incompressible flow, Couette/Poiseuille analytical benchmarks, pressure/velocity/temperature fields, fan/vent boundary conditions, convergence/conservation gates, mesh refinement, and solver provenance.
+36. **Closed-loop thermal/airflow optimization** — vary approved vents, ducts, fan placement and spacing while locking frozen interfaces, sensor seats, FOVs, mounting datums and manufacturing constraints; reject invalid or non-manufacturable candidates.
+37. **Digital Twin + predictive health** — bind CAD/simulation revisions to telemetry, compare predicted/measured behavior, calibrate versioned model parameters, detect fan/vent/thermal/servo/sensor faults, and retain fault evidence.
+38. **Automated recovery + degraded operation** — integrate health detections with throttling, fan-control changes, sensor isolation, service restart, safe degraded modes, escalation, retry limits and recovery audit history.
+39. **Authorized evidence/device-data analysis** — immutable ingest, cryptographic hashes, provenance/chain-of-custody, normalized communications/media/device/event records, entity/timeline/graph analysis, deduplication, auditing and reproducible reporting; no credential theft, lock bypass, spyware or unauthorized extraction.
+
+Detailed implementation contract: [Shared Physics, Digital Twin, Predictive Health, and Evidence Architecture](./SHARED_PHYSICS_DIGITAL_TWIN_AND_EVIDENCE_ARCHITECTURE.md).
+
 ## Implementation order
 
 The dependency order is:
 
-**numerical robustness → exact geometry/topology → sketch constraints → parametric features → exchange → assemblies → drawings/GD&T → simulation/optimization → CAM/slicing → machine twin/inspection → PDM/collaboration/AI**
+**numerical robustness → exact geometry/topology → sketch constraints → parametric features → exchange → assemblies → drawings/GD&T → validated CFD/thermal simulation → constrained optimization → CAM/slicing → manufacturing release gate → machine/digital twin → predictive health/recovery → inspection → PDM/collaboration/AI**
 
 Each production capability must ship with deterministic tests, benchmark geometry, failure-state reporting, provenance and release-gate evidence. Placeholder contracts and approximate mesh operations must never be presented as exact production results.
