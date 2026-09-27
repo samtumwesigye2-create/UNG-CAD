@@ -39,7 +39,7 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 <script src="./analytic_geometry.js"></script><script src="./parametric_surfaces.js"></script><script src="./surface_unroll.js"></script><script src="./symbolic_math.js"></script>
 </head>
 <body><script>addEventListener('DOMContentLoaded',()=>{const e=document.getElementById('analyticEngineState');if(e)e.textContent=(window.UNGAnalytic&&window.UNGSurfaces&&window.UNGUnroll&&window.UNGSymbolic)?' READY — analytic geometry, parametric surfaces, unroll and symbolic math loaded.':' ERROR — one or more analytic engines failed to load.';});</script><div class="top"><button onclick="location.href='./studio.html'">Home</button><button onclick="location.href='./viewer.html'">3D</button></div>
-<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-27.6</div>
+<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-27.7</div>
 
 <h2><span class="step">1</span>Choose model</h2>
 <label class="btn" style="display:inline-flex;position:relative;align-items:center;overflow:hidden;cursor:pointer">Choose model or project<input id="pkg" type="file" multiple style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"></label>
@@ -63,7 +63,7 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 <div class="an-row"><label>Light interval (mm) <input id="fourdLightInterval" type="number" min="0.01" step="0.01" value="2.0"></label></div>
 <div class="small">Use material swaps/light exposure only with materials and procedures you have validated. UNG-CAD does not assume ordinary PLA/PVA becomes photo-responsive.</div>
 </details>
-<button class="btn" id="slice" disabled>Auto Prepare</button>
+<button class="btn" id="slice" disabled style="background:#1677ff;color:#fff;font-size:16px">Auto Prepare & Slice</button><div id="prepareHint" class="small" style="grid-column:1/-1">Load/select a printable part. When Manufacturing Preflight passes, this button unlocks.</div>
 </div>
 
 <h2><span class="step">3</span>Check model</h2>
@@ -106,7 +106,7 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 </div>
 
 <h2><span class="step">4</span>Print</h2>
-<div class="machine"><b>AD5M printer bridge</b><div class="small">Send the prepared job to your Adventurer 5M. UNG-CAD queues it securely on Railway; the local AD5M bridge picks it up and starts the printer.</div>
+<div class="machine"><div class="an-row" style="margin:0 0 12px"><button class="btn" id="jumpPrepare" type="button" style="background:#1677ff;color:#fff">↑ Auto Prepare & Slice</button><span class="small">Prepare the selected model before printing.</span></div><b>AD5M printer bridge</b><div class="small">Send the prepared job to your Adventurer 5M. UNG-CAD queues it securely on Railway; the local AD5M bridge picks it up and starts the printer.</div>
 <div class="controls">
 <div class="field"><label>Printer</label><input id="printer" value="a51a5435" readonly></div>
 <div class="small">Your AD5M bridge connects to Railway automatically. <b id="bridgeState">Checking printer agent…</b><div id="agentInstall" style="display:none;margin-top:10px"><a class="btn" href="/install-ad5m-agent.command">Install printer agent on Mac</a></div></div>
@@ -132,6 +132,7 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 <script src="./csg-engine.js"></script><script src="./analyze-engine.js"></script>
 <script>
 const f=document.getElementById('pkg'),meta=document.getElementById('meta'),parts=document.getElementById('parts'),status=document.getElementById('status'),part=document.getElementById('part'),sliceBtn=document.getElementById('slice'),sendBtn=document.getElementById('send'),previewStats=document.getElementById('previewStats');
+const jumpPrepare=document.getElementById('jumpPrepare'); if(jumpPrepare) jumpPrepare.onclick=()=>{sliceBtn.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>sliceBtn.focus(),350);};
 
 let selectedFile=null,lastMachineUrl=null,bridgeOnline=false,lastMachineFile=null,preflightPassed=false;
 const API_BASE=(location.hostname.endsWith('github.io')?'https://ung-cad-3d-production.up.railway.app':'');
