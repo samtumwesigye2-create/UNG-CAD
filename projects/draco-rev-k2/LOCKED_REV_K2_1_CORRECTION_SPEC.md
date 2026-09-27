@@ -69,7 +69,7 @@ Before production:
 
 
 ## Rev-K.2.1 v3 build-viewer corrections — locked
-- Final baffle material: **black PETG**, not black PLA. Update build step 9 wording accordingly.
+- Final baffle material: **black PLA**. Preserve build step 9 wording accordingly.
 - Preserve the shown P0-v3 -> base/port plates -> regulator -> Pi tray -> lid/fan/pan -> yoke/tilt -> sensor carrier -> head shell -> baffle/bezel assembly progression.
 - Treat wiring currently shown in the build viewer as illustrative only until routed harness geometry is validated.
 - Fixed-base harnesses must be routed through dedicated wall/deck clips or channels with minimal free movement and no contact with the fan, pan servo, lid screws, port-plate grooves, ribs, or connector insertion paths.
