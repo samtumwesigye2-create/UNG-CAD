@@ -39,7 +39,7 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 <script src="./analytic_geometry.js"></script><script src="./parametric_surfaces.js"></script><script src="./surface_unroll.js"></script><script src="./symbolic_math.js"></script>
 </head>
 <body><script>addEventListener('DOMContentLoaded',()=>{const e=document.getElementById('analyticEngineState');if(e)e.textContent=(window.UNGAnalytic&&window.UNGSurfaces&&window.UNGUnroll&&window.UNGSymbolic)?' READY — analytic geometry, parametric surfaces, unroll and symbolic math loaded.':' ERROR — one or more analytic engines failed to load.';});</script><div class="top"><button onclick="location.href='/studio.html'">Home</button><button onclick="location.href='/viewer.html'">3D</button></div>
-<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-27.4</div>
+<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-27.5</div>
 
 <h2><span class="step">1</span>Choose model</h2>
 <label class="btn" style="display:inline-flex;position:relative;align-items:center;overflow:hidden;cursor:pointer">Choose model or project<input id="pkg" type="file" multiple style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"></label>
@@ -128,6 +128,7 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 
 </div></div>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script src="./csg-engine.js"></script><script src="./analyze-engine.js"></script>
 <script>
 const f=document.getElementById('pkg'),meta=document.getElementById('meta'),parts=document.getElementById('parts'),status=document.getElementById('status'),part=document.getElementById('part'),sliceBtn=document.getElementById('slice'),sendBtn=document.getElementById('send'),previewStats=document.getElementById('previewStats');
@@ -250,15 +251,39 @@ function __installFallbackInteraction(cv){
  cv.onpointerup=cv.onpointercancel=()=>{__fallbackPreview.drag=false;cv.style.cursor='grab';};cv.onwheel=e=>{e.preventDefault();__fallbackPreview.zoom=Math.max(.55,Math.min(2.5,__fallbackPreview.zoom*(e.deltaY>0?.92:1.08)));__drawFallbackSTL();};
 }
 window.__previewSTL=function(label,arrayBuffer){
+ const host=document.getElementById('preview3d'),ph=document.getElementById('previewPlaceholder');
  try{
-  const polys=window.CSGEngine.parseSTL(arrayBuffer),tris=window.UNGAnalyze.trianglesFromPolygons(polys);if(!tris.length)throw new Error('Could not read STL geometry');
-  const b=window.UNGAnalyze.bounds(tris),host=document.getElementById('preview3d'),ph=document.getElementById('previewPlaceholder');host.classList.add('loaded');
-  let cv=document.getElementById('fallbackPreviewCanvas');if(!cv){cv=document.createElement('canvas');cv.id='fallbackPreviewCanvas';cv.style.cssText='width:100%;height:100%;display:block;touch-action:none';host.appendChild(cv);__installFallbackInteraction(cv);}
-  __fallbackPreview.tris=tris;__drawFallbackSTL();if(ph)ph.style.display='none';
-  previewStats.textContent=label+'\n\nDimensions (W × D × H):\n'+b.size.x.toFixed(1)+' × '+b.size.y.toFixed(1)+' × '+b.size.z.toFixed(1)+' mm\nTriangles: '+tris.length+'\n\nSolid interactive preview — drag naturally to orbit · scroll to zoom.';
+  const polys=window.CSGEngine.parseSTL(arrayBuffer),tris=window.UNGAnalyze.trianglesFromPolygons(polys);
+  if(!tris.length)throw new Error('Could not read STL geometry');
+  const b=window.UNGAnalyze.bounds(tris);host.classList.add('loaded');if(ph)ph.style.display='none';
+  if(window.THREE){
+   host.querySelectorAll('canvas').forEach(x=>x.remove());
+   const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(42,1,.1,10000),renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
+   renderer.setPixelRatio(Math.min(2,devicePixelRatio||1));renderer.setClearColor(0x080d14,1);host.appendChild(renderer.domElement);
+   const pos=new Float32Array(tris.length*9);let k=0;
+   for(const t of tris)for(const p of [t.a,t.b,t.c]){pos[k++]=p.x;pos[k++]=p.y;pos[k++]=p.z;}
+   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.computeVertexNormals();g.computeBoundingBox();
+   const mesh=new THREE.Mesh(g,new THREE.MeshNormalMaterial({side:THREE.DoubleSide}));scene.add(mesh);
+   const box=g.boundingBox,ctr=new THREE.Vector3();box.getCenter(ctr);mesh.position.sub(ctr);
+   const size=new THREE.Vector3();box.getSize(size);const radius=Math.max(size.x,size.y,size.z)||1;
+   camera.position.set(radius*1.7,radius*1.35,radius*1.8);camera.lookAt(0,0,0);
+   let drag=false,lx=0,ly=0,rx=-.35,ry=.55,zoom=1;
+   const resize=()=>{const w=Math.max(260,host.clientWidth),h=Math.max(250,host.clientHeight);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();};
+   const draw=()=>{resize();mesh.rotation.x=rx;mesh.rotation.y=ry;camera.zoom=zoom;camera.updateProjectionMatrix();renderer.render(scene,camera);};
+   const cv=renderer.domElement;cv.style.cssText='width:100%;height:100%;display:block;touch-action:none';
+   cv.onpointerdown=e=>{drag=true;lx=e.clientX;ly=e.clientY;cv.setPointerCapture?.(e.pointerId)};
+   cv.onpointermove=e=>{if(!drag)return;ry+=(e.clientX-lx)*.008;rx+=(e.clientY-ly)*.008;lx=e.clientX;ly=e.clientY;draw();};
+   cv.onpointerup=cv.onpointercancel=()=>drag=false;
+   cv.onwheel=e=>{e.preventDefault();zoom=Math.max(.5,Math.min(3,zoom*(e.deltaY>0?.92:1.08)));draw();};
+   window.addEventListener('resize',draw,{passive:true});draw();
+  }else{
+   let cv=document.getElementById('fallbackPreviewCanvas');if(!cv){cv=document.createElement('canvas');cv.id='fallbackPreviewCanvas';cv.style.cssText='width:100%;height:100%;display:block;touch-action:none';host.appendChild(cv);__installFallbackInteraction(cv);}
+   __fallbackPreview.tris=tris;__drawFallbackSTL();
+  }
+  previewStats.textContent=label+'\\n\\nDimensions (W × D × H):\\n'+b.size.x.toFixed(1)+' × '+b.size.y.toFixed(1)+' × '+b.size.z.toFixed(1)+' mm\\nTriangles: '+tris.length+'\\n\\nInteractive preview — drag to orbit · scroll/pinch browser gesture to zoom.';
   if(!window.UNGAnalyze.fitsBed(tris)){setPreflight('BLOCKED','model exceeds the Adventurer 5M 220 × 220 × 220 mm build volume.');return;}
   setPreflight('PASS','3D geometry loaded and fits the Adventurer 5M build volume.');
- }catch(e){previewStats.textContent='Preview failed — '+e.message;setPreflight('BLOCKED','preview could not validate 3D geometry: '+e.message);}
+ }catch(e){host.classList.remove('loaded');if(ph){ph.style.display='flex';ph.textContent='Preview failed: '+e.message;}previewStats.textContent='Preview failed — '+e.message;setPreflight('BLOCKED','preview could not validate 3D geometry: '+e.message);}
 };
 const qsPrinterId=new URLSearchParams(location.search).get('printer_id');
 if(qsPrinterId) document.getElementById('printer').value=qsPrinterId;
