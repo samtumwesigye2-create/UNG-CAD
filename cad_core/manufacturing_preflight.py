@@ -5,7 +5,8 @@ from cad_core.cutout_component import CutoutComponent,Vector2D,MountingHole,Coun
 from cad_core.layout_boundary import LayoutBoundaryEvaluator
 from cad_core.process_compensation import apply_manufacturing_compensation
 from cad_core.structural_ribs import parse_structural_ribs,RibValidationError
-from cad_core.evaluation_gate import EvaluationResult,evaluate,require_pass\nfrom cad_core.interference_engine import GeometryInterferenceEngine
+from cad_core.evaluation_gate import EvaluationResult,evaluate,require_pass
+from cad_core.interference_engine import GeometryInterferenceEngine
 
 @dataclass(frozen=True)
 class PreflightResult:
@@ -44,7 +45,9 @@ class ManufacturingPreflight:
    for c in nominal:_typed(c)
    parse_structural_ribs(structural_ribs or [],self.w,self.h)
    ok,layout_errors=LayoutBoundaryEvaluator(self.w,self.h,self.bridge).verify_layout(nominal)
-   errors.extend(layout_errors)\n   hits=GeometryInterferenceEngine(self.bridge).check(nominal,structural_ribs or [],component_envelopes or [])\n   errors.extend(h.message for h in hits)
+   errors.extend(layout_errors)
+   hits=GeometryInterferenceEngine(self.bridge).check(nominal,structural_ribs or [],component_envelopes or [])
+   errors.extend(h.message for h in hits)
    if ok: comp=[apply_manufacturing_compensation(c) for c in nominal]
   except (CADValidationError,RibValidationError,ValueError,KeyError,TypeError) as exc: errors.append(str(exc))
   metrics={"validation_errors":float(len(errors))}

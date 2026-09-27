@@ -32,4 +32,8 @@ jobs:
       - name: Execute Geometric Verification and Collision Tests
         run: |
           set -euo pipefail
-          python -m pytest -v             tests/test_cutout_contract.py             tests/test_custom_cutout_segments.py             tests/test_cutout_component.py             tests/test_layout_boundary.py             tests/test_process_compensation.py             tests/test_dxf_exporter.py             tests/test_gcode_generator.py             tests/test_structural_ribs.py             tests/test_cutout_manufacturing_integration.py \\\n            tests/test_assembly_contract.py \\\n            tests/test_sheet_nesting.py \\\n            tests/test_coordinate_flattener.py \\\n            tests/test_material_cost.py \\\n            tests/test_dxf_dimensioner.py \\\n            tests/test_solid_exporter.py \\\n            tests/test_manufacturing_preflight.py \\\n            tests/test_interference_engine.py \\\n            tests/test_assembly_solid_compiler.py \\\n            tests/test_upgrade_group1.py \\\n            tests/test_upgrade_group2.py \\\n            tests/test_upgrade_group3.py
+          python -m pytest -v tests/test_cutout_contract.py tests/test_custom_cutout_segments.py tests/test_cutout_component.py tests/test_layout_boundary.py tests/test_process_compensation.py tests/test_dxf_exporter.py tests/test_gcode_generator.py tests/test_structural_ribs.py tests/test_cutout_manufacturing_integration.py tests/test_assembly_contract.py tests/test_sheet_nesting.py tests/test_coordinate_flattener.py tests/test_material_cost.py tests/test_dxf_dimensioner.py tests/test_solid_exporter.py tests/test_manufacturing_preflight.py tests/test_interference_engine.py \\
+            tests/test_assembly_solid_compiler.py \\
+            tests/test_upgrade_group1.py \\
+            tests/test_upgrade_group2.py \\
+            tests/test_upgrade_group3.py
