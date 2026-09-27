@@ -4,29 +4,380 @@
   "title": "UngCadCutoutContract",
   "type": "object",
   "additionalProperties": false,
-  "required": ["component_id","type","position","rotation","clearance_mm","depth_mm","geometry_payload"],
+  "required": [
+    "component_id",
+    "type",
+    "position",
+    "rotation",
+    "clearance_mm",
+    "depth_mm",
+    "geometry_payload"
+  ],
   "properties": {
-    "component_id": {"type":"string","format":"uuid"},
-    "type": {"type":"string","enum":["circular","rectangular","usb_c","ethernet","keyed","arbitrary_custom"]},
-    "position": {"type":"object","additionalProperties":false,"required":["x_mm","y_mm"],"properties":{"x_mm":{"type":"number"},"y_mm":{"type":"number"},"z_mm":{"type":"number","default":0}}},
-    "rotation": {"type":"number","description":"Degrees around local Z-axis"},
-    "clearance_mm": {"type":"number","minimum":0,"default":0.2},
-    "depth_mm": {"type":"number","description":"-1 means through-cut; otherwise positive cut depth","anyOf":[{"const":-1},{"exclusiveMinimum":0}]},
-    "tolerance_profile": {"type":"string","enum":["3d_print_pla","3d_print_petg","3d_print_abs","cnc_mill_aluminum","laser_cut"]},
-    "geometry_payload": {"type":"object"},
-    "mounting_holes": {"type":"array","items":{"$ref":"#/$defs/mounting_hole"}}
+    "component_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "circular",
+        "rectangular",
+        "usb_c",
+        "ethernet",
+        "keyed",
+        "arbitrary_custom"
+      ]
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x_mm",
+        "y_mm"
+      ],
+      "properties": {
+        "x_mm": {
+          "type": "number"
+        },
+        "y_mm": {
+          "type": "number"
+        },
+        "z_mm": {
+          "type": "number",
+          "default": 0
+        }
+      }
+    },
+    "rotation": {
+      "type": "number",
+      "description": "Degrees around local Z-axis"
+    },
+    "clearance_mm": {
+      "type": "number",
+      "minimum": 0,
+      "default": 0.2
+    },
+    "depth_mm": {
+      "type": "number",
+      "description": "-1 means through-cut; otherwise positive cut depth",
+      "anyOf": [
+        {
+          "const": -1
+        },
+        {
+          "exclusiveMinimum": 0
+        }
+      ]
+    },
+    "tolerance_profile": {
+      "type": "string",
+      "enum": [
+        "3d_print_pla",
+        "3d_print_petg",
+        "3d_print_abs",
+        "cnc_mill_aluminum",
+        "laser_cut"
+      ]
+    },
+    "geometry_payload": {
+      "type": "object"
+    },
+    "mounting_holes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/mounting_hole"
+      }
+    }
   },
   "allOf": [
-    {"if":{"properties":{"type":{"const":"circular"}}},"then":{"properties":{"geometry_payload":{"$ref":"#/$defs/circular_geom"}}}},
-    {"if":{"properties":{"type":{"enum":["rectangular","usb_c","ethernet"]}}},"then":{"properties":{"geometry_payload":{"$ref":"#/$defs/rectangular_geom"}}}},
-    {"if":{"properties":{"type":{"const":"keyed"}}},"then":{"properties":{"geometry_payload":{"$ref":"#/$defs/keyed_geom"}}}},
-    {"if":{"properties":{"type":{"const":"arbitrary_custom"}}},"then":{"properties":{"geometry_payload":{"$ref":"#/$defs/custom_geom"}}}}
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "circular"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "geometry_payload": {
+            "$ref": "#/$defs/circular_geom"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": [
+              "rectangular",
+              "usb_c",
+              "ethernet"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "geometry_payload": {
+            "$ref": "#/$defs/rectangular_geom"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "keyed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "geometry_payload": {
+            "$ref": "#/$defs/keyed_geom"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "arbitrary_custom"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "geometry_payload": {
+            "$ref": "#/$defs/custom_geom"
+          }
+        }
+      }
+    }
   ],
   "$defs": {
-    "circular_geom":{"type":"object","additionalProperties":false,"properties":{"diameter_mm":{"type":"number","exclusiveMinimum":0}},"required":["diameter_mm"]},
-    "rectangular_geom":{"type":"object","additionalProperties":false,"properties":{"width_mm":{"type":"number","exclusiveMinimum":0},"height_mm":{"type":"number","exclusiveMinimum":0},"corner_radius_mm":{"type":"number","minimum":0,"default":0}},"required":["width_mm","height_mm"]},
-    "keyed_geom":{"type":"object","additionalProperties":false,"properties":{"inner_diameter_mm":{"type":"number","exclusiveMinimum":0},"flat_distance_mm":{"type":"number","exclusiveMinimum":0},"notch_width_mm":{"type":"number","exclusiveMinimum":0},"notch_depth_mm":{"type":"number","exclusiveMinimum":0}},"required":["inner_diameter_mm"]},
-    "custom_geom":{"type":"object","additionalProperties":false,"properties":{"points_mm":{"type":"array","minItems":3,"items":{"type":"array","prefixItems":[{"type":"number"},{"type":"number"}],"items":false}}},"required":["points_mm"]},
-    "mounting_hole":{"type":"object","additionalProperties":false,"required":["offset_x_mm","offset_y_mm","diameter_mm"],"properties":{"offset_x_mm":{"type":"number"},"offset_y_mm":{"type":"number"},"diameter_mm":{"type":"number","exclusiveMinimum":0},"countersink":{"type":"object","additionalProperties":false,"required":["outer_diameter_mm","angle_deg"],"properties":{"outer_diameter_mm":{"type":"number","exclusiveMinimum":0},"angle_deg":{"type":"number","enum":[82,90,120]}}}}}
+    "circular_geom": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "diameter_mm"
+      ]
+    },
+    "rectangular_geom": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "width_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "corner_radius_mm": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        }
+      },
+      "required": [
+        "width_mm",
+        "height_mm"
+      ]
+    },
+    "keyed_geom": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "inner_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "flat_distance_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "notch_width_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "notch_depth_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "inner_diameter_mm"
+      ]
+    },
+    "custom_geom": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "vertices",
+        "segments"
+      ],
+      "properties": {
+        "vertices": {
+          "type": "array",
+          "minItems": 3,
+          "description": "Ordered 2D anchor points in the local coordinate system",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "items": false
+          }
+        },
+        "segments": {
+          "type": "array",
+          "minItems": 3,
+          "description": "Connections between vertices, including curved boundaries",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "start_idx",
+              "end_idx",
+              "type"
+            ],
+            "properties": {
+              "start_idx": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end_idx": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "linear",
+                  "arc",
+                  "bezier"
+                ]
+              },
+              "arc_bulge": {
+                "type": "number",
+                "description": "tan(included angle/4); 0 straight, 1 semicircle, negative clockwise"
+              },
+              "control_points": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "items": false
+                }
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "type": {
+                      "const": "arc"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "arc_bulge"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "type": {
+                      "const": "bezier"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "control_points"
+                  ],
+                  "properties": {
+                    "control_points": {
+                      "minItems": 1,
+                      "maxItems": 2
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "mounting_hole": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "offset_x_mm",
+        "offset_y_mm",
+        "diameter_mm"
+      ],
+      "properties": {
+        "offset_x_mm": {
+          "type": "number"
+        },
+        "offset_y_mm": {
+          "type": "number"
+        },
+        "diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "countersink": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "outer_diameter_mm",
+            "angle_deg"
+          ],
+          "properties": {
+            "outer_diameter_mm": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "angle_deg": {
+              "type": "number",
+              "enum": [
+                82,
+                90,
+                120
+              ]
+            }
+          }
+        }
+      }
+    }
   }
 }
