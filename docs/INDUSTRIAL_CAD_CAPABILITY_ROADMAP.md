@@ -67,6 +67,14 @@ Status: approved architecture and implementation roadmap. This document defines 
 
 Detailed implementation contract: [Shared Physics, Digital Twin, Predictive Health, and Evidence Architecture](./SHARED_PHYSICS_DIGITAL_TWIN_AND_EVIDENCE_ARCHITECTURE.md).
 
+
+40. **Manufacturing capability classification** — every design/preflight shall classify the requested artifact against the selected machine/process before claiming it can be manufactured:
+   - **AD5M PRINTABLE (Level 1):** geometry that the configured FlashForge Adventurer 5M can directly manufacture as thermoplastic FDM parts, subject to build envelope, nozzle/feature size, material, overhang/bridge, tolerance and layer-strength constraints.
+   - **HYBRID BUILD (Level 2):** a functional assembly whose printable mechanical parts can be made on the AD5M but which requires purchased or separately fabricated electronics, motors, bearings, fasteners, wiring, connectors, sensors, batteries, metal parts or other non-FDM components.
+   - **EXTERNAL FABRICATION REQUIRED (Level 3):** required functional features cannot be produced by the configured FDM process, including conventional PCB copper traces, semiconductor devices, batteries, motors, precision metal conductors and other processes/materials outside the machine profile.
+
+The classification is a manufacturing truth gate, not a design suggestion. UNG-CAD must not report a complete device as directly printable merely because its enclosure or carrier is printable. The preflight result shall identify which parts are printable, which are purchased/assembled, and which require an external process.
+
 ## Implementation order
 
 The dependency order is:
