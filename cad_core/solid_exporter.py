@@ -1,7 +1,7 @@
 """Optional CadQuery STEP/STL solid compiler for flat manufactured panels."""
 import math,os,re
 from pathlib import Path
-from typing import Dict,Any
+from typing import Dict,Any\nfrom cad_core.solid_features import validate_features
 
 class UngCadSolidExporter:
  @staticmethod
@@ -12,7 +12,7 @@ class UngCadSolidExporter:
   if fmt not in {"STEP","STL"}: raise ValueError("output_format must be STEP or STL")
   w=float(panel_json["width_mm"]);h=float(panel_json["height_mm"]);t=float(panel_json["thickness_mm"])
   if min(w,h,t)<=0: raise ValueError("panel dimensions and thickness must be positive")
-  solid=cq.Workplane("XY").box(w,h,t)
+  solid=cq.Workplane("XY").box(w,h,t)\n  validate_features(panel_json.get("features",[]))
   def geom(c): return c.get("geometry_payload") or c.get("dimensions") or {}
   def xy(pos): return float(pos["x_mm"])-w/2,float(pos["y_mm"])-h/2
   for c in panel_json.get("cutouts",[]):
@@ -44,6 +44,17 @@ class UngCadSolidExporter:
      depth=(outer/2-d/2)/math.tan(math.radians(angle/2))
      solid=solid.faces(">Z").workplane().center(hx,hy).cskHole(d,outer,angle,depth=t)
     else: solid=solid.faces(">Z").workplane().center(hx,hy).hole(d,depth=t)
+  for f in panel_json.get("features",[]):
+   typ=f["type"];p=f.get("position",{"x_mm":w/2,"y_mm":h/2});fx,fy=xy(p)
+   if typ=="slot":
+    L=float(f["length_mm"]);W=float(f["width_mm"]);r=W/2
+    solid=solid.faces(">Z").workplane().center(fx,fy).slot2D(L,W,float(f.get("rotation",0))).cutThruAll()
+   elif typ in {"boss","standoff"}:
+    solid=solid.faces(">Z").workplane().center(fx,fy).circle(float(f["diameter_mm"])/2).extrude(float(f["height_mm"]))
+   elif typ=="counterbore":
+    solid=solid.faces(">Z").workplane().center(fx,fy).circle(float(f["diameter_mm"])/2).cutBlind(-float(f["depth_mm"]))
+   elif typ=="fillet": solid=solid.edges(f.get("selector","|Z")).fillet(float(f["size_mm"]))
+   elif typ=="chamfer": solid=solid.edges(f.get("selector","|Z")).chamfer(float(f["size_mm"]))
   ident=re.sub(r"[^A-Za-z0-9_.-]","_",str(panel_json.get("panel_id","compiled_output")))
   out=Path("/tmp/ung_cad_builds");out.mkdir(parents=True,exist_ok=True);path=out/f"solid_model_{ident}.{'step' if fmt=='STEP' else 'stl'}"
   cq.exporters.export(solid,str(path));return str(path)
