@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ung.local/schemas/assembly-contract.schema.json",
+  "title": "UngCadAssemblyContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["assembly_id", "root_panel"],
+  "properties": {
+    "assembly_id": {"type":"string","format":"uuid"},
+    "root_panel": {"$ref":"#/$defs/panel_node"}
+  },
+  "$defs": {
+    "vec3": {
+      "type":"object","additionalProperties":false,"required":["x","y","z"],
+      "properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}
+    },
+    "panel_node": {
+      "type":"object","additionalProperties":false,
+      "required":["panel_id","width_mm","height_mm","position","rotation"],
+      "properties":{
+        "panel_id":{"type":"string","format":"uuid"},
+        "width_mm":{"type":"number","exclusiveMinimum":0},
+        "height_mm":{"type":"number","exclusiveMinimum":0},
+        "position":{"$ref":"#/$defs/vec3"},
+        "rotation":{"type":"number","description":"Local Z-axis rotation in degrees"},
+        "cutouts":{"type":"array","items":{"type":"object","description":"UNG-CAD parametric cutout payload; validated by cutout-contract.schema.json."}},
+        "child_panels":{"type":"array","items":{"$ref":"#/$defs/panel_node"},"description":"Modular sub-plates nested inside this parent panel's local XY boundaries."}
+      }
+    }
+  }
+}
