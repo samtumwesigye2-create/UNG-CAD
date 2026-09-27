@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from cad_core.draco_release_gate import RELEASE_MANIFEST, parse_release_manifest, evaluate_package, allow_selected_slice, is_draco_name
 from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, ParametricArc, ParametricCylinder, ParametricSphere, ParametricHole, ParametricExtrusion, ParametricRevolve, UNGCadFeatureTimeline, ToleranceExceededError, tessellated_surface_triangles, sphere_manufacturing_triangles, FeatureNode, ParametricDependencyGraph
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, RedirectResponse, Response
@@ -266,15 +267,25 @@ def printable_entries(names):
 
 @app.post("/api/manufacturing/inspect")
 async def inspect(file:UploadFile=File(...)):
-    name=file.filename or "project"; data=await file.read(); entries=[]
+    name=file.filename or "project"; data=await file.read(); entries=[]; manifest=None
     if name.lower().endswith(".zip"):
         try:
-            with zipfile.ZipFile(io.BytesIO(data)) as z: entries=printable_entries([n for n in z.namelist() if not n.endswith("/")])
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                members=[n for n in z.namelist() if not n.endswith("/")]
+                entries=printable_entries(members)
+                manifest_name=next((n for n in members if Path(n).name==RELEASE_MANIFEST),None)
+                if manifest_name:
+                    try: manifest=parse_release_manifest(z.read(manifest_name))
+                    except ValueError as e: raise HTTPException(422,str(e))
         except zipfile.BadZipFile: raise HTTPException(400,"Invalid ZIP")
     elif name.lower().endswith((".stl",".glb",".gltf",".obj",".3mf",".gcode",".gx")): entries=[name]
     else: raise HTTPException(400,"Unsupported project type")
     if not entries: raise HTTPException(400,"No printable files found")
-    return {"ok":True,"part_count":len(entries),"parts":[Path(n).name for n in entries],"printer_profile":"FlashForge Adventurer 5M","assembly_reference_excluded":True}
+    release_ok,blockers=evaluate_package(entries,manifest)
+    return {"ok":True,"part_count":len(entries),"parts":[Path(n).name for n in entries],
+            "printer_profile":"FlashForge Adventurer 5M","assembly_reference_excluded":True,
+            "production_release":{"ready":release_ok,"blockers":blockers,
+                                  "p0_only_until_release":bool(blockers and any(is_draco_name(n) for n in entries))}}
 
 async def read_selected(file:UploadFile, selected:str):
     data=await file.read()
@@ -312,6 +323,23 @@ async def manufacturing_preview_stl(file:UploadFile=File(...), selected:str=Form
 @app.post("/api/manufacturing/slice")
 async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_height:float=Form(0.20), quality:str=Form("balanced"), material:str=Form("PLA"), supports:str=Form("auto"), copies:int=Form(1), fourd_thermal:bool=Form(False), fourd_material:bool=Form(False), fourd_light:bool=Form(False), fourd_geometry_driven:bool=Form(False), fourd_transition_height:float|None=Form(None), fourd_light_interval_mm:float|None=Form(None)):
     if not (0.08 <= layer_height <= 0.4): raise HTTPException(400,"Layer height must be 0.08–0.40 mm")
+    package_bytes=await file.read()
+    await file.seek(0)
+    release_ok=True; blockers=[]
+    if (file.filename or "").lower().endswith(".zip"):
+        try:
+            with zipfile.ZipFile(io.BytesIO(package_bytes)) as z:
+                members=[n for n in z.namelist() if not n.endswith("/")]
+                entries=printable_entries(members)
+                manifest_name=next((n for n in members if Path(n).name==RELEASE_MANIFEST),None)
+                manifest=parse_release_manifest(z.read(manifest_name)) if manifest_name else None
+                release_ok,blockers=evaluate_package(entries,manifest)
+        except zipfile.BadZipFile: raise HTTPException(400,"Invalid ZIP")
+        except ValueError as e: raise HTTPException(422,str(e))
+    elif is_draco_name(file.filename or ""):
+        release_ok=False; blockers=["single DRACO production part has no package release manifest"]
+    if not allow_selected_slice(selected,release_ok):
+        raise HTTPException(423,{"message":"DRACO production slicing blocked until release gate passes","blockers":blockers,"allowed_now":"P0 fit coupon only"})
     source_name, data=await read_selected(file,selected); low=source_name.lower()
     if low.endswith((".gcode",".gx")) or low.endswith(".gcode.3mf"):
         out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
