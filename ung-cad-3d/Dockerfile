@@ -10,5 +10,6 @@ COPY ung_shared /ung_shared
 COPY ung_geometry /ung_geometry
 ENV PYTHONPATH=/
 RUN python tests/analytic_build_gate.py
+RUN pytest -q tests/test_draco_manufacturing_api.py
 ENV QT_QPA_PLATFORM=offscreen
 CMD ["sh","-c","python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
