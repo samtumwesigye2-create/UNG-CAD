@@ -49,3 +49,54 @@ class SheetNestingEngine:
   margin=self.padding/2
   for item in placed:item.placed_x+=margin;item.placed_y+=margin
   return placed,len(sheets)
+
+
+@dataclass
+class OptimizedNestingItem(NestingItem):
+ @property
+ def is_rotated(self): return self.rotated
+
+class AdvancedNestingEngine(SheetNestingEngine):
+ """FFDH-style shelf nesting that evaluates normal and 90-degree orientation at each placement."""
+ def __init__(self,sheet_width:float,sheet_height:float,tool_spacing_mm:float=6.0):
+  super().__init__(sheet_width,sheet_height,tool_spacing_mm,allow_rotation=True)
+
+ def pack_plates_with_rotation(self,plates:List[Dict[str,Any]])->Tuple[List[OptimizedNestingItem],int]:
+  raw=[]
+  for p in plates:
+   w=float(p["width_mm"]);h=float(p["height_mm"])
+   if w<=0 or h<=0: raise ValueError(f"Component {p['panel_id']} has invalid dimensions.")
+   if min(w+self.padding,h+self.padding)>min(self.sheet_w,self.sheet_h) and max(w+self.padding,h+self.padding)>max(self.sheet_w,self.sheet_h):
+    raise ValueError(f"Component {p['panel_id']} exceeds raw stock sheet dimensions.")
+   raw.append((str(p["panel_id"]),w+self.padding,h+self.padding))
+  raw.sort(key=lambda x:(-max(x[1],x[2]),-min(x[1],x[2]),x[0]))
+  sheets=[];placed=[]
+  for ident,w,h in raw:
+   options=[(w,h,False)]+([] if w==h else [(h,w,True)])
+   choice=None
+   # Best-fit existing shelf: minimize horizontal waste, then prefer no rotation.
+   for si,levels in enumerate(sheets):
+    for li,level in enumerate(levels):
+     for ow,oh,rot in options:
+      if level[1]+ow<=self.sheet_w and oh<=level[2]:
+       score=(self.sheet_w-(level[1]+ow),rot)
+       if choice is None or score<choice[0]: choice=(score,"level",si,li,ow,oh,rot)
+   if choice is None:
+    # Best fresh shelf across existing sheets: minimize resulting shelf height.
+    for si,levels in enumerate(sheets):
+     top=levels[-1][0]+levels[-1][2] if levels else 0.0
+     for ow,oh,rot in options:
+      if ow<=self.sheet_w and top+oh<=self.sheet_h:
+       score=(oh,self.sheet_w-ow,rot)
+       if choice is None or score<choice[0]: choice=(score,"new",si,-1,ow,oh,rot)
+   if choice is None:
+    feasible=[o for o in options if o[0]<=self.sheet_w and o[1]<=self.sheet_h]
+    if not feasible: raise ValueError(f"Component {ident} exceeds raw stock sheet dimensions.")
+    ow,oh,rot=min(feasible,key=lambda o:(o[1],self.sheet_w-o[0],o[2]));sheets.append([[0.0,ow,oh]])
+    item=OptimizedNestingItem(ident,ow,oh,self.padding/2,self.padding/2,len(sheets)-1,rot);placed.append(item);continue
+   _,kind,si,li,ow,oh,rot=choice;levels=sheets[si]
+   if kind=="level": y,x=levels[li][0],levels[li][1];levels[li][1]+=ow
+   else:
+    y=levels[-1][0]+levels[-1][2] if levels else 0.0;x=0.0;levels.append([y,ow,oh])
+   placed.append(OptimizedNestingItem(ident,ow,oh,x+self.padding/2,y+self.padding/2,si,rot))
+  return placed,len(sheets)

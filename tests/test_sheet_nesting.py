@@ -10,3 +10,8 @@ def test_oversize_rejected():
  with pytest.raises(ValueError,match="exceeds"):SheetNestingEngine(50,50,6).pack_plates([{"panel_id":"a","width_mm":60,"height_mm":60}])
 def test_invalid_dimensions_rejected():
  with pytest.raises(ValueError,match="invalid dimensions"):SheetNestingEngine(50,50).pack_plates([{"panel_id":"a","width_mm":0,"height_mm":10}])
+
+def test_advanced_rotation_at_placement_time():
+ e=AdvancedNestingEngine(100,60,2);items,n=e.pack_plates_with_rotation([{"panel_id":"a","width_mm":70,"height_mm":20},{"panel_id":"b","width_mm":35,"height_mm":55}]);assert n>=1;assert all(i.sheet_index>=0 for i in items);assert all(hasattr(i,"is_rotated") for i in items)
+def test_advanced_oversize_rejected():
+ with pytest.raises(ValueError,match="exceeds"):AdvancedNestingEngine(50,40,2).pack_plates_with_rotation([{"panel_id":"x","width_mm":80,"height_mm":70}])
