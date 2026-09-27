@@ -27,7 +27,7 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 <script src="./analytic_geometry.js"></script><script src="./parametric_surfaces.js"></script><script src="./surface_unroll.js"></script><script src="./symbolic_math.js"></script>
 </head>
 <body><script>addEventListener('DOMContentLoaded',()=>{const e=document.getElementById('analyticEngineState');if(e)e.textContent=(window.UNGAnalytic&&window.UNGSurfaces&&window.UNGUnroll&&window.UNGSymbolic)?' READY — analytic geometry, parametric surfaces, unroll and symbolic math loaded.':' ERROR — one or more analytic engines failed to load.';});</script><div class="top"><button onclick="location.href='/studio.html'">Home</button><button onclick="location.href='/viewer.html'">3D</button></div>
-<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-26.9</div>
+<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-27.1</div>
 
 <h2><span class="step">1</span>Choose model</h2>
 <label class="btn" style="display:inline-flex;position:relative;align-items:center;overflow:hidden;cursor:pointer">Choose model or project<input id="pkg" type="file" multiple style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"></label>
@@ -101,6 +101,19 @@ body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-ind
 <button class="btn" id="send" disabled>Print</button>
 </div><div id="status" class="status"></div></div>
 
+<h2><span class="step">5</span>Work continuity</h2>
+<div class="notice">
+  <b>Checkpoint / handoff</b>
+  <div class="small" style="margin-top:6px">Save the current Manufacturing state in this browser, export a portable ZIP, or resume an interrupted CAD/manufacturing session without starting over.</div>
+  <div class="an-row" style="margin-top:12px">
+    <button class="btn" id="saveCheckpoint">Save Checkpoint</button>
+    <button class="btn" id="resumeCheckpoint">Resume Checkpoint</button>
+    <button class="btn" id="exportHandoff">Export Handoff ZIP</button>
+    <label class="btn" style="display:inline-flex;position:relative;align-items:center;overflow:hidden;cursor:pointer">Import Handoff ZIP<input id="importHandoff" type="file" accept=".zip,application/zip" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"></label>
+  </div>
+  <div id="checkpointState" class="status">No checkpoint loaded yet.</div>
+</div>
+
 </div></div>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="./csg-engine.js"></script><script src="./analyze-engine.js"></script>
@@ -112,7 +125,95 @@ const API_BASE=(location.hostname.endsWith('github.io')?'https://ung-cad-3d-prod
 const api=p=>API_BASE+p;
 const preflightState=document.getElementById('preflightState');
 function setPreflight(state,message){preflightPassed=state==='PASS';preflightState.textContent=' '+state+' — '+message;sliceBtn.disabled=!preflightPassed||!selectedFile||!part.value;if(!preflightPassed){lastMachineUrl=null;lastMachineFile=null;sendBtn.disabled=true;}}
+
 window.__setManufacturingPreflight=setPreflight;
+
+const checkpointState=document.getElementById('checkpointState');
+const saveCheckpointBtn=document.getElementById('saveCheckpoint');
+const resumeCheckpointBtn=document.getElementById('resumeCheckpoint');
+const exportHandoffBtn=document.getElementById('exportHandoff');
+const importHandoffInput=document.getElementById('importHandoff');
+
+function checkpointDB(){
+ return new Promise((resolve,reject)=>{
+  const req=indexedDB.open('ungcad-checkpoints',1);
+  req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('sessions'))req.result.createObjectStore('sessions');};
+  req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('Checkpoint database failed'));
+ });
+}
+function collectCheckpoint(){
+ const q=id=>document.getElementById(id);
+ return {
+  schema:'ungcad-manufacturing-checkpoint/v1',
+  saved_at:new Date().toISOString(),
+  package_name:selectedFile?selectedFile.name:null,
+  package_type:selectedFile?selectedFile.type:null,
+  selected_part:part.value||null,
+  phase:lastMachineFile?'prepared':(preflightPassed?'preflight-passed':(selectedFile?'model-loaded':'empty')),
+  preflight_passed:preflightPassed,
+  preflight_text:preflightState.textContent,
+  last_machine_file:lastMachineFile||null,
+  status_text:status.textContent,
+  settings:{
+   quality:q('quality').value,material:q('material').value,supports:q('supports').value,
+   copies:q('copies').value,layer:q('layer').value,
+   fourd_thermal:q('fourdThermal').checked,fourd_material:q('fourdMaterial').checked,
+   fourd_geometry:q('fourdGeometry').checked,fourd_transition:q('fourdTransitionHeight').value,
+   fourd_light:q('fourdLight').checked,fourd_light_interval:q('fourdLightInterval').value
+  }
+ };
+}
+function applyCheckpointSettings(cp){
+ const s=(cp&&cp.settings)||{},set=(id,v)=>{const e=document.getElementById(id);if(e&&v!==undefined&&v!==null)e.value=v;};
+ set('quality',s.quality);set('material',s.material);set('supports',s.supports);set('copies',s.copies);set('layer',s.layer);
+ const chk=(id,v)=>{const e=document.getElementById(id);if(e&&typeof v==='boolean')e.checked=v;};
+ chk('fourdThermal',s.fourd_thermal);chk('fourdMaterial',s.fourd_material);chk('fourdGeometry',s.fourd_geometry);chk('fourdLight',s.fourd_light);
+ set('fourdTransitionHeight',s.fourd_transition);set('fourdLightInterval',s.fourd_light_interval);
+}
+async function saveCheckpoint(){
+ if(!selectedFile){checkpointState.textContent='NOT SAVED — choose a model or project first.';return false;}
+ const cp=collectCheckpoint(),db=await checkpointDB();
+ await new Promise((resolve,reject)=>{const tx=db.transaction('sessions','readwrite');tx.objectStore('sessions').put({checkpoint:cp,blob:selectedFile,name:selectedFile.name,type:selectedFile.type},'latest');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});
+ db.close();localStorage.setItem('ungcad-checkpoint-summary',JSON.stringify({saved_at:cp.saved_at,phase:cp.phase,package_name:cp.package_name}));
+ checkpointState.textContent='SAVED — '+cp.saved_at+' · '+cp.phase+' · '+cp.package_name;return true;
+}
+async function readCheckpoint(){
+ const db=await checkpointDB(),row=await new Promise((resolve,reject)=>{const tx=db.transaction('sessions','readonly'),r=tx.objectStore('sessions').get('latest');r.onsuccess=()=>resolve(r.result||null);r.onerror=()=>reject(r.error);});db.close();return row;
+}
+async function resumeCheckpoint(){
+ const row=await readCheckpoint();if(!row||!row.blob){checkpointState.textContent='NO SAVED CHECKPOINT — save one first or import a handoff ZIP.';return;}
+ applyCheckpointSettings(row.checkpoint);
+ const file=new File([row.blob],row.name||row.checkpoint.package_name||'UNG-CAD-resumed-model.stl',{type:row.type||'application/octet-stream'});
+ checkpointState.textContent='RESUMING — '+(row.checkpoint.saved_at||'saved session')+'…';
+ await handleChosenFiles([file],'saved checkpoint');
+ if(row.checkpoint.selected_part&&[...part.options].some(o=>o.value===row.checkpoint.selected_part)){part.value=row.checkpoint.selected_part;await selectAndPreview(row.checkpoint.selected_part,null);}
+ checkpointState.textContent='RESUMED — '+(row.checkpoint.saved_at||'checkpoint')+' · '+(row.checkpoint.phase||'session');
+}
+async function exportHandoff(){
+ if(!selectedFile){checkpointState.textContent='NOT EXPORTED — choose a model or project first.';return;}
+ await saveCheckpoint();const cp=collectCheckpoint(),zip=new JSZip();
+ zip.file('checkpoint.json',JSON.stringify(cp,null,2));zip.file('source/'+selectedFile.name,await selectedFile.arrayBuffer());
+ zip.file('CONTINUE.txt','UNG-CAD portable manufacturing handoff\nResume by opening Manufacturing > Work continuity > Import Handoff ZIP.\nSaved: '+cp.saved_at+'\nPhase: '+cp.phase+'\nSelected part: '+(cp.selected_part||'none')+'\n');
+ const blob=await zip.generateAsync({type:'blob'}),a=document.createElement('a'),url=URL.createObjectURL(blob);
+ a.href=url;a.download='UNG-CAD-HANDOFF-'+new Date().toISOString().replace(/[:.]/g,'-')+'.zip';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+ checkpointState.textContent='EXPORTED — portable handoff ZIP contains checkpoint.json and the current source package.';
+}
+async function importHandoff(file){
+ const zip=await JSZip.loadAsync(file),cpEntry=zip.file('checkpoint.json');if(!cpEntry)throw Error('checkpoint.json is missing from this handoff');
+ const cp=JSON.parse(await cpEntry.async('text'));if(cp.schema!=='ungcad-manufacturing-checkpoint/v1')throw Error('Unsupported checkpoint format');
+ const sourceNames=Object.keys(zip.files).filter(n=>n.startsWith('source/')&&!zip.files[n].dir);if(!sourceNames.length)throw Error('Handoff has no source package');
+ const srcName=sourceNames[0],bytes=await zip.file(srcName).async('arraybuffer'),name=srcName.split('/').pop();
+ const model=new File([bytes],name,{type:cp.package_type||'application/octet-stream'});selectedFile=model;applyCheckpointSettings(cp);
+ const db=await checkpointDB();await new Promise((resolve,reject)=>{const tx=db.transaction('sessions','readwrite');tx.objectStore('sessions').put({checkpoint:cp,blob:model,name:model.name,type:model.type},'latest');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();
+ checkpointState.textContent='IMPORTED — '+(cp.saved_at||'handoff')+' · resuming '+name+'…';await handleChosenFiles([model],'imported handoff');
+ if(cp.selected_part&&[...part.options].some(o=>o.value===cp.selected_part)){part.value=cp.selected_part;await selectAndPreview(cp.selected_part,null);}
+ checkpointState.textContent='IMPORTED & RESUMED — '+(cp.phase||'session')+' · '+name;
+}
+saveCheckpointBtn.onclick=()=>saveCheckpoint().catch(e=>checkpointState.textContent='SAVE FAILED — '+e.message);
+resumeCheckpointBtn.onclick=()=>resumeCheckpoint().catch(e=>checkpointState.textContent='RESUME FAILED — '+e.message);
+exportHandoffBtn.onclick=()=>exportHandoff().catch(e=>checkpointState.textContent='EXPORT FAILED — '+e.message);
+importHandoffInput.onchange=()=>{const file=importHandoffInput.files&&importHandoffInput.files[0];if(file)importHandoff(file).catch(e=>checkpointState.textContent='IMPORT FAILED — '+e.message);};
+try{const summary=JSON.parse(localStorage.getItem('ungcad-checkpoint-summary')||'null');if(summary)checkpointState.textContent='SAVED CHECKPOINT AVAILABLE — '+summary.saved_at+' · '+summary.phase+' · '+summary.package_name;}catch{}
 
 /* Safari-safe interactive STL preview. */
 let __fallbackPreview={tris:null,rx:-0.38,rz:0.68,drag:false,x:0,y:0,zoom:1};
