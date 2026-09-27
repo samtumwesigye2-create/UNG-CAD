@@ -30,7 +30,17 @@ def parse_cutout(data: Dict[str,Any]) -> Cutout:
     if kind=="circular" and float(g.get("diameter_mm",0))<=0: raise ValueError("diameter_mm required")
     if kind in {"rectangular","usb_c","ethernet"} and (float(g.get("width_mm",0))<=0 or float(g.get("height_mm",0))<=0): raise ValueError("width/height required")
     if kind=="keyed" and float(g.get("inner_diameter_mm",0))<=0: raise ValueError("inner_diameter_mm required")
-    if kind=="arbitrary_custom" and len(g.get("points_mm",[]))<3: raise ValueError("at least three custom points required")
+    if kind=="arbitrary_custom":
+        vertices=g.get("vertices",[]); segments=g.get("segments",[])
+        if len(vertices)<3 or len(segments)<3: raise ValueError("custom geometry requires >=3 vertices and segments")
+        n=len(vertices)
+        for seg in segments:
+            a,b=seg.get("start_idx"),seg.get("end_idx")
+            if not isinstance(a,int) or not isinstance(b,int) or not (0<=a<n and 0<=b<n): raise ValueError("custom segment index out of range")
+            st=seg.get("type")
+            if st not in {"linear","arc","bezier"}: raise ValueError("unsupported custom segment type")
+            if st=="arc" and "arc_bulge" not in seg: raise ValueError("arc_bulge required for arc")
+            if st=="bezier" and not 1<=len(seg.get("control_points",[]))<=2: raise ValueError("bezier requires one or two control points")
     return Cutout(str(data["component_id"]),kind,float(p["x_mm"]),float(p["y_mm"]),float(data["rotation"]),clearance,depth,g,list(data.get("mounting_holes") or []),data.get("tolerance_profile"))
 
 def compensated_geometry(c: Cutout) -> Dict[str,Any]:
