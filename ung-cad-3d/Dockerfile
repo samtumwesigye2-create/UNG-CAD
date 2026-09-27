@@ -8,8 +8,8 @@ COPY ung-cad-3d/ .
 COPY cad_core /cad_core
 COPY ung_shared /ung_shared
 COPY ung_geometry /ung_geometry
-ENV PYTHONPATH=/
+ENV PYTHONPATH=/app:/
 RUN python tests/analytic_build_gate.py
-RUN pytest -q tests/test_draco_manufacturing_api.py
+RUN python -c "import main; assert main.app" && python -m pytest -q tests/test_draco_manufacturing_api.py
 ENV QT_QPA_PLATFORM=offscreen
 CMD ["sh","-c","python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
