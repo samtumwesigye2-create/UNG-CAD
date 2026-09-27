@@ -7,6 +7,7 @@ COPY ung-cad-3d/ .
 # Build from repository root so the shared CAD kernel is inside the Docker context.
 COPY cad_core /cad_core
 COPY ung_shared /ung_shared
+COPY ung_geometry /ung_geometry
 ENV PYTHONPATH=/
 RUN python tests/analytic_build_gate.py
 ENV QT_QPA_PLATFORM=offscreen
