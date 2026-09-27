@@ -89,6 +89,51 @@
       "items": {
         "$ref": "#/$defs/mounting_hole"
       }
+    },
+    "structural_ribs": {
+      "type": "array",
+      "description": "Geometric reinforcement ribs added to the backside of the panel.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rib_id",
+          "start_point",
+          "end_point",
+          "thickness_mm",
+          "height_mm"
+        ],
+        "properties": {
+          "rib_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "start_point": {
+            "$ref": "#/$defs/rib_point"
+          },
+          "end_point": {
+            "$ref": "#/$defs/rib_point"
+          },
+          "thickness_mm": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "default": 3
+          },
+          "height_mm": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "default": 6
+          },
+          "profile_type": {
+            "type": "string",
+            "enum": [
+              "rectangular",
+              "tapered_draft"
+            ],
+            "default": "rectangular"
+          }
+        }
+      }
     }
   },
   "allOf": [
@@ -377,6 +422,22 @@
               ]
             }
           }
+        }
+      }
+    },
+    "rib_point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y"
+      ],
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
         }
       }
     }
