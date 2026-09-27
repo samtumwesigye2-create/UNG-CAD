@@ -66,3 +66,15 @@ Before production:
 - Maximum individual printed piece: 215 mm
 - Keep LAN geometry unchanged unless the user explicitly reopens it.
 - Latest one-regulator configuration supersedes older two-regulator geometry.
+
+
+## Rev-K.2.1 v3 build-viewer corrections — locked
+- Final baffle material: **black PETG**, not black PLA. Update build step 9 wording accordingly.
+- Preserve the shown P0-v3 -> base/port plates -> regulator -> Pi tray -> lid/fan/pan -> yoke/tilt -> sensor carrier -> head shell -> baffle/bezel assembly progression.
+- Treat wiring currently shown in the build viewer as illustrative only until routed harness geometry is validated.
+- Fixed-base harnesses must be routed through dedicated wall/deck clips or channels with minimal free movement and no contact with the fan, pan servo, lid screws, port-plate grooves, ribs, or connector insertion paths.
+- Required base routes: POWER/PD -> REGULATOR -> PWR DIST; PWR DIST -> PI/FAN/servos/required electronics; PI USB/OTG -> USB HUB -> DATA and LAN ADAPTER -> LAN.
+- The moving HEAD HARNESS must use a controlled flex zone with stationary-side and moving-side strain relief. Validate through pan +/-90 degrees and tilt +/-25 degrees.
+- Harnesses must not become taut, snag, rub sharp edges, enter servo/horn/fan sweep, pull connectors, or leave an uncontrolled loose coil at any motion limit.
+- Final wire cut lengths are derived from validated routed path lengths plus only required connector/service/motion allowance; do not invent fixed lengths before physical routing is locked.
+- P0-v3 remains the production gate: no remaining production part is approved to print until real interfaces, component retention, connector seating, representative harness routing, and full-motion cable behavior pass.
