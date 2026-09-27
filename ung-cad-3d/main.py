@@ -12,9 +12,15 @@ from pydantic import BaseModel
 from orca_slicer import slice_stl_orca as slice_stl  # real AD5M slicing (fixed)
 from slicer_cnc import slice_shapes_to_gcode
 from fourd_engine import compile_ad5m_4d, Missing4DMetadataError
+# Authorized evidence-analysis router (read-only evidence analytics; no device bypass/acquisition)
+try:
+    from evidence_api import router as evidence_router
+except ImportError:
+    evidence_router = None
+
 BASE_DIR=Path(__file__).resolve().parent
 DB_PATH=Path(os.getenv("UNG_CAD_3D_DB",str(BASE_DIR/"ung_cad_3d.db")))
-app=FastAPI(title="UNG-CAD-3D",version="1.2.0")
+app=FastAPI(title="UNG-CAD-3D",version="1.2.0")\nif evidence_router is not None:\n    app.include_router(evidence_router)
 
 def now_iso(): return datetime.now(timezone.utc).isoformat()
 def get_connection():
