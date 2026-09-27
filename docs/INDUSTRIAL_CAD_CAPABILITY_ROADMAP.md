@@ -75,6 +75,17 @@ Detailed implementation contract: [Shared Physics, Digital Twin, Predictive Heal
 
 The classification is a manufacturing truth gate, not a design suggestion. UNG-CAD must not report a complete device as directly printable merely because its enclosure or carrier is printable. The preflight result shall identify which parts are printable, which are purchased/assembled, and which require an external process.
 
+
+41. **AI work-continuity and provider fallback** — long-running CAD/engineering work shall be resumable without depending on a single consumer-chat quota:
+   - maintain portable project handoff bundles containing current source, revision state, constraints, validation results and next actions;
+   - support separately billed provider API/Workbench execution when the corresponding consumer chat quota is exhausted and the operator has configured credentials/credits;
+   - support local-model execution for compatible offline/private tasks where local hardware is sufficient;
+   - allow provider-neutral handoff to another authorized AI service without rebuilding project state from scratch;
+   - checkpoint long geometry/validation jobs so interrupted sessions resume from the last completed validation stage rather than restarting;
+   - never attempt to evade, bypass or falsify a provider's account quota, billing, authentication or rate-limit controls.
+
+For CAD validation specifically, motion sweeps, collision tests, mesh checks and manufacturing preflight shall write machine-readable checkpoints and a human-readable continuation manifest after each completed stage.
+
 ## Implementation order
 
 The dependency order is:
