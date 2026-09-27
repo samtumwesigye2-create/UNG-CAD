@@ -8,7 +8,7 @@ class UngCadAutoDimensioner:
   try: import ezdxf
   except ImportError as exc: raise RuntimeError("ezdxf is required for DXF dimensioning") from exc
   doc=ezdxf.readfile(dxf_file_path);msp=doc.modelspace()
-  if "DIMENSIONS" not in doc.layers: doc.layers.new(name="DIMENSIONS",dxfattribs={"color":5})
+  if "DIMENSIONS" not in doc.layers: doc.layers.new("DIMENSIONS",dxfattribs={"color":5})
   if "DimText" not in doc.styles: doc.styles.new("DimText",dxfattribs={"font":"txt.shx"})
   for c in flat_cutouts:
    pos=c["position"];cx=float(pos["x_mm"]);cy=float(pos["y_mm"])
