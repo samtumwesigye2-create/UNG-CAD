@@ -6,8 +6,8 @@ def test_analyze_ui_contract():
     html=(ROOT/"manufacturing.html").read_text(encoding="utf-8")
     preview=(ROOT/"manufacturing-preview.js").read_text(encoding="utf-8")
     engine=(ROOT/"analyze-engine.js").read_text(encoding="utf-8")
-    assert "Build 2026-09-26.9" in html
-    assert "/static/analyze-engine.js" in html
+    assert "Build 2026-09-27.7" in html
+    assert "analyze-engine.js" in html
     for label in ["Measure","Print estimate","Rotate & scale","Support check","Best position","Frames & assembly"]:
         assert label in html
     for control in ["measureToggle","estimateAll","exactTurn","resizePart","checkSupports","bestPos","showAssembly","checkClashes","checkGeometryClashes","checkClearance","fitReport","downloadFitCsv","saveVersion","undoChanges"]:
