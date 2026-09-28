@@ -27,3 +27,18 @@ def test_strict_invalid_inputs():
 def test_tolerance_safety_limit():
     c=ParametricCircle(Point3D(0,0,0),1000)
     with pytest.raises(ToleranceExceededError): c.tessellate(1e-12,max_segments=100)
+
+
+def test_cylinder_manufacturing_mesh_preserves_round_xy_profile():
+    cyl=ParametricCylinder(Point3D(0,0,0),5,4)
+    tris=tessellated_surface_triangles(cyl.tessellate(.05))
+    assert len(tris) >= 64
+    # A rectangle has only four XY boundary directions. A real tessellated
+    # circle must retain many distinct perimeter vertices.
+    xy={(round(p["x"],5),round(p["y"],5)) for tri in tris for p in tri}
+    perimeter={(x,y) for x,y in xy if abs((x*x+y*y)**0.5-5)<1e-3}
+    assert len(perimeter) >= 16
+    assert max(x for x,_ in perimeter)==pytest.approx(5,abs=.05)
+    assert min(x for x,_ in perimeter)==pytest.approx(-5,abs=.05)
+    assert max(y for _,y in perimeter)==pytest.approx(5,abs=.05)
+    assert min(y for _,y in perimeter)==pytest.approx(-5,abs=.05)
