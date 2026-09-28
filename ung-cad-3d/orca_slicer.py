@@ -13,6 +13,7 @@ import base64, json, os, re, shutil, struct, subprocess, tempfile, textwrap, url
 from pathlib import Path
 
 import numpy as np
+import trimesh
 
 ORCA_VERSION = "2.3.1"
 ORCA_URL = (f"https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v{ORCA_VERSION}/"
@@ -179,11 +180,25 @@ def slice_stl_orca(data: bytes, filename: str, layer_height=0.20):
         pj["layer_height"] = str(layer_height)
         process.write_text(json.dumps(pj))
         src = td / (re.sub(r"[^A-Za-z0-9_.-]+", "_", Path(filename).stem) + ".stl")
-        src.write_bytes(data)
+        # Normalize every uploaded STL before handing it to Orca.  Browser preview
+        # accepts a wider range of STL encodings than Orca's CLI importer, which
+        # previously produced the unhelpful "Load failed" error.
+        try:
+            mesh = trimesh.load(trimesh.util.wrap_as_stream(data), file_type="stl", force="mesh")
+            if mesh is None or mesh.is_empty or len(mesh.faces) == 0:
+                raise ValueError("STL contains no printable triangles")
+            mesh.remove_unreferenced_vertices()
+            normalized = mesh.export(file_type="stl")
+            src.write_bytes(normalized if isinstance(normalized, bytes) else normalized.encode())
+        except Exception as exc:
+            raise RuntimeError(f"STL normalization failed before slicing: {exc}") from exc
         out = td / "out"; out.mkdir()
-        cmd = [str(app), str(src), "--load-settings", f"{machine};{process}",
+        # Orca CLI options must precede the input model.  Supplying the STL
+        # before --load-settings can make AppRun treat the following arguments
+        # as part of the model-load operation and return only "Load failed".
+        cmd = [str(app), "--load-settings", f"{machine};{process}",
                "--load-filaments", str(filament), "--arrange", "1", "--orient", "0",
-               "--slice", "0", "--outputdir", str(out)]
+               "--slice", "0", "--outputdir", str(out), str(src)]
         env = os.environ.copy(); env.setdefault("QT_QPA_PLATFORM", "offscreen")
         p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env, timeout=600)
         files = sorted(out.glob("*.gcode"))
