@@ -390,6 +390,19 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
     except Exception as e: raise HTTPException(422,f"Slicing/4D preparation failed: {e}")
     out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
     safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).stem); target=out/(safe+"_AD5M.gcode"); target.write_bytes(gcode)
+    # PLA-only overhang post-processing runs after slicing/4D compilation and
+    # before the machine file is exposed to the local AD5M bridge.
+    if str(material).strip().upper()=="PLA":
+        try:
+            from tools.ung_overhang_fix import process_orcaslicer_pla_overhang_cross_platform
+            process_orcaslicer_pla_overhang_cross_platform(str(target))
+            stats["pla_overhang_postprocess"]={"enabled":True,"speed_mm_s":20,"fan":255,"temp_drop_c":10,"min_temp_c":190}
+        except Exception as e:
+            try: target.unlink(missing_ok=True)
+            except Exception: pass
+            raise HTTPException(422,f"PLA overhang post-processing failed: {e}")
+    else:
+        stats["pla_overhang_postprocess"]={"enabled":False,"reason":"material is not PLA"}
     return {"ok":True,"status":"sliced","source":Path(source_name).name,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","printer":"FlashForge Adventurer 5M","stats":stats,"transmission":"local AD5M bridge required","release_warning":release_warning}
 
 def _save_gcode(source_name,gcode,suffix):
