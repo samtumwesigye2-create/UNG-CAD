@@ -151,12 +151,25 @@ def _triangles_to_ascii_stl(triangles,name="UNG_PARAMETRIC"):
     out.append("endsolid "+name);return ("\n".join(out)+"\n").encode()
 
 def _parametric_triangles(typ,p,tol):
+    """Manufacturing-authoritative curved primitive exporter.
+
+    Curved solids must be tessellated from their analytic parameters here.
+    Never substitute width/height bounding boxes for circles or cylinders.
+    """
+    typ=str(typ).strip().lower()
     center=Point3D(*p.get("center",[0,0,0]))
-    if typ=="cylinder": return tessellated_surface_triangles(ParametricCylinder(center,float(p["radius"]),float(p["height"])).tessellate(tol))
+    if typ in {"cylinder","circle"}:
+        # A printable circle is a cylindrical solid; require an explicit height
+        # instead of silently turning its XY bounds into a rectangular panel.
+        radius=float(p.get("radius",float(p["diameter"])/2 if "diameter" in p else 0))
+        height=float(p.get("height",p.get("thickness",0)))
+        if radius<=0 or height<=0:
+            raise ValueError("circle/cylinder STL export requires positive radius (or diameter) and height (or thickness)")
+        return tessellated_surface_triangles(ParametricCylinder(center,radius,height).tessellate(tol))
     if typ=="sphere": return sphere_manufacturing_triangles(ParametricSphere(center,float(p["radius"])),tol)
     if typ=="extrusion": return tessellated_surface_triangles(ParametricExtrusion(tuple(tuple(x) for x in p["profile"]),float(p["height"])).tessellate())
     if typ=="revolve": return tessellated_surface_triangles(ParametricRevolve(tuple(tuple(x) for x in p["profile"]),float(p.get("angle_deg",360))).tessellate())
-    raise ValueError("STL export supports cylinder, sphere, extrusion, and revolve; curves require a solid operation first")
+    raise ValueError("STL export supports circle/cylinder, sphere, extrusion, and revolve; curves require a solid operation first")
 
 @app.post("/api/cad/parametric/export-stl")
 def export_parametric_stl(body:ParametricExportIn):
