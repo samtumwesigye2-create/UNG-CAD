@@ -106,3 +106,28 @@ Never power servo motor current through Raspberry Pi GPIO.
 
 ### Servo relocation validation gate
 With real MG90S hardware installed, test simultaneous powered motion at pan -90/0/+90 degrees and tilt -25/0/+25 degrees. Fail for collision, binding, transmission slip, excessive backlash, cable contact, connector pull, servo stall, or interference with electronics/fan.
+
+
+## 2026-09-28 physical prototype correction — superseding spider-arm prototype
+The printed spider-arm structure shown during physical review is rejected as the production architecture.
+
+Production geometry is now controlled by `projects/draco-rev-k2/draco_final_5part.scad` and is reduced to exactly five printable structural parts:
+1. BASE
+2. LID
+3. CHASSIS
+4. FRONT
+5. REAR
+
+Locked corrections:
+- Remove the four oversized spider arms entirely.
+- Use a compact 100 x 80 mm base footprint.
+- PAN and TILT MG90S servo bodies are both retained inside the base.
+- The 40 mm fan is retained in the base with dedicated airflow clearance.
+- Use a positively located lid-to-chassis key; the head may not balance on an unsupported narrow center tower.
+- Chassis side walls, front plate and rear plate form a closed structural enclosure with deliberate M3 attachment points.
+- The head front is organized into three marked sensor zones: THERMAL/IR, CAMERA/LIDAR and RADAR.
+- Keep LAN, USB-C DATA and USB-C POWER as the only external base interfaces.
+- Add controlled cable trenches, central harness pass-through and rear strain relief.
+- No generic empty sensor cavity and no unsupported vertical tabs.
+
+Physical connector fit and any unmeasured IR/regulator retention geometry remain subject to the real-hardware fit gate before the final production mesh is released.
