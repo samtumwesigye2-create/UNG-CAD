@@ -91,7 +91,7 @@ class UNGCadCalculus3Engine:
         us=np.linspace(*u_bounds,samples); vs=np.linspace(*v_bounds,samples)
         U,V=np.meshgrid(us,vs,indexing="ij")
         z=np.asarray(self._W(U,V),dtype=float)
-        return float(np.trapz(np.trapz(z,vs,axis=1),us,axis=0))
+        return float(np.trapezoid(np.trapezoid(z,vs,axis=1),us,axis=0))
 
     def line_integral(self,curve_u,curve_v,t,t_bounds,field,samples=201):
         rt=self.r.subs({self.u:curve_u,self.v:curve_v}); dr=rt.diff(t)
@@ -100,7 +100,7 @@ class UNGCadCalculus3Engine:
         for x in ts:
             p=np.asarray(nr(x),float).reshape(3); d=np.asarray(nd(x),float).reshape(3)
             vals.append(float(np.dot(np.asarray(field(*p),float),d)))
-        return float(np.trapz(vals,ts))
+        return float(np.trapezoid(vals,ts))
 
     def stokes_boundary_circulation(self,u_bounds,v_bounds,field,samples=101):
         t=sp.symbols("t",real=True); a,b=u_bounds; c,d=v_bounds
