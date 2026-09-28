@@ -1,0 +1,1 @@
+# Make the app folder importable for pytest (Railway runs: pytest -q tests/...)\nimport os, sys\nsys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n
