@@ -1,0 +1,12 @@
+{
+  "name": "ung-cad",
+  "version": "1.0.0",
+  "private": true,
+  "description": "UNG-CAD web runtime and manufacturing workspace",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
