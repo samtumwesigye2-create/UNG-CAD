@@ -8,7 +8,7 @@ HOST="127.0.0.1"; PORT=8765
 CLOUD=os.getenv("UNG_CAD_CLOUD","https://ung-cad-3d-production.up.railway.app").rstrip("/")
 PRINTER_ID=os.getenv("UNG_CAD_PRINTER_ID","a51a5435")
 CHECK_CODE=os.getenv("UNG_CAD_CHECK_CODE","").strip()
-BRIDGE_VERSION="2026-09-22-7"
+BRIDGE_VERSION="2026-09-28-8"
 STATE={"printer":None,"check_code":None}
 
 async def discover():
@@ -45,10 +45,18 @@ async def print_file(path, level=True, job_id=None):
         info=await c.get_printer_status()
         if not info: raise RuntimeError("Printer connection failed")
         await c.init_control()
-        uploaded=await c.job_control.upload_file(path,start_print=False,level_before_print=level)
-        if not uploaded: raise RuntimeError("Printer rejected file upload")
-        started=await c.job_control.print_local_file(Path(path).name,leveling_before_print=level)
-        if not started: raise RuntimeError("File uploaded but printer rejected explicit start command")
+        # Prefer the library's atomic upload+start path. Some AD5M firmware rejects
+        # an upload-only transaction and therefore never reaches print_local_file.
+        uploaded=await c.job_control.upload_file(path,start_print=True,level_before_print=level)
+        if not uploaded:
+            # Compatibility fallback for firmware/library combinations that require
+            # upload and start as separate operations.
+            uploaded=await c.job_control.upload_file(path,start_print=False,level_before_print=level)
+            if not uploaded:
+                raise RuntimeError("Printer rejected file upload")
+            started=await c.job_control.print_local_file(Path(path).name,leveling_before_print=level)
+            if not started:
+                raise RuntimeError("File uploaded but printer rejected explicit start command")
         await asyncio.sleep(2)
         verify=await c.get_printer_status()
         state=str(getattr(verify,"machine_state","unknown"))
@@ -106,15 +114,22 @@ def cloud_worker():
             q=urllib.parse.urlencode({"printer_id":PRINTER_ID})
             j=cloud_json("/api/bridge/jobs/next?"+q).get("job")
             if j:
-                fd,path=tempfile.mkstemp(prefix="ungcad_cloud_",suffix=Path(j["machine_file"]).suffix); os.close(fd)
+                # Keep the exact slicer-produced filename. AD5M firmware can use the
+                # uploaded basename as the local-file identifier; a random tempfile name
+                # can make upload/start disagree about which file exists.
+                tmpdir=tempfile.mkdtemp(prefix="ungcad_cloud_")
+                path=str(Path(tmpdir)/Path(j["machine_file"]).name)
                 try:
                     urllib.request.urlretrieve(CLOUD+j["download"],path)
+                    if not Path(path).exists() or Path(path).stat().st_size < 32:
+                        raise RuntimeError("Downloaded machine file is empty or incomplete")
                     result=asyncio.run(print_file(path,True,j["id"]))
                     cloud_json("/api/bridge/jobs/"+j["id"]+"/complete","POST",{"ok":True,"result":result})
                 except Exception as e:
                     cloud_json("/api/bridge/jobs/"+j["id"]+"/complete","POST",{"ok":False,"error":str(e)})
                 finally:
-                    try: os.unlink(path)
+                    try:
+                        os.unlink(path); os.rmdir(tmpdir)
                     except: pass
         except Exception as e:
             last_error=str(e)
