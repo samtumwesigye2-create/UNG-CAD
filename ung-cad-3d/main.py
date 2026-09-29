@@ -8,6 +8,7 @@ from cad_core.draco_release_gate import RELEASE_MANIFEST, parse_release_manifest
 from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, ParametricArc, ParametricCylinder, ParametricSphere, ParametricHole, ParametricExtrusion, ParametricRevolve, UNGCadFeatureTimeline, ToleranceExceededError, tessellated_surface_triangles, sphere_manufacturing_triangles, FeatureNode, ParametricDependencyGraph
 from cad_core.geometry_validation import validate_triangle_mesh, bed_fit
 from cad_core.manufacturability import analyze_fdm_printability
+from cad_core.fit_analysis import PrinterCompensationProfile, analyze_compensated_fit, wall_from_opposed_planes, bore_diameter_from_cylinder_radius
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -146,6 +147,58 @@ class MeshValidationIn(BaseModel):
     tolerance:float=1e-9
     build_volume_mm:list[float]|None=None
     bed_clearance_mm:float=0.0
+
+class CompensationProfileIn(BaseModel):
+    name:str="uncalibrated"
+    nozzle_diameter_mm:float=0.4
+    xy_scale_error_fraction:float=0.0
+    z_scale_error_fraction:float=0.0
+    hole_diameter_error_mm:float=0.0
+    slot_width_error_mm:float=0.0
+    outer_dimension_error_mm:float=0.0
+    clearance_error_mm:float=0.0
+    source:str="neutral-default"
+    calibrated:bool=False
+
+class FitAnalysisIn(BaseModel):
+    target_hole_mm:float
+    target_insert_mm:float
+    transition_band_mm:float=0.05
+    profile:CompensationProfileIn=CompensationProfileIn()
+
+@app.post("/api/manufacturing/fit-analysis")
+def manufacturing_fit_analysis(body:FitAnalysisIn):
+    try:
+        profile=PrinterCompensationProfile(**body.profile.model_dump())
+        return {
+            "ok":True,
+            "analysis":analyze_compensated_fit(
+                target_hole_mm=body.target_hole_mm,
+                target_insert_mm=body.target_insert_mm,
+                profile=profile,
+                transition_band_mm=body.transition_band_mm,
+            ),
+        }
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+
+class ExactBRepFeatureIn(BaseModel):
+    kind:str
+    values:list[float]
+
+@app.post("/api/cad/exact-feature")
+def exact_brep_feature(body:ExactBRepFeatureIn):
+    try:
+        kind=body.kind.strip().lower()
+        if kind=="parallel_wall":
+            if len(body.values)!=2: raise ValueError("parallel_wall requires two plane offsets")
+            return {"ok":True,"kind":kind,"wall_thickness_mm":wall_from_opposed_planes(body.values[0],body.values[1])}
+        if kind=="cylindrical_bore":
+            if len(body.values)!=1: raise ValueError("cylindrical_bore requires one radius")
+            return {"ok":True,"kind":kind,"bore_diameter_mm":bore_diameter_from_cylinder_radius(body.values[0])}
+        raise ValueError("kind must be parallel_wall or cylindrical_bore")
+    except ValueError as e:
+        raise HTTPException(422,str(e))
 
 @app.post("/api/manufacturing/validate-mesh")
 def validate_mesh(body:MeshValidationIn):

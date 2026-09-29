@@ -109,6 +109,23 @@ def validate_triangle_mesh(
     finite = all(_finite(p) for p in all_points)
     if not finite:
         errors.append("Mesh contains NaN or infinite coordinates.")
+        return MeshValidationReport(
+            triangle_count=len(tris),
+            vertex_count=0,
+            degenerate_faces=0,
+            boundary_edges=0,
+            nonmanifold_edges=0,
+            inconsistent_winding_edges=0,
+            connected_components=0,
+            finite=False,
+            watertight=False,
+            valid=False,
+            bbox_min=None,
+            bbox_max=None,
+            dimensions=None,
+            errors=tuple(errors),
+            warnings=tuple(warnings),
+        )
 
     q_to_point = {}
     faces = []
