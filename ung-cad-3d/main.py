@@ -9,6 +9,7 @@ from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, Param
 from cad_core.geometry_validation import validate_triangle_mesh, bed_fit
 from cad_core.manufacturability import analyze_fdm_printability
 from cad_core.fit_analysis import PrinterCompensationProfile, analyze_compensated_fit, wall_from_opposed_planes, bore_diameter_from_cylinder_radius
+from cad_core.calibration import CalibrationMeasurement, calibration_coupon_set, profile_from_measurements
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -47,6 +48,7 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS jobs (id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,source_name TEXT NOT NULL,machine_file TEXT,status TEXT NOT NULL,error_message TEXT,stats_json TEXT,submitted_by TEXT,created_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS api_keys (id INTEGER PRIMARY KEY AUTOINCREMENT,key TEXT NOT NULL UNIQUE,owner_system TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS twin_bindings (object_key TEXT PRIMARY KEY, object_name TEXT NOT NULL, vector_sku TEXT, draco_device_id TEXT, metadata_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL)")
+    c.execute("CREATE TABLE IF NOT EXISTS printer_calibration_profiles (id INTEGER PRIMARY KEY AUTOINCREMENT, printer_id TEXT NOT NULL, profile_json TEXT NOT NULL, created_at TEXT NOT NULL)")
     c.commit(); c.close()
 @app.get("/")
 def home_page():
@@ -181,6 +183,57 @@ def manufacturing_fit_analysis(body:FitAnalysisIn):
         }
     except ValueError as e:
         raise HTTPException(422,str(e))
+
+class CalibrationMeasurementIn(BaseModel):
+    feature:str
+    nominal_mm:float
+    measured_mm:float
+
+class CalibrationFeedbackIn(BaseModel):
+    printer_id:str="AD5M"
+    profile_name:str="AD5M measured"
+    nozzle_diameter_mm:float=0.4
+    measurements:list[CalibrationMeasurementIn]
+
+@app.get("/api/manufacturing/calibration/coupon-package")
+def calibration_coupon_package():
+    parts,manifest=calibration_coupon_set()
+    out=BASE_DIR/"generated";out.mkdir(exist_ok=True)
+    target=out/"UNG_AD5M_calibration_coupon.zip"
+    with zipfile.ZipFile(target,"w",zipfile.ZIP_DEFLATED) as z:
+        for name,triangles in parts.items():
+            z.writestr(name+".stl",_triangles_to_ascii_stl(triangles,name))
+        z.writestr("calibration_manifest.json",json.dumps(manifest,indent=2))
+    return FileResponse(target,media_type="application/zip",filename=target.name)
+
+@app.post("/api/manufacturing/calibration/feedback")
+def calibration_feedback(body:CalibrationFeedbackIn):
+    try:
+        measurements=[CalibrationMeasurement(m.feature,m.nominal_mm,m.measured_mm) for m in body.measurements]
+        profile=profile_from_measurements(
+            measurements,
+            name=body.profile_name,
+            nozzle_diameter_mm=body.nozzle_diameter_mm,
+            source="measured calibration coupon",
+        )
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+    c=get_connection();ts=now_iso()
+    c.execute("INSERT INTO printer_calibration_profiles(printer_id,profile_json,created_at) VALUES(?,?,?)",
+              (body.printer_id.strip() or "AD5M",json.dumps(profile),ts))
+    c.commit();pid=c.execute("SELECT last_insert_rowid()").fetchone()[0];c.close()
+    return {"ok":True,"profile_id":pid,"printer_id":body.printer_id.strip() or "AD5M","created_at":ts,"profile":profile}
+
+@app.get("/api/manufacturing/calibration/latest")
+def calibration_latest(printer_id:str="AD5M"):
+    c=get_connection();row=c.execute(
+        "SELECT * FROM printer_calibration_profiles WHERE printer_id=? ORDER BY id DESC LIMIT 1",
+        (printer_id,)
+    ).fetchone();c.close()
+    if not row:
+        return {"ok":True,"printer_id":printer_id,"profile":PrinterCompensationProfile(name="uncalibrated").to_dict(),"calibrated":False}
+    return {"ok":True,"printer_id":printer_id,"profile_id":row["id"],"created_at":row["created_at"],
+            "profile":json.loads(row["profile_json"]),"calibrated":True}
 
 class ExactBRepFeatureIn(BaseModel):
     kind:str
