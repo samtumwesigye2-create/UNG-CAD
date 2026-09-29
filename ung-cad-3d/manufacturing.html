@@ -128,7 +128,29 @@ addEventListener('DOMContentLoaded',()=>{
 <button class="btn" id="send" disabled>Print</button>
 </div><div id="status" class="status"></div></div>
 
-<h2><span class="step">5</span>Work continuity</h2>
+<h2><span class="step">5</span>Calibrate dimensional accuracy</h2>
+<div class="notice">
+  <b>AD5M measurement feedback</b>
+  <div class="small" style="margin-top:6px">Download the calibration set, print it with the same nozzle/material/profile used for production, then enter cooled measurements from calipers. Leave any unmeasured field blank. UNG-CAD stores only measured corrections; it does not invent offsets.</div>
+  <div class="an-row" style="margin-top:12px">
+    <a class="btn" id="downloadCalibration" href="/api/manufacturing/calibration/coupon-package">Download Calibration ZIP</a>
+    <button class="btn" id="loadCalibrationProfile" type="button">Load Current Profile</button>
+  </div>
+  <div class="controls" style="grid-template-columns:repeat(3,minmax(150px,1fr))">
+    <div class="field"><label>40 mm outer X measured</label><input id="calOuter40" type="number" step="0.01" placeholder="mm"></div>
+    <div class="field"><label>20 mm outer Y measured</label><input id="calOuter20" type="number" step="0.01" placeholder="mm"></div>
+    <div class="field"><label>20 mm Z tower measured</label><input id="calZ20" type="number" step="0.01" placeholder="mm"></div>
+    <div class="field"><label>3 mm hole measured</label><input id="calHole3" type="number" step="0.01" placeholder="mm"></div>
+    <div class="field"><label>5 mm hole measured</label><input id="calHole5" type="number" step="0.01" placeholder="mm"></div>
+    <div class="field"><label>8 mm hole measured</label><input id="calHole8" type="number" step="0.01" placeholder="mm"></div>
+    <div class="field"><label>5 mm post measured</label><input id="calPost5" type="number" step="0.01" placeholder="mm"></div>
+    <div class="field"><label>10 mm post measured</label><input id="calPost10" type="number" step="0.01" placeholder="mm"></div>
+    <button class="btn" id="saveCalibrationProfile" type="button">Build & Save Profile</button>
+  </div>
+  <div id="calibrationState" class="status">No measured calibration profile loaded.</div>
+</div>
+
+<h2><span class="step">6</span>Work continuity</h2>
 <div class="notice">
   <b>Checkpoint / handoff</b>
   <div class="small" style="margin-top:6px">Save the current Manufacturing state in this browser, export a portable ZIP, or resume an interrupted CAD/manufacturing session without starting over.</div>
@@ -156,6 +178,51 @@ const preflightState=document.getElementById('preflightState');
 function setPreflight(state,message){preflightPassed=state==='PASS';preflightState.textContent=' '+state+' — '+message;sliceBtn.disabled=!preflightPassed||!selectedFile||!part.value;if(!preflightPassed){lastMachineUrl=null;lastMachineFile=null;sendBtn.disabled=true;}}
 
 window.__setManufacturingPreflight=setPreflight;
+
+const calibrationState=document.getElementById('calibrationState');
+const calibrationFields=[
+ ['calOuter40','outer_x',40],['calOuter20','outer_y',20],['calZ20','z',20],
+ ['calHole3','hole',3],['calHole5','hole',5],['calHole8','hole',8],
+ ['calPost5','outer',5],['calPost10','outer',10]
+];
+document.getElementById('downloadCalibration').href=api('/api/manufacturing/calibration/coupon-package');
+document.getElementById('loadCalibrationProfile').onclick=async()=>{
+ try{
+  const r=await fetch(api('/api/manufacturing/calibration/latest?printer_id=AD5M'),{cache:'no-store'}),j=await r.json();
+  if(!r.ok)throw Error(errText(j.detail)||('HTTP '+r.status));
+  const p=j.profile||{};
+  calibrationState.textContent=(j.calibrated?'CALIBRATED':'UNCALIBRATED')+
+   ' · holes '+Number(p.hole_diameter_error_mm||0).toFixed(3)+' mm'+
+   ' · XY scale '+(Number(p.xy_scale_error_fraction||0)*100).toFixed(3)+'%'+
+   ' · Z scale '+(Number(p.z_scale_error_fraction||0)*100).toFixed(3)+'%'+
+   ' · outer offset '+Number(p.outer_dimension_error_mm||0).toFixed(3)+' mm';
+ }catch(e){calibrationState.textContent='Could not load calibration profile — '+e.message}
+};
+document.getElementById('saveCalibrationProfile').onclick=async()=>{
+ const measurements=[];
+ for(const [id,feature,nominal] of calibrationFields){
+  const raw=document.getElementById(id).value.trim();
+  if(!raw)continue;
+  const measured=Number(raw);
+  if(!(measured>0)){calibrationState.textContent='Invalid measurement in '+id;return;}
+  measurements.push({feature,nominal_mm:nominal,measured_mm:measured});
+ }
+ if(!measurements.length){calibrationState.textContent='Enter at least one measured dimension first.';return;}
+ calibrationState.textContent='Fitting measured AD5M profile…';
+ try{
+  const r=await fetch(api('/api/manufacturing/calibration/feedback'),{
+   method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({printer_id:'AD5M',profile_name:'AD5M measured',nozzle_diameter_mm:0.4,measurements})
+  });
+  const j=await r.json();if(!r.ok)throw Error(errText(j.detail)||('HTTP '+r.status));
+  const p=j.profile;
+  calibrationState.textContent='SAVED · '+p.measurement_count+' measurements · hole error '+
+   Number(p.hole_diameter_error_mm).toFixed(3)+' mm · XY scale '+
+   (Number(p.xy_scale_error_fraction)*100).toFixed(3)+'% · Z scale '+
+   (Number(p.z_scale_error_fraction)*100).toFixed(3)+'% · outer offset '+
+   Number(p.outer_dimension_error_mm).toFixed(3)+' mm';
+ }catch(e){calibrationState.textContent='Calibration save failed — '+e.message}
+};
 
 const checkpointState=document.getElementById('checkpointState');
 const saveCheckpointBtn=document.getElementById('saveCheckpoint');
