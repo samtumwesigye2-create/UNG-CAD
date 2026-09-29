@@ -85,6 +85,7 @@ addEventListener('DOMContentLoaded',()=>{
 <div class="preview-wrap">
   <div id="preview3d"><div id="previewPlaceholder">Select a part above to preview its geometry here.</div></div>
   <div id="previewStats" class="small">No part selected yet.</div>
+  <div id="serverValidation" class="small" style="grid-column:1/-1;background:#101a45;border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:12px">Server validation — waiting for a selected model.</div>
   <div id="toolpathPanel" style="display:none;grid-column:1/-1;background:#1e347f;border-radius:8px;padding:14px">
     <b>Generated toolpath preview</b>
     <canvas id="toolpathCanvas" width="900" height="520" style="width:100%;max-height:420px;background:#0f1b4d;border-radius:6px;margin-top:10px"></canvas>
@@ -321,6 +322,40 @@ window.__replacePart=async(name,stlBuffer)=>{
 };
 window.__partNames=()=>[...part.options].map(o=>o.value).filter(Boolean);
 async function waitForPreviewEngine(timeout=8000){const start=Date.now();while(typeof window.__previewSTL!=='function'&&Date.now()-start<timeout)await new Promise(r=>setTimeout(r,50));return typeof window.__previewSTL==='function';}
+async function runServerValidation(n){
+ const box=document.getElementById('serverValidation');
+ if(!selectedFile||!n)return null;
+ box.textContent='Server validation — checking topology and AD5M build volume…';
+ const d=new FormData();d.append('file',selectedFile);d.append('selected',n);
+ d.append('require_watertight','false');d.append('build_x','220');d.append('build_y','220');d.append('build_z','220');d.append('clearance','0');
+ try{
+  const r=await fetch(api('/api/manufacturing/validate-upload'),{method:'POST',body:d}),j=await r.json();
+  if(!r.ok)throw Error(errText(j.detail)||('HTTP '+r.status));
+  if(j.machine_ready){
+    box.textContent='Server validation — PASS · machine-ready file.';
+    setPreflight('PASS','machine-ready AD5M file selected.');
+    return j;
+  }
+  const v=j.validation||{},fit=j.build_volume||{};
+  const dims=(v.dimensions||[]).map(x=>Number(x).toFixed(2)).join(' × ');
+  const details=[
+    j.status+' · '+(dims?dims+' mm':'dimensions unavailable'),
+    'Triangles '+(v.triangle_count??'—')+' · Components '+(v.connected_components??'—'),
+    'Boundary edges '+(v.boundary_edges??'—')+' · Non-manifold '+(v.nonmanifold_edges??'—')+' · Degenerate '+(v.degenerate_faces??'—'),
+    'Watertight '+(v.watertight?'yes':'no')+' (advisory) · AD5M fit '+(fit.fits?'yes':'no')
+  ];
+  const notes=[...(v.errors||[]),...(v.warnings||[])];
+  box.textContent='Server validation — '+details.join('\n')+(notes.length?'\n'+notes.join('\n'):'');
+  if(j.status==='FAIL')setPreflight('BLOCKED',notes[0]||(!fit.fits?'model exceeds the AD5M build volume.':'server geometry validation failed.'));
+  else if(j.status==='WARNING')setPreflight('PASS','geometry is printable with advisory warnings; review Server validation.');
+  else setPreflight('PASS','server geometry and AD5M build-volume checks passed.');
+  return j;
+ }catch(e){
+  box.textContent='Server validation unavailable — '+e.message;
+  setPreflight('BLOCKED','server validation could not complete: '+e.message);
+  return null;
+ }
+}
 async function selectAndPreview(n,rowEl){
  try{
   part.value=n;setPreflight('RUNNING','checking geometry, build volume and manufacturability…');
@@ -343,6 +378,7 @@ async function selectAndPreview(n,rowEl){
       bytes=await r.arrayBuffer();
     } else throw Error('Unsupported geometry format: '+n);
     window.__previewSTL(n,bytes);
+    await runServerValidation(n);
   }catch(e){
     previewStats.textContent='Preview failed — '+e.message;
     setPreflight('BLOCKED','model could not be loaded: '+e.message);
