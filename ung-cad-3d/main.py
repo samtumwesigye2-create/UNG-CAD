@@ -1,4 +1,4 @@
-import json, os, sqlite3, zipfile, io, re, secrets, urllib.request, urllib.error, urllib.parse
+import json, os, sqlite3, zipfile, io, re, secrets, csv, urllib.request, urllib.error, urllib.parse
 import trimesh
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,6 +9,7 @@ from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, Param
 from cad_core.geometry_validation import validate_triangle_mesh, bed_fit
 from cad_core.manufacturability import analyze_fdm_printability
 from cad_core.fit_analysis import PrinterCompensationProfile, analyze_compensated_fit, wall_from_opposed_planes, bore_diameter_from_cylinder_radius
+from cad_core.calibration_coupon import ad5m_coupon_manifest, ad5m_coupon_parts, measurement_template_rows, derive_compensation_profile
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -47,6 +48,7 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS jobs (id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,source_name TEXT NOT NULL,machine_file TEXT,status TEXT NOT NULL,error_message TEXT,stats_json TEXT,submitted_by TEXT,created_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS api_keys (id INTEGER PRIMARY KEY AUTOINCREMENT,key TEXT NOT NULL UNIQUE,owner_system TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS twin_bindings (object_key TEXT PRIMARY KEY, object_name TEXT NOT NULL, vector_sku TEXT, draco_device_id TEXT, metadata_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL)")
+    c.execute("CREATE TABLE IF NOT EXISTS calibration_profiles (printer_id TEXT NOT NULL, material TEXT NOT NULL, process_key TEXT NOT NULL, profile_json TEXT NOT NULL, measurements_json TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(printer_id,material,process_key))")
     c.commit(); c.close()
 @app.get("/")
 def home_page():
@@ -182,6 +184,18 @@ def manufacturing_fit_analysis(body:FitAnalysisIn):
     except ValueError as e:
         raise HTTPException(422,str(e))
 
+class CalibrationMeasurementIn(BaseModel):
+    feature:str
+    nominal_mm:float
+    measured_mm:float
+
+class CalibrationFeedbackIn(BaseModel):
+    printer_id:str
+    material:str="PLA"
+    process_key:str="0.4mm-nozzle_0.20mm-layer"
+    profile_name:str="AD5M measured profile"
+    measurements:list[CalibrationMeasurementIn]
+
 class ExactBRepFeatureIn(BaseModel):
     kind:str
     values:list[float]
@@ -234,6 +248,72 @@ def _triangles_to_ascii_stl(triangles,name="UNG_PARAMETRIC"):
         for p in (a,b,c):out.append(f"   vertex {p['x']:.9g} {p['y']:.9g} {p['z']:.9g}")
         out.append("  endloop\n endfacet")
     out.append("endsolid "+name);return ("\n".join(out)+"\n").encode()
+
+@app.get("/api/manufacturing/calibration/coupon")
+def calibration_coupon():
+    manifest=ad5m_coupon_manifest()
+    parts=ad5m_coupon_parts()
+    mem=io.BytesIO()
+    with zipfile.ZipFile(mem,"w",compression=zipfile.ZIP_DEFLATED) as z:
+        for name,triangles in parts.items():
+            z.writestr(name,_triangles_to_ascii_stl(
+                [[{"x":p[0],"y":p[1],"z":p[2]} for p in tri] for tri in triangles],
+                Path(name).stem,
+            ))
+        z.writestr("manifest.json",json.dumps(manifest.to_dict(),indent=2))
+        buf=io.StringIO()
+        w=csv.DictWriter(buf,fieldnames=["feature_id","feature","nominal_mm","measured_mm"])
+        w.writeheader()
+        for row in measurement_template_rows(): w.writerow(row)
+        z.writestr("measurements.csv",buf.getvalue())
+        z.writestr("README.txt",
+            "Print these parts with the same material/process you want to calibrate. "
+            "Measure with calipers after cooling, fill measurements.csv, then submit the values "
+            "to /api/manufacturing/calibration/feedback. No compensation is baked into this coupon.\n")
+    return Response(content=mem.getvalue(),media_type="application/zip",
+                    headers={"Content-Disposition":"attachment; filename=UNG-CAD_AD5M_calibration_coupon_v1.zip"})
+
+@app.post("/api/manufacturing/calibration/feedback")
+def calibration_feedback(body:CalibrationFeedbackIn):
+    if not body.printer_id.strip(): raise HTTPException(400,"printer_id is required")
+    if not body.measurements: raise HTTPException(400,"at least one measurement is required")
+    try:
+        rows=[m.model_dump() for m in body.measurements]
+        derived=derive_compensation_profile(
+            rows,name=body.profile_name,
+            source=f"coupon:{body.printer_id}:{body.material}:{body.process_key}",
+            nozzle_diameter_mm=0.4,
+        )
+        profile={k:v for k,v in derived.items() if k not in ("measurement_count","measurements")}
+        # Validate against the compensation model before persistence.
+        PrinterCompensationProfile(**profile)
+    except (TypeError,ValueError,KeyError) as e:
+        raise HTTPException(422,str(e))
+    c=get_connection();ts=now_iso()
+    c.execute("""INSERT INTO calibration_profiles(printer_id,material,process_key,profile_json,measurements_json,updated_at)
+                 VALUES(?,?,?,?,?,?) ON CONFLICT(printer_id,material,process_key) DO UPDATE SET
+                 profile_json=excluded.profile_json,measurements_json=excluded.measurements_json,updated_at=excluded.updated_at""",
+              (body.printer_id.strip(),body.material.strip().upper(),body.process_key.strip(),
+               json.dumps(profile),json.dumps(derived["measurements"]),ts))
+    c.commit();c.close()
+    return {"ok":True,"printer_id":body.printer_id.strip(),"material":body.material.strip().upper(),
+            "process_key":body.process_key.strip(),"profile":profile,
+            "measurement_count":derived["measurement_count"],"updated_at":ts}
+
+@app.get("/api/manufacturing/calibration/profile/{printer_id}")
+def calibration_profile(printer_id:str,material:str="PLA",process_key:str="0.4mm-nozzle_0.20mm-layer"):
+    c=get_connection()
+    r=c.execute("SELECT * FROM calibration_profiles WHERE printer_id=? AND material=? AND process_key=?",
+                (printer_id,material.strip().upper(),process_key)).fetchone()
+    c.close()
+    if not r:
+        neutral=PrinterCompensationProfile().to_dict()
+        return {"found":False,"printer_id":printer_id,"material":material.strip().upper(),
+                "process_key":process_key,"profile":neutral,
+                "warning":"No measured calibration profile stored; neutral compensation is active."}
+    return {"found":True,"printer_id":r["printer_id"],"material":r["material"],"process_key":r["process_key"],
+            "profile":json.loads(r["profile_json"]),"measurements":json.loads(r["measurements_json"]),
+            "updated_at":r["updated_at"]}
 
 def _parametric_triangles(typ,p,tol):
     """Manufacturing-authoritative curved primitive exporter.
