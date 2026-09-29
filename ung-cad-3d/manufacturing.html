@@ -128,7 +128,44 @@ addEventListener('DOMContentLoaded',()=>{
 <button class="btn" id="send" disabled>Print</button>
 </div><div id="status" class="status"></div></div>
 
-<h2><span class="step">5</span>Work continuity</h2>
+<h2><span class="step">5</span>Calibrate dimensional fit</h2>
+<div class="notice">
+  <b>AD5M measurement coupon</b>
+  <div class="small" style="margin-top:6px">Generate and print a small coupon, measure it with calipers, then save the measured error profile. UNG-CAD starts with zero compensation and only learns corrections from measurements you enter.</div>
+  <div class="an-row" style="margin-top:12px">
+    <button class="btn" id="generateCoupon">Generate Calibration STL</button>
+    <span id="couponState" class="small">No calibration coupon generated yet.</span>
+  </div>
+  <div id="couponDownload" class="small"></div>
+  <details style="margin-top:12px">
+    <summary>Enter measured dimensions after printing</summary>
+    <div class="an-row"><label>Profile name <input id="calProfileName" value="AD5M-0.4mm"></label></div>
+    <div class="small">Outer block nominal: X 40.00 mm, Y 20.00 mm. Z tower nominal: 20.00 mm.</div>
+    <div class="an-row">
+      <label>X measured <input id="calX" type="number" step="0.01" placeholder="40.00"></label>
+      <label>Y measured <input id="calY" type="number" step="0.01" placeholder="20.00"></label>
+      <label>Z measured <input id="calZ" type="number" step="0.01" placeholder="20.00"></label>
+    </div>
+    <div class="small">Hole-ring inside diameters:</div>
+    <div class="an-row">
+      <label>3 mm hole <input id="calH3" type="number" step="0.01"></label>
+      <label>4 mm hole <input id="calH4" type="number" step="0.01"></label>
+      <label>5 mm hole <input id="calH5" type="number" step="0.01"></label>
+      <label>6 mm hole <input id="calH6" type="number" step="0.01"></label>
+    </div>
+    <div class="small">Pin outside diameters:</div>
+    <div class="an-row">
+      <label>3 mm pin <input id="calP3" type="number" step="0.01"></label>
+      <label>4 mm pin <input id="calP4" type="number" step="0.01"></label>
+      <label>5 mm pin <input id="calP5" type="number" step="0.01"></label>
+      <label>6 mm pin <input id="calP6" type="number" step="0.01"></label>
+    </div>
+    <div class="an-row"><button class="btn" id="saveCalibration">Save Measured Profile</button></div>
+    <div id="calibrationState" class="status">No measured profile saved yet.</div>
+  </details>
+</div>
+
+<h2><span class="step">6</span>Work continuity</h2>
 <div class="notice">
   <b>Checkpoint / handoff</b>
   <div class="small" style="margin-top:6px">Save the current Manufacturing state in this browser, export a portable ZIP, or resume an interrupted CAD/manufacturing session without starting over.</div>
@@ -156,6 +193,52 @@ const preflightState=document.getElementById('preflightState');
 function setPreflight(state,message){preflightPassed=state==='PASS';preflightState.textContent=' '+state+' — '+message;sliceBtn.disabled=!preflightPassed||!selectedFile||!part.value;if(!preflightPassed){lastMachineUrl=null;lastMachineFile=null;sendBtn.disabled=true;}}
 
 window.__setManufacturingPreflight=setPreflight;
+
+const generateCouponBtn=document.getElementById('generateCoupon');
+const couponState=document.getElementById('couponState');
+const couponDownload=document.getElementById('couponDownload');
+const saveCalibrationBtn=document.getElementById('saveCalibration');
+const calibrationState=document.getElementById('calibrationState');
+
+generateCouponBtn.onclick=async()=>{
+ generateCouponBtn.disabled=true;couponState.textContent='Generating and validating calibration coupon…';couponDownload.textContent='';
+ try{
+  const r=await fetch(api('/api/manufacturing/calibration/coupon'),{
+   method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})
+  });
+  const j=await r.json();if(!r.ok)throw Error(errText(j.detail)||'Coupon generation failed');
+  couponState.textContent='Calibration STL ready · '+j.manifest.triangle_count+' triangles · '+Number(j.manifest.bounds_mm.x).toFixed(1)+' × '+Number(j.manifest.bounds_mm.y).toFixed(1)+' × '+Number(j.manifest.bounds_mm.z).toFixed(1)+' mm';
+  const a=document.createElement('a');a.className='link';a.href=/^https?:/.test(j.download)?j.download:api(j.download);a.download=j.file;a.textContent='Download calibration STL';
+  couponDownload.replaceChildren(a);
+ }catch(e){couponState.textContent='Calibration coupon failed — '+e.message;}
+ finally{generateCouponBtn.disabled=false;}
+};
+
+saveCalibrationBtn.onclick=async()=>{
+ const val=id=>{const e=document.getElementById(id),v=e&&e.value.trim();return v?Number(v):null;};
+ const sample=(nominal,id)=>{const m=val(id);return m==null?null:{nominal_mm:nominal,measured_mm:m};};
+ const compact=a=>a.filter(Boolean);
+ const body={
+  profile_name:document.getElementById('calProfileName').value.trim()||'AD5M-0.4mm',
+  printer_id:'AD5M',nozzle_diameter_mm:0.4,save:true,
+  xy_scale_samples:compact([sample(40,'calX'),sample(20,'calY')]),
+  z_scale_samples:compact([sample(20,'calZ')]),
+  hole_samples:compact([sample(3,'calH3'),sample(4,'calH4'),sample(5,'calH5'),sample(6,'calH6')]),
+  outer_samples:compact([sample(3,'calP3'),sample(4,'calP4'),sample(5,'calP5'),sample(6,'calP6')]),
+  source:'UNG-CAD AD5M calibration coupon'
+ };
+ if(!body.xy_scale_samples.length&&!body.z_scale_samples.length&&!body.hole_samples.length&&!body.outer_samples.length){
+  calibrationState.textContent='Enter at least one measured dimension before saving.';return;
+ }
+ saveCalibrationBtn.disabled=true;calibrationState.textContent='Calculating measured printer error…';
+ try{
+  const r=await fetch(api('/api/manufacturing/calibration/feedback'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json();if(!r.ok)throw Error(errText(j.detail)||'Calibration save failed');
+  const p=j.profile;
+  calibrationState.textContent='SAVED — '+p.name+'\nXY scale error '+(100*p.xy_scale_error_fraction).toFixed(3)+'% · Z scale error '+(100*p.z_scale_error_fraction).toFixed(3)+'%\nHole diameter error '+Number(p.hole_diameter_error_mm).toFixed(3)+' mm · outer offset '+Number(p.outer_dimension_error_mm).toFixed(3)+' mm\nThese measured values can now be used by fit compensation.';
+ }catch(e){calibrationState.textContent='Calibration save failed — '+e.message;}
+ finally{saveCalibrationBtn.disabled=false;}
+};
 
 const checkpointState=document.getElementById('checkpointState');
 const saveCheckpointBtn=document.getElementById('saveCheckpoint');
