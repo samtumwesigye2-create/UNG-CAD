@@ -6,6 +6,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from cad_core.draco_release_gate import RELEASE_MANIFEST, parse_release_manifest, evaluate_package, allow_selected_slice, is_draco_name
 from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, ParametricArc, ParametricCylinder, ParametricSphere, ParametricHole, ParametricExtrusion, ParametricRevolve, UNGCadFeatureTimeline, ToleranceExceededError, tessellated_surface_triangles, sphere_manufacturing_triangles, FeatureNode, ParametricDependencyGraph
+from cad_core.geometry_validation import validate_triangle_mesh, bed_fit
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -138,6 +139,36 @@ class ParametricExportIn(BaseModel):
     target_quality:str="export"
     filename:str="UNG_parametric.stl"
 
+class MeshValidationIn(BaseModel):
+    triangles:list
+    require_watertight:bool=False
+    tolerance:float=1e-9
+    build_volume_mm:list[float]|None=None
+    bed_clearance_mm:float=0.0
+
+@app.post("/api/manufacturing/validate-mesh")
+def validate_mesh(body:MeshValidationIn):
+    try:
+        report=validate_triangle_mesh(
+            body.triangles,
+            tolerance=body.tolerance,
+            require_watertight=body.require_watertight,
+        )
+        fit=None
+        if body.build_volume_mm is not None:
+            if report.dimensions is None:
+                raise ValueError("Cannot evaluate build-volume fit for an empty mesh.")
+            fit=bed_fit(report.dimensions,body.build_volume_mm,clearance=body.bed_clearance_mm)
+        status="PASS" if report.valid and (fit is None or fit["fits"]) and not report.warnings else (
+            "WARNING" if report.valid and (fit is None or fit["fits"]) else "FAIL"
+        )
+        return {"ok":report.valid and (fit is None or fit["fits"]),
+                "status":status,
+                "validation":report.to_dict(),
+                "build_volume":fit}
+    except (TypeError,ValueError,KeyError) as e:
+        raise HTTPException(422,str(e))
+
 def _triangles_to_ascii_stl(triangles,name="UNG_PARAMETRIC"):
     def normal(a,b,c):
         ux,uy,uz=b["x"]-a["x"],b["y"]-a["y"],b["z"]-a["z"]; vx,vy,vz=c["x"]-a["x"],c["y"]-a["y"],c["z"]-a["z"]
@@ -178,10 +209,15 @@ def export_parametric_stl(body:ParametricExportIn):
     try: triangles=_parametric_triangles(body.primitive_type,body.params,tol)
     except (KeyError,ValueError,ToleranceExceededError) as e: raise HTTPException(422,str(e))
     if not triangles: raise HTTPException(422,"No printable triangles generated")
+    report=validate_triangle_mesh(triangles)
+    if not report.valid:
+        raise HTTPException(422,{"message":"Generated mesh failed manufacturing validation","validation":report.to_dict()})
     safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(body.filename).stem)+".stl"
     out=BASE_DIR/"generated";out.mkdir(exist_ok=True);target=out/safe
     target.write_bytes(_triangles_to_ascii_stl(triangles,Path(safe).stem))
-    return {"ok":True,"status":"exported","machine_source":safe,"triangles":len(triangles),"download":f"/api/manufacturing/download/{safe}","next":"/api/manufacturing/slice"}
+    return {"ok":True,"status":"exported","machine_source":safe,"triangles":len(triangles),
+            "validation":report.to_dict(),
+            "download":f"/api/manufacturing/download/{safe}","next":"/api/manufacturing/slice"}
 
 class TwinBindingIn(BaseModel):
     object_key:str
