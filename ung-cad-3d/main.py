@@ -456,7 +456,22 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
         except Exception as e: raise HTTPException(422,f"Model conversion failed: {e}")
     if not low.endswith(".stl"): raise HTTPException(400,"This build slices STL/GLB/GLTF/OBJ and sends pre-sliced G-code/GX/GCODE.3MF machine packages directly")
     try:
+        validation_mesh=trimesh.load(io.BytesIO(data),file_type="stl",force="scene")
+        validation_report=validate_triangle_mesh(_mesh_triangles_for_validation(validation_mesh))
+        validation_fit=bed_fit(validation_report.dimensions,(220.0,220.0,220.0)) if validation_report.dimensions else None
+        if not validation_report.valid:
+            raise HTTPException(422,{"message":"Manufacturing validation failed before slicing","validation":validation_report.to_dict()})
+        if validation_fit is not None and not validation_fit["fits"]:
+            raise HTTPException(422,{"message":"Model exceeds Adventurer 5M build volume","validation":validation_report.to_dict(),"build_volume":validation_fit})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(422,f"Manufacturing validation failed before slicing: {e}")
+    try:
         gcode,stats=slice_stl(data,Path(source_name).name,layer_height=layer_height)
+        stats["manufacturing_validation"]={"status":"PASS" if not validation_report.warnings else "WARNING",
+                                           "mesh":validation_report.to_dict(),
+                                           "build_volume":validation_fit}
         if fourd_thermal or fourd_material or fourd_light:
             text_gcode=gcode.decode("utf-8","replace") if isinstance(gcode,bytes) else gcode
             text_gcode=compile_ad5m_4d(text_gcode,thermal=fourd_thermal,material_swap=fourd_material,transition_height_mm=fourd_transition_height,geometry_driven=fourd_geometry_driven,light=fourd_light,light_interval_mm=fourd_light_interval_mm)
