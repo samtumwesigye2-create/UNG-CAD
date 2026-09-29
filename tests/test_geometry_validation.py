@@ -66,3 +66,21 @@ def test_bed_fit_reports_overflow():
     bad=bed_fit((215,80,20),(220,220,220),clearance=5)
     assert not bad["fits"]
     assert bad["overflow"][0] == 5
+
+
+def test_parametric_cylinder_mesh_passes_manufacturing_validation():
+    from cad_core.feature_timeline import Point3D, ParametricCylinder, tessellated_surface_triangles
+    tris=tessellated_surface_triangles(ParametricCylinder(Point3D(0,0,0),5,4).tessellate(.05))
+    r=validate_triangle_mesh(tris)
+    assert r.valid
+    assert r.triangle_count > 0
+    assert r.dimensions[0] > 9.9
+    assert r.dimensions[1] > 9.9
+    assert r.dimensions[2] == 4
+
+
+def test_build_volume_clearance_is_enforced():
+    fit=bed_fit((210,210,210),(220,220,220),clearance=5)
+    assert fit["fits"]
+    fit=bed_fit((210.01,210,210),(220,220,220),clearance=5)
+    assert not fit["fits"]
