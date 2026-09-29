@@ -8,7 +8,7 @@ from cad_core.draco_release_gate import RELEASE_MANIFEST, parse_release_manifest
 from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, ParametricArc, ParametricCylinder, ParametricSphere, ParametricHole, ParametricExtrusion, ParametricRevolve, UNGCadFeatureTimeline, ToleranceExceededError, tessellated_surface_triangles, sphere_manufacturing_triangles, FeatureNode, ParametricDependencyGraph
 from cad_core.geometry_validation import validate_triangle_mesh, bed_fit
 from cad_core.manufacturability import analyze_fdm_printability
-from cad_core.fit_analysis import PrinterCompensationProfile, analyze_compensated_fit, wall_from_opposed_planes, bore_diameter_from_cylinder_radius
+from cad_core.fit_analysis import PrinterCompensationProfile, analyze_compensated_fit, wall_from_opposed_planes, bore_diameter_from_cylinder_radius, compensate_primitive_params
 from cad_core.calibration_coupon import CalibrationCouponSpec, generate_calibration_coupon, derive_compensation_profile
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, RedirectResponse, Response
@@ -60,6 +60,39 @@ def startup(): init_db()
 feature_timeline_core=UNGCadFeatureTimeline()
 feature_dependency_graph=ParametricDependencyGraph()
 
+def _load_compensation_profile(profile_name:str|None):
+    if not profile_name:
+        return None
+    c=get_connection()
+    row=c.execute("SELECT profile_json FROM printer_compensation_profiles WHERE profile_name=?",(profile_name,)).fetchone()
+    c.close()
+    if not row:
+        raise HTTPException(404,f"Calibration profile '{profile_name}' not found")
+    try:
+        profile=PrinterCompensationProfile(**json.loads(row["profile_json"]))
+    except Exception as e:
+        raise HTTPException(422,f"Calibration profile '{profile_name}' is invalid: {e}")
+    if not profile.calibrated:
+        raise HTTPException(422,f"Calibration profile '{profile_name}' has no measured calibration data")
+    return profile
+
+def _apply_requested_compensation(primitive_type:str,params:dict,profile_name:str|None):
+    target=dict(params)
+    profile=_load_compensation_profile(profile_name)
+    if profile is None:
+        return target,None
+    try:
+        compensated=compensate_primitive_params(primitive_type,target,profile=profile)
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+    return compensated,{
+        "applied":True,
+        "profile_name":profile.name,
+        "profile_source":profile.source,
+        "target_params":target,
+        "cad_params":compensated,
+    }
+
 class ParametricCircleIn(BaseModel):
     entity_id:str
     center:list[float]=[0.0,0.0,0.0]
@@ -91,12 +124,13 @@ class ParametricPrimitiveIn(BaseModel):
     primitive_type:str
     params:dict={}
     target_quality:str="ui"
+    compensation_profile_name:str|None=None
 
 @app.post("/api/cad/parametric/primitive")
 def create_parametric_primitive(body:ParametricPrimitiveIn):
     tol=UNGCadFeatureTimeline.QUALITY_TOLERANCES.get(body.target_quality)
     if tol is None: raise HTTPException(400,"target_quality must be ui or export")
-    p=body.params
+    p,compensation=_apply_requested_compensation(body.primitive_type,body.params,body.compensation_profile_name)
     try:
         center=Point3D(*p.get("center",[0,0,0])); typ=body.primitive_type
         if typ=="arc": obj=ParametricArc(center,float(p["radius"]),float(p.get("start_deg",0)),float(p.get("end_deg",90)),Vector3D(*p.get("normal",[0,0,1]))); data={"vertices":obj.tessellate(tol)}
@@ -106,7 +140,8 @@ def create_parametric_primitive(body:ParametricPrimitiveIn):
         elif typ=="extrusion": obj=ParametricExtrusion(tuple(tuple(x) for x in p["profile"]),float(p["height"])); data={"triangles":tessellated_surface_triangles(obj.tessellate())}
         elif typ=="revolve": obj=ParametricRevolve(tuple(tuple(x) for x in p["profile"]),float(p.get("angle_deg",360))); data={"triangles":tessellated_surface_triangles(obj.tessellate())}
         else: raise ValueError("primitive_type must be arc, cylinder, sphere, hole, extrusion, or revolve")
-        return {"entity_id":body.entity_id,"type":typ,"quality":body.target_quality,**data}
+        return {"entity_id":body.entity_id,"type":typ,"quality":body.target_quality,
+                "compensation":compensation,**data}
     except (KeyError,ValueError,ToleranceExceededError) as e: raise HTTPException(422,str(e))
 
 class FeatureNodeIn(BaseModel):
@@ -142,6 +177,7 @@ class ParametricExportIn(BaseModel):
     params:dict={}
     target_quality:str="export"
     filename:str="UNG_parametric.stl"
+    compensation_profile_name:str|None=None
 
 class MeshValidationIn(BaseModel):
     triangles:list
@@ -372,7 +408,8 @@ def _parametric_triangles(typ,p,tol):
 def export_parametric_stl(body:ParametricExportIn):
     tol=UNGCadFeatureTimeline.QUALITY_TOLERANCES.get(body.target_quality)
     if tol is None: raise HTTPException(400,"target_quality must be ui or export")
-    try: triangles=_parametric_triangles(body.primitive_type,body.params,tol)
+    p,compensation=_apply_requested_compensation(body.primitive_type,body.params,body.compensation_profile_name)
+    try: triangles=_parametric_triangles(body.primitive_type,p,tol)
     except (KeyError,ValueError,ToleranceExceededError) as e: raise HTTPException(422,str(e))
     if not triangles: raise HTTPException(422,"No printable triangles generated")
     report=validate_triangle_mesh(triangles)
@@ -382,7 +419,7 @@ def export_parametric_stl(body:ParametricExportIn):
     out=BASE_DIR/"generated";out.mkdir(exist_ok=True);target=out/safe
     target.write_bytes(_triangles_to_ascii_stl(triangles,Path(safe).stem))
     return {"ok":True,"status":"exported","machine_source":safe,"triangles":len(triangles),
-            "validation":report.to_dict(),
+            "validation":report.to_dict(),"compensation":compensation,
             "download":f"/api/manufacturing/download/{safe}","next":"/api/manufacturing/slice"}
 
 class TwinBindingIn(BaseModel):
