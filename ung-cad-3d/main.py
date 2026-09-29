@@ -9,6 +9,7 @@ from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, Param
 from cad_core.geometry_validation import validate_triangle_mesh, bed_fit
 from cad_core.manufacturability import analyze_fdm_printability
 from cad_core.fit_analysis import PrinterCompensationProfile, analyze_compensated_fit, wall_from_opposed_planes, bore_diameter_from_cylinder_radius
+from cad_core.calibration_coupon import CalibrationCouponSpec, generate_calibration_coupon, derive_compensation_profile
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -47,6 +48,7 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS jobs (id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,source_name TEXT NOT NULL,machine_file TEXT,status TEXT NOT NULL,error_message TEXT,stats_json TEXT,submitted_by TEXT,created_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS api_keys (id INTEGER PRIMARY KEY AUTOINCREMENT,key TEXT NOT NULL UNIQUE,owner_system TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS twin_bindings (object_key TEXT PRIMARY KEY, object_name TEXT NOT NULL, vector_sku TEXT, draco_device_id TEXT, metadata_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL)")
+    c.execute("CREATE TABLE IF NOT EXISTS printer_compensation_profiles (profile_name TEXT PRIMARY KEY, printer_id TEXT NOT NULL, profile_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
     c.commit(); c.close()
 @app.get("/")
 def home_page():
@@ -199,6 +201,116 @@ def exact_brep_feature(body:ExactBRepFeatureIn):
         raise ValueError("kind must be parallel_wall or cylindrical_bore")
     except ValueError as e:
         raise HTTPException(422,str(e))
+
+class CalibrationCouponIn(BaseModel):
+    outer_x_mm:float=40.0
+    outer_y_mm:float=20.0
+    base_height_mm:float=4.0
+    z_tower_height_mm:float=20.0
+    z_tower_size_mm:float=10.0
+    hole_diameters_mm:list[float]=[3.0,4.0,5.0,6.0]
+    pin_diameters_mm:list[float]=[3.0,4.0,5.0,6.0]
+    ring_wall_mm:float=2.0
+    spacing_mm:float=8.0
+    radial_segments:int=64
+    filename:str="UNG_AD5M_calibration_coupon.stl"
+
+class CalibrationFeedbackIn(BaseModel):
+    profile_name:str
+    printer_id:str="AD5M"
+    nozzle_diameter_mm:float=0.4
+    outer_samples:list[dict]=[]
+    xy_scale_samples:list[dict]=[]
+    z_scale_samples:list[dict]=[]
+    hole_samples:list[dict]=[]
+    slot_samples:list[dict]=[]
+    clearance_samples:list[dict]=[]
+    source:str="measured calibration coupon"
+    save:bool=True
+
+@app.post("/api/manufacturing/calibration/coupon")
+def manufacturing_calibration_coupon(body:CalibrationCouponIn):
+    try:
+        spec=CalibrationCouponSpec(
+            outer_x_mm=body.outer_x_mm,outer_y_mm=body.outer_y_mm,
+            base_height_mm=body.base_height_mm,z_tower_height_mm=body.z_tower_height_mm,
+            z_tower_size_mm=body.z_tower_size_mm,
+            hole_diameters_mm=tuple(body.hole_diameters_mm),
+            pin_diameters_mm=tuple(body.pin_diameters_mm),
+            ring_wall_mm=body.ring_wall_mm,spacing_mm=body.spacing_mm,
+            radial_segments=body.radial_segments,
+        )
+        triangles,manifest=generate_calibration_coupon(spec)
+        report=validate_triangle_mesh(triangles)
+        fit=bed_fit(report.dimensions,(220.0,220.0,220.0)) if report.dimensions else None
+        if not report.valid or not fit or not fit["fits"]:
+            raise HTTPException(422,{"message":"Generated calibration coupon failed manufacturing validation",
+                                     "validation":report.to_dict(),"build_volume":fit})
+        mesh_triangles=[
+            [{"x":p[0],"y":p[1],"z":p[2]} for p in tri]
+            for tri in triangles
+        ]
+        safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(body.filename).stem)+".stl"
+        out=BASE_DIR/"generated";out.mkdir(exist_ok=True);target=out/safe
+        target.write_bytes(_triangles_to_ascii_stl(mesh_triangles,Path(safe).stem))
+        return {"ok":True,"status":"generated","file":safe,
+                "download":f"/api/manufacturing/download/{safe}",
+                "manifest":manifest,"validation":report.to_dict(),"build_volume":fit,
+                "measurement_guide":{
+                    "outer_xy":"Measure the 40 × 20 mm block in X and Y with calipers.",
+                    "z_tower":"Measure tower height for Z-scale error.",
+                    "hole_rings":"Measure each inside diameter; enter nominal and measured values.",
+                    "pins":"Measure each outside diameter; use as outer-dimension/fit samples."
+                }}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+
+@app.post("/api/manufacturing/calibration/feedback")
+def manufacturing_calibration_feedback(body:CalibrationFeedbackIn):
+    try:
+        profile=derive_compensation_profile(
+            name=body.profile_name,
+            outer_samples=body.outer_samples,
+            xy_scale_samples=body.xy_scale_samples,
+            z_scale_samples=body.z_scale_samples,
+            hole_samples=body.hole_samples,
+            slot_samples=body.slot_samples,
+            clearance_samples=body.clearance_samples,
+            nozzle_diameter_mm=body.nozzle_diameter_mm,
+            source=body.source,
+        )
+        saved=False
+        if body.save:
+            ts=now_iso(); payload=json.dumps(profile.to_dict(),sort_keys=True)
+            c=get_connection()
+            c.execute("""INSERT INTO printer_compensation_profiles(profile_name,printer_id,profile_json,created_at,updated_at)
+                         VALUES(?,?,?,?,?) ON CONFLICT(profile_name) DO UPDATE SET
+                         printer_id=excluded.printer_id,profile_json=excluded.profile_json,updated_at=excluded.updated_at""",
+                      (profile.name,body.printer_id,payload,ts,ts))
+            c.commit();c.close();saved=True
+        return {"ok":True,"saved":saved,"printer_id":body.printer_id,"profile":profile.to_dict()}
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+
+@app.get("/api/manufacturing/calibration/profiles")
+def manufacturing_calibration_profiles(printer_id:str=""):
+    c=get_connection()
+    if printer_id:
+        rows=c.execute("SELECT * FROM printer_compensation_profiles WHERE printer_id=? ORDER BY updated_at DESC",(printer_id,)).fetchall()
+    else:
+        rows=c.execute("SELECT * FROM printer_compensation_profiles ORDER BY updated_at DESC").fetchall()
+    c.close()
+    return [{"profile_name":r["profile_name"],"printer_id":r["printer_id"],
+             "profile":json.loads(r["profile_json"]),"created_at":r["created_at"],"updated_at":r["updated_at"]} for r in rows]
+
+@app.get("/api/manufacturing/calibration/profiles/{profile_name}")
+def manufacturing_calibration_profile(profile_name:str):
+    c=get_connection();r=c.execute("SELECT * FROM printer_compensation_profiles WHERE profile_name=?",(profile_name,)).fetchone();c.close()
+    if not r: raise HTTPException(404,"Calibration profile not found")
+    return {"profile_name":r["profile_name"],"printer_id":r["printer_id"],
+            "profile":json.loads(r["profile_json"]),"created_at":r["created_at"],"updated_at":r["updated_at"]}
 
 @app.post("/api/manufacturing/validate-mesh")
 def validate_mesh(body:MeshValidationIn):
