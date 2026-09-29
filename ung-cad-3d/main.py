@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from cad_core.draco_release_gate import RELEASE_MANIFEST, parse_release_manifest, evaluate_package, allow_selected_slice, is_draco_name
 from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, ParametricArc, ParametricCylinder, ParametricSphere, ParametricHole, ParametricExtrusion, ParametricRevolve, UNGCadFeatureTimeline, ToleranceExceededError, tessellated_surface_triangles, sphere_manufacturing_triangles, FeatureNode, ParametricDependencyGraph
 from cad_core.geometry_validation import validate_triangle_mesh, bed_fit
+from cad_core.manufacturability import analyze_fdm_printability
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -377,6 +378,10 @@ async def manufacturing_validate_upload(
     build_y:float=Form(220.0),
     build_z:float=Form(220.0),
     clearance:float=Form(0.0),
+    nozzle_diameter:float=Form(0.4),
+    layer_height:float=Form(0.2),
+    overhang_limit_deg:float=Form(45.0),
+    minimum_feature:float=Form(0.4),
 ):
     source_name,data=await read_selected(file,selected)
     low=source_name.lower()
@@ -390,10 +395,19 @@ async def manufacturing_validate_upload(
         triangles=_mesh_triangles_for_validation(mesh)
         report=validate_triangle_mesh(triangles,require_watertight=require_watertight)
         fit=bed_fit(report.dimensions,(build_x,build_y,build_z),clearance=clearance) if report.dimensions else None
+        printability=analyze_fdm_printability(
+            triangles,
+            nozzle_diameter_mm=nozzle_diameter,
+            layer_height_mm=layer_height,
+            overhang_limit_deg=overhang_limit_deg,
+            minimum_feature_mm=minimum_feature,
+        )
         ok=report.valid and bool(fit and fit["fits"])
-        status="PASS" if ok and not report.warnings else ("WARNING" if ok else "FAIL")
+        advisory=bool(report.warnings or printability.warnings)
+        status="PASS" if ok and not advisory else ("WARNING" if ok else "FAIL")
         return {"ok":ok,"status":status,"source":Path(source_name).name,
-                "machine_ready":False,"validation":report.to_dict(),"build_volume":fit}
+                "machine_ready":False,"validation":report.to_dict(),"build_volume":fit,
+                "printability":printability.to_dict()}
     except HTTPException:
         raise
     except Exception as e:
@@ -469,9 +483,17 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
         raise HTTPException(422,f"Manufacturing validation failed before slicing: {e}")
     try:
         gcode,stats=slice_stl(data,Path(source_name).name,layer_height=layer_height)
-        stats["manufacturing_validation"]={"status":"PASS" if not validation_report.warnings else "WARNING",
+        printability_report=analyze_fdm_printability(
+            _mesh_triangles_for_validation(validation_mesh),
+            nozzle_diameter_mm=0.4,
+            layer_height_mm=layer_height,
+            overhang_limit_deg=45.0,
+            minimum_feature_mm=0.4,
+        )
+        stats["manufacturing_validation"]={"status":"PASS" if not (validation_report.warnings or printability_report.warnings) else "WARNING",
                                            "mesh":validation_report.to_dict(),
-                                           "build_volume":validation_fit}
+                                           "build_volume":validation_fit,
+                                           "printability":printability_report.to_dict()}
         if fourd_thermal or fourd_material or fourd_light:
             text_gcode=gcode.decode("utf-8","replace") if isinstance(gcode,bytes) else gcode
             text_gcode=compile_ad5m_4d(text_gcode,thermal=fourd_thermal,material_swap=fourd_material,transition_height_mm=fourd_transition_height,geometry_driven=fourd_geometry_driven,light=fourd_light,light_interval_mm=fourd_light_interval_mm)
