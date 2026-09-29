@@ -359,6 +359,46 @@ async def read_selected(file:UploadFile, selected:str):
     if Path(file.filename).name==selected or not selected: return file.filename,data
     raise HTTPException(404,"Selected part not found")
 
+def _mesh_triangles_for_validation(mesh):
+    if isinstance(mesh,trimesh.Scene):
+        if not mesh.geometry: raise ValueError("No mesh geometry found")
+        mesh=trimesh.util.concatenate(tuple(mesh.geometry.values()))
+    if not isinstance(mesh,trimesh.Trimesh) or len(mesh.faces)==0:
+        raise ValueError("No triangle mesh geometry found")
+    vertices=mesh.vertices
+    return [[tuple(float(v) for v in vertices[i]) for i in face] for face in mesh.faces]
+
+@app.post("/api/manufacturing/validate-upload")
+async def manufacturing_validate_upload(
+    file:UploadFile=File(...),
+    selected:str=Form(...),
+    require_watertight:bool=Form(False),
+    build_x:float=Form(220.0),
+    build_y:float=Form(220.0),
+    build_z:float=Form(220.0),
+    clearance:float=Form(0.0),
+):
+    source_name,data=await read_selected(file,selected)
+    low=source_name.lower()
+    if low.endswith((".gcode",".gx")) or low.endswith(".gcode.3mf"):
+        return {"ok":True,"status":"PASS","source":Path(source_name).name,
+                "machine_ready":True,"validation":None,"build_volume":None}
+    if not low.endswith((".stl",".glb",".gltf",".obj")):
+        raise HTTPException(400,"Validation supports STL, GLB, GLTF and OBJ geometry")
+    try:
+        mesh=trimesh.load(io.BytesIO(data),file_type=Path(source_name).suffix.lstrip("."),force="scene")
+        triangles=_mesh_triangles_for_validation(mesh)
+        report=validate_triangle_mesh(triangles,require_watertight=require_watertight)
+        fit=bed_fit(report.dimensions,(build_x,build_y,build_z),clearance=clearance) if report.dimensions else None
+        ok=report.valid and bool(fit and fit["fits"])
+        status="PASS" if ok and not report.warnings else ("WARNING" if ok else "FAIL")
+        return {"ok":ok,"status":status,"source":Path(source_name).name,
+                "machine_ready":False,"validation":report.to_dict(),"build_volume":fit}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(422,f"Could not validate model: {e}")
+
 @app.post("/api/manufacturing/preview-stl")
 async def manufacturing_preview_stl(file:UploadFile=File(...), selected:str=Form(...)):
     source_name, data = await read_selected(file, selected)
