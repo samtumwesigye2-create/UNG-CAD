@@ -1,4 +1,4 @@
-import json, os, sqlite3, zipfile, io, re, secrets, urllib.request, urllib.error, urllib.parse
+import json, os, sqlite3, zipfile, io, re, secrets, hashlib, urllib.request, urllib.error, urllib.parse
 import trimesh
 from datetime import datetime, timezone
 from pathlib import Path
@@ -607,37 +607,62 @@ async def manufacturing_preview_stl(file:UploadFile=File(...), selected:str=Form
         raise HTTPException(422,f"Could not convert model for preview: {e}")
 
 @app.post("/api/manufacturing/slice")
-async def slice_part(file:UploadFile=File(...), selected:str=Form(...), production_manifest:str=Form(...), layer_height:float=Form(0.20), quality:str=Form("balanced"), material:str=Form("PLA"), supports:str=Form("auto"), copies:int=Form(1), fourd_thermal:bool=Form(False), fourd_material:bool=Form(False), fourd_light:bool=Form(False), fourd_geometry_driven:bool=Form(False), fourd_transition_height:float|None=Form(None), fourd_light_interval_mm:float|None=Form(None)):
+async def slice_part(file:UploadFile=File(...), selected:str=Form(...), production_manifest:str|None=Form(None), layer_height:float=Form(0.20), quality:str=Form("balanced"), material:str=Form("PLA"), supports:str=Form("auto"), copies:int=Form(1), fourd_thermal:bool=Form(False), fourd_material:bool=Form(False), fourd_light:bool=Form(False), fourd_geometry_driven:bool=Form(False), fourd_transition_height:float|None=Form(None), fourd_light_interval_mm:float|None=Form(None)):
     if not (0.08 <= layer_height <= 0.4): raise HTTPException(400,"Layer height must be 0.08–0.40 mm")
-    if evaluate_production_manifest is None or sign_machine_file is None:
-        raise HTTPException(503,"Production readiness gate unavailable; slicing is hard-locked.")
-    try:
-        manifest=json.loads(production_manifest)
-        if not isinstance(manifest,dict): raise ValueError("manifest must be a JSON object")
-    except (json.JSONDecodeError,ValueError) as e:
-        raise HTTPException(400,f"Invalid production_manifest: {e}")
-    production_release=evaluate_production_manifest(manifest)
-    if not production_release.get("production_release_allowed"):
-        raise HTTPException(423,{"message":"Production readiness gate is not PASS; slicing is hard-locked.","release":production_release})
     package_bytes=await file.read()
     await file.seek(0)
+    filename=file.filename or "project"
+    entries=[filename]
+    draco_scope=is_draco_name(filename) or is_draco_name(selected)
     release_ok=True; blockers=[]
-    if (file.filename or "").lower().endswith(".zip"):
+    if filename.lower().endswith(".zip"):
         try:
             with zipfile.ZipFile(io.BytesIO(package_bytes)) as z:
                 members=[n for n in z.namelist() if not n.endswith("/")]
                 entries=printable_entries(members)
-                manifest_name=next((n for n in members if Path(n).name==RELEASE_MANIFEST),None)
-                manifest=parse_release_manifest(z.read(manifest_name)) if manifest_name else None
-                release_ok,blockers=evaluate_package(entries,manifest)
+                draco_scope=draco_scope or any(is_draco_name(n) for n in entries)
+                release_manifest_name=next((n for n in members if Path(n).name==RELEASE_MANIFEST),None)
+                release_manifest=parse_release_manifest(z.read(release_manifest_name)) if release_manifest_name else None
+                release_ok,blockers=evaluate_package(entries,release_manifest)
         except zipfile.BadZipFile: raise HTTPException(400,"Invalid ZIP")
         except ValueError as e: raise HTTPException(422,str(e))
-    elif is_draco_name(file.filename or ""):
-        release_ok=False; blockers=["single DRACO production part has no package release manifest"]
-    # Legacy package checks are mandatory too; they may only further restrict
-    # an already-PASS production-readiness manifest.
-    if not release_ok:
-        raise HTTPException(423,{"message":"Package release gate is not PASS; slicing is hard-locked.","blockers":blockers,"selected":selected})
+    elif draco_scope:
+        release_ok=False
+        blockers=["single DRACO production part has no package release manifest"]
+
+    if draco_scope and not release_ok:
+        raise HTTPException(423,{"message":"DRACO package release gate is not PASS; slicing is locked for this DRACO release.","blockers":blockers,"selected":selected})
+
+    supplied_manifest=(production_manifest or "").strip()
+    if supplied_manifest:
+        if evaluate_production_manifest is None:
+            raise HTTPException(503,"Production readiness evaluator unavailable for the supplied release manifest.")
+        try:
+            manifest=json.loads(supplied_manifest)
+            if not isinstance(manifest,dict): raise ValueError("manifest must be a JSON object")
+        except (json.JSONDecodeError,ValueError) as e:
+            raise HTTPException(400,f"Invalid production_manifest: {e}")
+        production_release=evaluate_production_manifest(manifest)
+        if not production_release.get("production_release_allowed"):
+            raise HTTPException(423,{"message":"Production readiness gate is not PASS for the supplied manifest.","release":production_release})
+    elif draco_scope:
+        raise HTTPException(422,{"message":"DRACO production slicing requires a production_manifest.","selected":selected})
+    else:
+        # Standalone and non-DRACO package jobs use the normal geometry,
+        # build-volume and printability checks below. They must not be blocked
+        # merely because they are not part of a DRACO release package.
+        production_release={
+            "production_release_allowed":True,
+            "status":"PASS",
+            "gate_scope":"standalone",
+            "project":Path(filename).stem or "standalone",
+            "revision":"standalone",
+            "manifest_hash":hashlib.sha256(package_bytes).hexdigest(),
+            "note":"Standalone manufacturing path: geometry/process validation is authoritative for this job."
+        }
+
+    if sign_machine_file is None:
+        raise HTTPException(503,"Machine-file signer unavailable; slicing cannot create a printable verified file.")
     source_name, data=await read_selected(file,selected); low=source_name.lower()
     if low.endswith((".gcode",".gx")) or low.endswith(".gcode.3mf"):
         out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
