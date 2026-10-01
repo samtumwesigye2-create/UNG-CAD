@@ -9,7 +9,7 @@ HOST="127.0.0.1"; PORT=8765
 CLOUD=os.getenv("UNG_CAD_CLOUD","https://ung-cad-3d-production.up.railway.app").rstrip("/")
 PRINTER_ID=os.getenv("UNG_CAD_PRINTER_ID","a51a5435")
 CHECK_CODE=os.getenv("UNG_CAD_CHECK_CODE","").strip()
-BRIDGE_VERSION="2026-09-30-prg-v7"
+BRIDGE_VERSION="2026-10-01-prg-v7.1"
 STATE={"printer":None,"check_code":None}
 
 async def discover():
@@ -86,6 +86,18 @@ def cloud_json(path, method="GET", body=None):
     req=urllib.request.Request(CLOUD+path,data=data,method=method,headers={"Content-Type":"application/json"})
     with urllib.request.urlopen(req,timeout=30) as r: return json.loads(r.read() or b"{}")
 
+def verify_released_machine_bytes(name, raw):
+    safe_name=Path(name).name
+    verify=cloud_json("/api/manufacturing/readiness/machine-file/"+urllib.parse.quote(safe_name))
+    if not verify.get("ok"):
+        raise RuntimeError("PRODUCTION HARD LOCK: "+str(verify.get("message") or "release verification failed"))
+    metadata=verify.get("metadata") or {}
+    expected=str(metadata.get("machine_file_sha256") or "").lower()
+    actual=hashlib.sha256(raw).hexdigest().lower()
+    if not expected or actual != expected:
+        raise RuntimeError("PRODUCTION HARD LOCK: machine file hash does not match approved release")
+    return metadata
+
 def ensure_paired():
     if STATE["check_code"]:
         return True
@@ -124,16 +136,9 @@ def cloud_worker():
                     urllib.request.urlretrieve(CLOUD+j["download"],path)
                     if not Path(path).exists() or Path(path).stat().st_size < 32:
                         raise RuntimeError("Downloaded machine file is empty or incomplete")
-                    # Final machine-side production gate. The cloud must verify the
-                    # release sidecar, then this bridge independently checks that the
-                    # downloaded bytes match the released SHA-256 before touching AD5M.
-                    verify=cloud_json("/api/manufacturing/readiness/machine-file/"+urllib.parse.quote(Path(j["machine_file"]).name))
-                    if not verify.get("ok"):
-                        raise RuntimeError("PRODUCTION HARD LOCK: "+str(verify.get("message") or "release verification failed"))
-                    expected=((verify.get("metadata") or {}).get("machine_file_sha256") or "").lower()
-                    actual=hashlib.sha256(Path(path).read_bytes()).hexdigest().lower()
-                    if not expected or actual != expected:
-                        raise RuntimeError("PRODUCTION HARD LOCK: downloaded machine file hash does not match approved release")
+                    # Final machine-side production gate. The cloud verifies the
+                    # signed release, then this bridge independently matches exact bytes.
+                    verify_released_machine_bytes(j["machine_file"],Path(path).read_bytes())
                     result=asyncio.run(print_file(path,True,j["id"]))
                     cloud_json("/api/bridge/jobs/"+j["id"]+"/complete","POST",{"ok":True,"result":result})
                 except Exception as e:
@@ -170,9 +175,18 @@ class H(BaseHTTPRequestHandler):
                 if not name.lower().endswith((".gcode",".gx",".3mf")): return self.out({"error":"File must already be sliced (.gcode/.gx/.3mf)"},400)
                 n=int(self.headers.get("Content-Length","0")); raw=self.rfile.read(n)
                 safe_name=Path(name).name
+                # Direct/local printing is not a bypass. It must reference a cloud-
+                # approved release and the uploaded bytes must exactly match that release.
+                try:
+                    release=verify_released_machine_bytes(safe_name,raw)
+                except Exception as gate_error:
+                    return self.out({"error":str(gate_error)},423)
                 tmpdir=tempfile.mkdtemp(prefix="ungcad_")
                 path=str(Path(tmpdir)/safe_name); Path(path).write_bytes(raw)
-                try: return self.out(asyncio.run(print_file(path,self.headers.get("X-Level","true").lower()=="true")))
+                try:
+                    result=asyncio.run(print_file(path,self.headers.get("X-Level","true").lower()=="true"))
+                    if isinstance(result,dict): result["production_release"]=release
+                    return self.out(result)
                 finally:
                     try:
                         os.unlink(path); os.rmdir(tmpdir)
