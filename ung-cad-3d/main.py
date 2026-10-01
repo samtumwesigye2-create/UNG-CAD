@@ -24,9 +24,11 @@ except ImportError:
     evidence_router = None
 try:
     from production_readiness_api import router as production_readiness_router
-    from cad_core.production_readiness import verify_machine_file
+    from cad_core.production_readiness import evaluate_manifest as evaluate_production_manifest, sign_machine_file, verify_machine_file
 except ImportError:
     production_readiness_router = None
+    evaluate_production_manifest = None
+    sign_machine_file = None
     verify_machine_file = None
 
 BASE_DIR=Path(__file__).resolve().parent
@@ -605,8 +607,18 @@ async def manufacturing_preview_stl(file:UploadFile=File(...), selected:str=Form
         raise HTTPException(422,f"Could not convert model for preview: {e}")
 
 @app.post("/api/manufacturing/slice")
-async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_height:float=Form(0.20), quality:str=Form("balanced"), material:str=Form("PLA"), supports:str=Form("auto"), copies:int=Form(1), fourd_thermal:bool=Form(False), fourd_material:bool=Form(False), fourd_light:bool=Form(False), fourd_geometry_driven:bool=Form(False), fourd_transition_height:float|None=Form(None), fourd_light_interval_mm:float|None=Form(None)):
+async def slice_part(file:UploadFile=File(...), selected:str=Form(...), production_manifest:str=Form(...), layer_height:float=Form(0.20), quality:str=Form("balanced"), material:str=Form("PLA"), supports:str=Form("auto"), copies:int=Form(1), fourd_thermal:bool=Form(False), fourd_material:bool=Form(False), fourd_light:bool=Form(False), fourd_geometry_driven:bool=Form(False), fourd_transition_height:float|None=Form(None), fourd_light_interval_mm:float|None=Form(None)):
     if not (0.08 <= layer_height <= 0.4): raise HTTPException(400,"Layer height must be 0.08–0.40 mm")
+    if evaluate_production_manifest is None or sign_machine_file is None:
+        raise HTTPException(503,"Production readiness gate unavailable; slicing is hard-locked.")
+    try:
+        manifest=json.loads(production_manifest)
+        if not isinstance(manifest,dict): raise ValueError("manifest must be a JSON object")
+    except (json.JSONDecodeError,ValueError) as e:
+        raise HTTPException(400,f"Invalid production_manifest: {e}")
+    production_release=evaluate_production_manifest(manifest)
+    if not production_release.get("production_release_allowed"):
+        raise HTTPException(423,{"message":"Production readiness gate is not PASS; slicing is hard-locked.","release":production_release})
     package_bytes=await file.read()
     await file.seek(0)
     release_ok=True; blockers=[]
@@ -622,15 +634,19 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
         except ValueError as e: raise HTTPException(422,str(e))
     elif is_draco_name(file.filename or ""):
         release_ok=False; blockers=["single DRACO production part has no package release manifest"]
-    # Manufacturing must remain usable for operator-selected parts.
-    # Release-gate findings are advisory here; physical validation/release status
-    # is shown to the operator instead of disabling the slicer.
-    release_warning = None if release_ok else {"blockers": blockers, "selected": selected}
+    # Legacy package checks are mandatory too; they may only further restrict
+    # an already-PASS production-readiness manifest.
+    if not release_ok:
+        raise HTTPException(423,{"message":"Package release gate is not PASS; slicing is hard-locked.","blockers":blockers,"selected":selected})
     source_name, data=await read_selected(file,selected); low=source_name.lower()
     if low.endswith((".gcode",".gx")) or low.endswith(".gcode.3mf"):
         out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
         safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).name); target=out/safe; target.write_bytes(data)
-        return {"ok":True,"status":"machine_file_ready","source":Path(source_name).name,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","printer":"FlashForge Adventurer 5M","stats":{"pre_sliced":True,"machine_package":low.endswith(".gcode.3mf")},"transmission":"local AD5M bridge required","release_warning":release_warning}
+        try: release_signature=sign_machine_file(target,production_release)
+        except RuntimeError as e:
+            target.unlink(missing_ok=True)
+            raise HTTPException(503,str(e))
+        return {"ok":True,"status":"machine_file_ready","source":Path(source_name).name,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","printer":"FlashForge Adventurer 5M","stats":{"pre_sliced":True,"machine_package":low.endswith(".gcode.3mf")},"transmission":"local AD5M bridge required","production_release":production_release,"release_signature":release_signature}
     if low.endswith((".glb",".gltf",".obj")):
         try:
             mesh=trimesh.load(io.BytesIO(data),file_type=Path(source_name).suffix.lstrip("."),force="scene")
@@ -689,7 +705,11 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
             raise HTTPException(422,f"PLA overhang post-processing failed: {e}")
     else:
         stats["pla_overhang_postprocess"]={"enabled":False,"reason":"material is not PLA"}
-    return {"ok":True,"status":"sliced","source":Path(source_name).name,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","printer":"FlashForge Adventurer 5M","stats":stats,"transmission":"local AD5M bridge required","release_warning":release_warning}
+    try: release_signature=sign_machine_file(target,production_release)
+    except RuntimeError as e:
+        target.unlink(missing_ok=True)
+        raise HTTPException(503,str(e))
+    return {"ok":True,"status":"sliced","source":Path(source_name).name,"machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}","printer":"FlashForge Adventurer 5M","stats":stats,"transmission":"local AD5M bridge required","production_release":production_release,"release_signature":release_signature}
 
 def _save_gcode(source_name,gcode,suffix):
     out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)

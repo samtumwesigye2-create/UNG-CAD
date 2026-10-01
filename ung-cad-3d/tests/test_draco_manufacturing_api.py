@@ -1,5 +1,5 @@
-"""End-to-end API regression for the DRACO Manufacturing release gate."""
-import io, json, zipfile
+"""End-to-end API regression for the mandatory Manufacturing release gate."""
+import io, json, os, zipfile
 from fastapi.testclient import TestClient
 from main import app
 
@@ -25,8 +25,27 @@ def approved():
       "source_cad_included":True,"baffle_material":"black PLA",
       "circular_12v_jack_present":False,"base_mounted_servos":2}
 
+def production_manifest():
+    checks={k:True for k in ("dimensions_verified","fit_verified","clearance_verified","holes_verified","wire_routing_verified","assembly_access_verified","printer_envelope_verified","material_verified")}
+    return {
+      "project":{"name":"DRACO","revision":"test-pass"},
+      "inventory":[{"name":"test production package","state":"physically_verified","required_for_release":True}],
+      "constraints":{"forbidden_processes":[]},
+      "process":{"required_operations":[]},
+      "parts":[{"name":"test machine file","can_manufacture":True,"checks":checks}],
+      "electronics":[],
+      "tests":[],
+      "release_policy":{"allow_critical_bypass":False,"required_tests":[]}
+    }
+
 def upload(data,name="DRACO_K2.zip"):
     return {"file":(name,data,"application/zip")}
+
+def post_slice(data,selected,manifest=None):
+    body={"selected":selected}
+    if manifest is not None:
+        body["production_manifest"]=json.dumps(manifest)
+    return client.post("/api/manufacturing/slice",files=upload(data),data=body)
 
 def test_inspect_incomplete_draco_is_p0_only():
     r=client.post("/api/manufacturing/inspect",files=upload(pack(parts=["P1","P2"],p0=True)))
@@ -35,26 +54,20 @@ def test_inspect_incomplete_draco_is_p0_only():
     assert state["ready"] is False and state["p0_only_until_release"] is True
     assert state["blockers"]
 
-def test_production_slice_allowed_with_release_warning():
-    data=pack(p0=True)
-    r=client.post("/api/manufacturing/slice",files=upload(data),
-                  data={"selected":"DRACO_K2_P2_PART.gcode"})
-    assert r.status_code==200
-    body=r.json()
-    assert body["status"]=="machine_file_ready"
-    assert body.get("release_warning") is not None
+def test_production_slice_without_manifest_is_rejected():
+    r=post_slice(pack(p0=True),"DRACO_K2_P2_PART.gcode")
+    assert r.status_code==422
 
-def test_p0_machine_file_allowed_before_release():
-    data=pack(p0=True)
-    r=client.post("/api/manufacturing/slice",files=upload(data),
-                  data={"selected":"DRACO_K2_P0_FIT_COUPON.gcode"})
-    assert r.status_code==200
-    assert r.json()["status"]=="machine_file_ready"
+def test_p0_machine_file_without_manifest_is_rejected():
+    r=post_slice(pack(p0=True),"DRACO_K2_P0_FIT_COUPON.gcode")
+    assert r.status_code==422
 
-def test_approved_package_inspects_ready_and_allows_part():
+def test_approved_package_with_pass_manifest_allows_and_signs(monkeypatch):
+    monkeypatch.setenv("UNG_GCODE_SIGNING_KEY","test-only-signing-key")
     data=pack(manifest=approved())
     r=client.post("/api/manufacturing/inspect",files=upload(data))
     assert r.status_code==200 and r.json()["production_release"]["ready"] is True
-    r=client.post("/api/manufacturing/slice",files=upload(data),
-                  data={"selected":"DRACO_K2_P2_PART.gcode"})
+    r=post_slice(data,"DRACO_K2_P2_PART.gcode",production_manifest())
     assert r.status_code==200 and r.json()["status"]=="machine_file_ready"
+    assert r.json()["production_release"]["production_release_allowed"] is True
+    assert r.json()["release_signature"]["machine_file_sha256"]
