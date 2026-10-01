@@ -1,0 +1,199 @@
+{
+  "project": {
+    "name": "RAVEN",
+    "revision": "live-gate-2026-09-30-r2"
+  },
+  "inventory": [
+    {
+      "name": "F4DC flight controller",
+      "state": "physically_verified",
+      "required_for_release": true
+    },
+    {
+      "name": "URGENEX 1S 3.7V 450mAh battery",
+      "state": "physically_verified",
+      "required_for_release": true
+    },
+    {
+      "name": "URGENEX charger",
+      "state": "physically_verified",
+      "required_for_release": false
+    },
+    {
+      "name": "printed RAVEN main frame",
+      "state": "physically_verified",
+      "required_for_release": true
+    },
+    {
+      "name": "8520 motors",
+      "state": "ordered",
+      "required_for_release": true
+    },
+    {
+      "name": "55mm propellers",
+      "state": "ordered",
+      "required_for_release": true
+    },
+    {
+      "name": "clip-on landing gear",
+      "state": "planned",
+      "required_for_release": true
+    },
+    {
+      "name": "F4DC motor compression clamps",
+      "state": "planned",
+      "required_for_release": true
+    }
+  ],
+  "constraints": {
+    "forbidden_processes": [
+      "soldering"
+    ],
+    "no_new_purchases": true,
+    "no_reprint_main_frame_unless_approved": true
+  },
+  "process": {
+    "required_operations": [
+      {
+        "name": "battery to F4DC connection",
+        "method": "plug_connector",
+        "verified": true
+      },
+      {
+        "name": "motor electrical connection",
+        "method": "mechanical_compression_terminal",
+        "verified": "hold"
+      },
+      {
+        "name": "propeller attachment",
+        "method": "press_fit",
+        "verified": "hold"
+      },
+      {
+        "name": "landing gear attachment",
+        "method": "snap_fit",
+        "verified": "hold"
+      }
+    ]
+  },
+  "parts": [
+    {
+      "name": "printed RAVEN main frame",
+      "can_manufacture": true,
+      "checks": {
+        "dimensions_verified": true,
+        "fit_verified": true,
+        "clearance_verified": "hold",
+        "holes_verified": true,
+        "wire_routing_verified": "hold",
+        "assembly_access_verified": true,
+        "printer_envelope_verified": true,
+        "material_verified": true
+      }
+    },
+    {
+      "name": "clip-on landing gear",
+      "can_manufacture": true,
+      "checks": {
+        "dimensions_verified": "hold",
+        "fit_verified": "hold",
+        "clearance_verified": "hold",
+        "holes_verified": true,
+        "wire_routing_verified": true,
+        "assembly_access_verified": true,
+        "printer_envelope_verified": true,
+        "material_verified": "hold"
+      }
+    },
+    {
+      "name": "F4DC motor compression clamp",
+      "can_manufacture": true,
+      "checks": {
+        "dimensions_verified": "hold",
+        "fit_verified": "hold",
+        "clearance_verified": "hold",
+        "holes_verified": "hold",
+        "wire_routing_verified": true,
+        "assembly_access_verified": true,
+        "printer_envelope_verified": true,
+        "material_verified": "hold"
+      }
+    }
+  ],
+  "electronics": [
+    {
+      "name": "Battery to F4DC",
+      "checks": {
+        "voltage": "pass",
+        "polarity": "pass",
+        "connector_or_contact": "pass",
+        "current_capacity": "hold"
+      }
+    },
+    {
+      "name": "F4DC to 8520 motors",
+      "checks": {
+        "voltage": "hold",
+        "polarity": "hold",
+        "connector_or_contact": "hold",
+        "current_capacity": "hold"
+      }
+    }
+  ],
+  "tests": [
+    {
+      "name": "F4DC power-up",
+      "result": "pass",
+      "evidence_required": true,
+      "evidence_present": true
+    },
+    {
+      "name": "landing gear fit",
+      "result": "pending",
+      "evidence_required": true,
+      "evidence_present": false
+    },
+    {
+      "name": "motor clamp continuity",
+      "result": "pending",
+      "evidence_required": true,
+      "evidence_present": false
+    },
+    {
+      "name": "motor direction",
+      "result": "pending",
+      "evidence_required": true,
+      "evidence_present": false
+    },
+    {
+      "name": "motor no-prop test",
+      "result": "pending",
+      "evidence_required": true,
+      "evidence_present": false
+    },
+    {
+      "name": "propeller clearance",
+      "result": "pending",
+      "evidence_required": true,
+      "evidence_present": false
+    },
+    {
+      "name": "vibration retention",
+      "result": "pending",
+      "evidence_required": true,
+      "evidence_present": false
+    }
+  ],
+  "release_policy": {
+    "allow_critical_bypass": false,
+    "required_tests": [
+      "F4DC power-up",
+      "landing gear fit",
+      "motor clamp continuity",
+      "motor direction",
+      "motor no-prop test",
+      "propeller clearance",
+      "vibration retention"
+    ]
+  }
+}
