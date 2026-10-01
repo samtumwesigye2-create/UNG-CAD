@@ -60,7 +60,7 @@ def test_production_slice_without_manifest_is_rejected():
 
 def test_p0_machine_file_without_manifest_is_rejected():
     r=post_slice(pack(p0=True),"DRACO_K2_P0_FIT_COUPON.gcode")
-    assert r.status_code==422
+    assert r.status_code==423
 
 def test_approved_package_with_pass_manifest_allows_and_signs(monkeypatch):
     monkeypatch.setenv("UNG_GCODE_SIGNING_KEY","test-only-signing-key")
