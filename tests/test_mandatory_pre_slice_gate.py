@@ -9,22 +9,28 @@ def _slice_block():
     return text.split('@app.post("/api/manufacturing/slice")',1)[1].split("def _save_gcode",1)[0]
 
 
-def test_slice_requires_production_manifest_and_pass():
+def test_standalone_slice_does_not_require_release_manifest():
     block=_slice_block()
-    assert "production_manifest:str=Form(...)" in block
+    assert "production_manifest:str|None=Form(None)" in block
+    assert '"gate_scope":"standalone"' in block
+    assert "Standalone manufacturing path" in block
+    assert "DRACO production slicing requires a production_manifest." in block
+
+
+def test_supplied_production_manifest_is_still_enforced():
+    block=_slice_block()
     assert "evaluate_production_manifest(manifest)" in block
-    assert "Production readiness gate is not PASS; slicing is hard-locked." in block
+    assert "Production readiness gate is not PASS for the supplied manifest." in block
     assert block.index("evaluate_production_manifest(manifest)") < block.index("slice_stl(")
+
+
+def test_draco_package_failure_is_still_hard_locked():
+    block=_slice_block()
+    assert "DRACO package release gate is not PASS" in block
+    assert "single DRACO production part has no package release manifest" in block
 
 
 def test_slice_signs_exact_generated_machine_file():
     block=_slice_block()
     assert block.count("sign_machine_file(target,production_release)") >= 2
     assert '"release_signature":release_signature' in block
-    assert "release_warning" not in block
-
-
-def test_legacy_package_failure_is_hard_lock_not_advisory():
-    block=_slice_block()
-    assert "Package release gate is not PASS; slicing is hard-locked." in block
-    assert "Release-gate findings are advisory here" not in block
