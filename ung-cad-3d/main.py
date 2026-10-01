@@ -22,6 +22,12 @@ try:
     from evidence_api import router as evidence_router
 except ImportError:
     evidence_router = None
+try:
+    from production_readiness_api import router as production_readiness_router
+    from cad_core.production_readiness import verify_machine_file
+except ImportError:
+    production_readiness_router = None
+    verify_machine_file = None
 
 BASE_DIR=Path(__file__).resolve().parent
 DB_PATH=Path(os.getenv("UNG_CAD_3D_DB",str(BASE_DIR/"ung_cad_3d.db")))
@@ -34,6 +40,8 @@ app.add_middleware(CORSMiddleware,
     allow_headers=["*"], expose_headers=["Content-Disposition"])
 if evidence_router is not None:
     app.include_router(evidence_router)
+if production_readiness_router is not None:
+    app.include_router(production_readiness_router)
 
 def now_iso(): return datetime.now(timezone.utc).isoformat()
 def get_connection():
@@ -799,8 +807,13 @@ class PrintJobIn(BaseModel):
 def create_print_job(job:PrintJobIn):
     machine=Path(job.machine_file).name; target=BASE_DIR/"generated"/machine
     if not target.exists(): raise HTTPException(404,"Machine file not found")
+    if verify_machine_file is None:
+        raise HTTPException(503,"Production readiness verifier unavailable; print queue is hard-locked.")
+    release_ok,release_message,release_metadata=verify_machine_file(target)
+    if not release_ok:
+        raise HTTPException(423,release_message)
     jid=secrets.token_urlsafe(12); c=get_connection(); c.execute("INSERT INTO print_jobs (id,printer_id,machine_file,status,created_at) VALUES (?,?,?,?,?)",(jid,job.printer_id.strip(),machine,"queued",now_iso())); c.commit(); c.close()
-    return {"ok":True,"job_id":jid,"status":"queued","printer_id":job.printer_id.strip(),"machine_file":machine}
+    return {"ok":True,"job_id":jid,"status":"queued","printer_id":job.printer_id.strip(),"machine_file":machine,"production_release":release_metadata}
 
 @app.get("/api/manufacturing/jobs/{job_id}")
 def get_print_job(job_id:str):
