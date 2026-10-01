@@ -33,7 +33,7 @@ except ImportError:
 
 BASE_DIR=Path(__file__).resolve().parent
 DB_PATH=Path(os.getenv("UNG_CAD_3D_DB",str(BASE_DIR/"ung_cad_3d.db")))
-app=FastAPI(title="UNG-CAD-3D",version="1.2.0")
+app=FastAPI(title="UNG-CAD-3D",version="1.2.1")
 # Allow the GitHub Pages front end to call the Railway API.
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(CORSMiddleware,
