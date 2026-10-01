@@ -1,3 +1,4 @@
+import hashlib
 import asyncio, json, os, tempfile, time, urllib.request, urllib.parse
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -8,7 +9,7 @@ HOST="127.0.0.1"; PORT=8765
 CLOUD=os.getenv("UNG_CAD_CLOUD","https://ung-cad-3d-production.up.railway.app").rstrip("/")
 PRINTER_ID=os.getenv("UNG_CAD_PRINTER_ID","a51a5435")
 CHECK_CODE=os.getenv("UNG_CAD_CHECK_CODE","").strip()
-BRIDGE_VERSION="2026-09-28-8"
+BRIDGE_VERSION="2026-09-30-prg-v7"
 STATE={"printer":None,"check_code":None}
 
 async def discover():
@@ -123,6 +124,16 @@ def cloud_worker():
                     urllib.request.urlretrieve(CLOUD+j["download"],path)
                     if not Path(path).exists() or Path(path).stat().st_size < 32:
                         raise RuntimeError("Downloaded machine file is empty or incomplete")
+                    # Final machine-side production gate. The cloud must verify the
+                    # release sidecar, then this bridge independently checks that the
+                    # downloaded bytes match the released SHA-256 before touching AD5M.
+                    verify=cloud_json("/api/manufacturing/readiness/machine-file/"+urllib.parse.quote(Path(j["machine_file"]).name))
+                    if not verify.get("ok"):
+                        raise RuntimeError("PRODUCTION HARD LOCK: "+str(verify.get("message") or "release verification failed"))
+                    expected=((verify.get("metadata") or {}).get("machine_file_sha256") or "").lower()
+                    actual=hashlib.sha256(Path(path).read_bytes()).hexdigest().lower()
+                    if not expected or actual != expected:
+                        raise RuntimeError("PRODUCTION HARD LOCK: downloaded machine file hash does not match approved release")
                     result=asyncio.run(print_file(path,True,j["id"]))
                     cloud_json("/api/bridge/jobs/"+j["id"]+"/complete","POST",{"ok":True,"result":result})
                 except Exception as e:
