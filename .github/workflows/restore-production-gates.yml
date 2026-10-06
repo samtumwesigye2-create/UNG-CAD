@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/restore-production-gates.yml"
       - ".integration/restore_production_gates.py"
+      - ".integration/restore_gate_compat.py"
 
 permissions:
   contents: write
@@ -26,7 +27,9 @@ jobs:
           python -m pip install sympy
           if [ -f ung-cad-3d/requirements-dev.txt ]; then python -m pip install -r ung-cad-3d/requirements-dev.txt; fi
       - name: Restore hard locks
-        run: python .integration/restore_production_gates.py
+        run: |
+          python .integration/restore_production_gates.py
+          python .integration/restore_gate_compat.py
       - name: Verify gate regressions first
         run: |
           python -m py_compile ung-cad-3d/main.py ung-cad-3d/ung-cad-ad5m-bridge.py
@@ -40,8 +43,9 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ung-cad-3d/main.py ung-cad-3d/ung-cad-ad5m-bridge.py
+          git add ung-cad-3d/main.py ung-cad-3d/ung-cad-ad5m-bridge.py ung-cad-3d/tests/test_bridge.py
           git rm -f .integration/restore_production_gates.py
+          git rm -f .integration/restore_gate_compat.py
           git rm -f .github/workflows/restore-production-gates.yml
           if git diff --cached --quiet; then
             echo "No changes to commit"
