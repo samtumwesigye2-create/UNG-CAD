@@ -1028,3 +1028,9 @@ class FrontendStaticFiles(StaticFiles):
 
 _static_dirs = [PUBLIC_DIR, BASE_DIR] if PUBLIC_DIR.is_dir() else [BASE_DIR]
 app.mount("/static", FrontendStaticFiles(_static_dirs), name="static")
+
+# The pages (viewer.html, studio.html, ...) load their scripts with relative paths like
+# ./viewer.js, so the same front-end files must also be reachable at the site root.
+# Mounted last: every API route above still wins; only unmatched paths fall through here,
+# with the same allow-list (no .py, .db, tests, data, ...).
+app.mount("/", FrontendStaticFiles(_static_dirs), name="root-static")
