@@ -1,9 +1,13 @@
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
-MAIN=ROOT/"ung-cad-3d"/"main.py"
-BRIDGE=ROOT/"ung-cad-3d"/"ung-cad-ad5m-bridge.py"
-TEST_BRIDGE=ROOT/"ung-cad-3d"/"tests"/"test_bridge.py"
+APP=ROOT/"ung-cad-3d"
+MAIN=APP/"main.py"
+BRIDGE=APP/"ung-cad-ad5m-bridge.py"
+TEST_BRIDGE=APP/"tests"/"test_bridge.py"
+TEST_MAIN=APP/"tests"/"test_main.py"
+TEST_RECOVERY=APP/"tests"/"test_recovery_structure.py"
+TEST_STANDALONE=APP/"tests"/"test_standalone_manufacturing_slice.py"
 ROOT_GATE_TEST=ROOT/"tests"/"test_mandatory_pre_slice_gate.py"
 
 # Keep the hardened app self-contained when tests/recovery copy only ung-cad-3d.
@@ -43,11 +47,43 @@ except ImportError:
 '''
 if old in main:
     main=main.replace(old,new,1)
-# The fallback above makes this hard-lock check unnecessary only in isolated recovery copies.
 main=main.replace('''    if sign_machine_file is None:
         raise HTTPException(503,"Machine-file signer unavailable; slicing cannot create a printable verified file.")
 
 ''','',1)
+
+# Restore release state on /inspect while retaining the hardened ZIP/path limits.
+inspect_start=main.index('@app.post("/api/manufacturing/inspect")')
+inspect_end=main.index('\n\nasync def read_selected',inspect_start)
+inspect_block='''@app.post("/api/manufacturing/inspect")
+async def inspect(file: UploadFile = File(...)):
+    name=file.filename or "project"
+    data=await read_upload(file)
+    entries=[]
+    manifest=None
+    if name.lower().endswith(".zip"):
+        with open_checked_zip(data) as z:
+            members=[n for n in z.namelist() if not n.endswith("/")]
+            entries=printable_entries(members)
+            manifest_name=next((n for n in members if Path(n).name==RELEASE_MANIFEST),None)
+            if manifest_name:
+                try:
+                    manifest=parse_release_manifest(z.read(manifest_name))
+                except ValueError as e:
+                    raise HTTPException(422,str(e))
+    elif name.lower().endswith((".stl",".3mf",".gcode",".gx")):
+        entries=[name]
+    else:
+        raise HTTPException(400,"Unsupported project type")
+    if not entries:
+        raise HTTPException(400,"No printable files found")
+    release_ok,blockers=evaluate_package(entries,manifest)
+    return {"ok":True,"part_count":len(entries),"parts":[Path(n).name for n in entries],
+            "printer_profile":"FlashForge Adventurer 5M","assembly_reference_excluded":True,
+            "production_release":{"ready":release_ok,"blockers":blockers,
+                                  "p0_only_until_release":bool(blockers and any(is_draco_name(n) for n in entries))}}
+'''
+main=main[:inspect_start]+inspect_block+main[inspect_end:]
 MAIN.write_text(main,encoding="utf-8")
 
 # Upload-only is not a physical print. Require cloud release verification only for explicit start.
@@ -91,6 +127,46 @@ new_test='''    calls.clear()
 if old_test in test:
     test=test.replace(old_test,new_test,1)
 TEST_BRIDGE.write_text(test,encoding="utf-8")
+
+# New standalone slicer regressions must exercise the release signer with an explicit test key.
+test_main=TEST_MAIN.read_text(encoding="utf-8")
+test_main=test_main.replace('''            "UNG_CAD_PUBLIC_ORIGIN"]''','''            "UNG_CAD_PUBLIC_ORIGIN", "UNG_GCODE_SIGNING_KEY"]''',1)
+test_main=test_main.replace('''def test_slice_unique_names_material_and_download(make_client):
+    module, client = make_client()
+''','''def test_slice_unique_names_material_and_download(make_client):
+    module, client = make_client(UNG_GCODE_SIGNING_KEY="test-only-signing-key")
+''',1)
+test_main=test_main.replace('''def test_slice_validation_errors_and_warnings_returned(make_client):
+    _, client = make_client()
+''','''def test_slice_validation_errors_and_warnings_returned(make_client):
+    _, client = make_client(UNG_GCODE_SIGNING_KEY="test-only-signing-key")
+''',1)
+TEST_MAIN.write_text(test_main,encoding="utf-8")
+
+# The loopback-only bridge contract is semantic, not whitespace-sensitive.
+recovery=TEST_RECOVERY.read_text(encoding="utf-8")
+recovery=recovery.replace('''    assert 'HOST="127.0.0.1"' in src
+''','''    assert 'HOST="127.0.0.1"' in src or 'HOST = "127.0.0.1"' in src
+''',1)
+TEST_RECOVERY.write_text(recovery,encoding="utf-8")
+
+# Adapt the legacy standalone test hook to the hardened slicer entry point.
+standalone=TEST_STANDALONE.read_text(encoding="utf-8")
+old_hook='''    monkeypatch.setattr(main,"slice_stl",lambda data,name,layer_height:(
+        b"; generated test gcode\\n",
+        {"layers":1,"infill_percent":15,"wall_count":2,"support_layers":0,"material_g":1.0,"estimated_minutes":1,"validation":"PASS"},
+    ))
+'''
+new_hook='''    monkeypatch.setattr(main,"_run_3d_slice",lambda data,name,submitted_by,layer_height,material,xy_hole_comp_mm,elephant_foot_mm:(
+        {"job_id":1,"target":main.GENERATED_DIR/"mock_AD5M.gcode",
+         "stats":{"layers":1,"wall_count":2,"material":material},
+         "report":{"warnings":[],"errors":[]}},
+        None,
+    ))
+'''
+if old_hook in standalone:
+    standalone=standalone.replace(old_hook,new_hook,1)
+TEST_STANDALONE.write_text(standalone,encoding="utf-8")
 
 # Preserve the original safety invariant while accepting the hardened slicer's new entry point.
 gate_test=ROOT_GATE_TEST.read_text(encoding="utf-8")
