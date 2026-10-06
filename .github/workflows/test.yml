@@ -15,8 +15,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install test dependency
-        run: python -m pip install pytest sympy numpy fastapi httpx trimesh python-multipart
+      - name: Install project and test dependencies
+        run: |
+          python -m pip install -r ung-cad-3d/requirements.txt
+          if [ -f ung-cad-3d/requirements-dev.txt ]; then python -m pip install -r ung-cad-3d/requirements-dev.txt; fi
       - name: Run tests
         run: python -m pytest -q
       - uses: actions/setup-node@v4
