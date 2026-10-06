@@ -20,7 +20,10 @@ jobs:
           python -m pip install -r ung-cad-3d/requirements.txt
           python -m pip install sympy
           if [ -f ung-cad-3d/requirements-dev.txt ]; then python -m pip install -r ung-cad-3d/requirements-dev.txt; fi
-      - name: Run tests
+      - name: Run root regression tests
+        run: python -m pytest -q --ignore=ung-cad-3d/tests
+      - name: Run UNG-CAD-3D fix regression suite
+        working-directory: ung-cad-3d
         run: python -m pytest -q
       - uses: actions/setup-node@v4
         with:
