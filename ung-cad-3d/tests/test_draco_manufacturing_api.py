@@ -1,8 +1,13 @@
 """End-to-end API regression for the mandatory Manufacturing release gate."""
 import io, json, os, zipfile
 from fastapi.testclient import TestClient
-from main import app
+import main
 
+# This module keeps one TestClient for the API regression. TestClient only runs
+# FastAPI lifespan hooks when used as a context manager, so initialize the same
+# schema startup() would create before exercising job persistence.
+main.init_db()
+app=main.app
 client=TestClient(app)
 
 PARTS=["P1","P2","P9A","P9B","P3","P4","P5","P6","P7","P8"]
