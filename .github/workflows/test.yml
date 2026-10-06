@@ -18,6 +18,7 @@ jobs:
       - name: Install project and test dependencies
         run: |
           python -m pip install -r ung-cad-3d/requirements.txt
+          python -m pip install sympy
           if [ -f ung-cad-3d/requirements-dev.txt ]; then python -m pip install -r ung-cad-3d/requirements-dev.txt; fi
       - name: Run tests
         run: python -m pytest -q
