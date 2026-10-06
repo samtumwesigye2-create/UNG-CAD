@@ -24,6 +24,8 @@ jobs:
         run: python -m pytest -q --ignore=ung-cad-3d/tests
       - name: Run UNG-CAD-3D fix regression suite
         working-directory: ung-cad-3d
+        env:
+          PYTHONPATH: ${{ github.workspace }}/ung-cad-3d/tests:${{ github.workspace }}/ung-cad-3d
         run: python -m pytest -q
       - uses: actions/setup-node@v4
         with:
