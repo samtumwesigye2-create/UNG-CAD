@@ -19,7 +19,12 @@ echo "Preparing printer driver..."
   exit 1
 }
 echo "Starting local bridge on 127.0.0.1:8765..."
-"$PY" ung-cad-ad5m-bridge.py
+if [ -f ung-cad-ad5m-agent.py ]; then
+  "$PY" ung-cad-ad5m-agent.py
+else
+  echo "Status agent not found; starting bridge without cloud readiness heartbeat."
+  "$PY" ung-cad-ad5m-bridge.py
+fi
 rc=$?
 echo "Bridge stopped (code $rc)."
 read -r -p "Press Return to close..."
