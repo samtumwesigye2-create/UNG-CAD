@@ -10,5 +10,10 @@ if errorlevel 1 (
 )
 py -m pip install --user --upgrade flashforge-python-api
 if errorlevel 1 pause & exit /b 1
-py "%~dp0ung-cad-ad5m-bridge.py"
+if exist "%~dp0ung-cad-ad5m-agent.py" (
+  py "%~dp0ung-cad-ad5m-agent.py"
+) else (
+  echo Status agent not found; starting bridge without cloud readiness heartbeat.
+  py "%~dp0ung-cad-ad5m-bridge.py"
+)
 pause
