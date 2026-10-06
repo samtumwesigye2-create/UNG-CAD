@@ -15,7 +15,7 @@ from conftest import APP_DIR, box, stl_bytes
 _counter = itertools.count()
 ENV_VARS = ["UNG_CAD_3D_DB", "UNG_CAD_GENERATED_DIR", "UNG_CAD_DASHBOARD_TOKEN", "UNG_CAD_ADMIN_TOKEN",
             "UNG_CAD_MAX_UPLOAD_MB", "UNG_CAD_MAX_ZIP_UNCOMPRESSED_MB", "UNG_CAD_MAX_ZIP_MEMBERS",
-            "UNG_CAD_PUBLIC_ORIGIN"]
+            "UNG_CAD_PUBLIC_ORIGIN", "UNG_GCODE_SIGNING_KEY"]
 
 
 def build_app(tmp_path, monkeypatch, legacy_keys=None, **env):
@@ -220,7 +220,7 @@ def test_zip_guards(make_client):
 
 
 def test_slice_unique_names_material_and_download(make_client):
-    module, client = make_client()
+    module, client = make_client(UNG_GCODE_SIGNING_KEY="test-only-signing-key")
     names = set()
     for _ in range(2):
         r = client.post("/api/manufacturing/slice", files=cube_upload(), data={"selected": "cube.stl"})
@@ -244,7 +244,7 @@ def test_slice_unique_names_material_and_download(make_client):
 
 
 def test_slice_validation_errors_and_warnings_returned(make_client):
-    _, client = make_client()
+    _, client = make_client(UNG_GCODE_SIGNING_KEY="test-only-signing-key")
     tall = {"file": ("tall.stl", stl_bytes(box(10, 10, 230)))}
     r = client.post("/api/manufacturing/slice", files=tall, data={"selected": "tall.stl"})
     assert r.status_code == 422

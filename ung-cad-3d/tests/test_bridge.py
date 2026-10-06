@@ -289,6 +289,12 @@ def test_print_requires_explicit_confirm(bridge, monkeypatch):
     calls.clear()
     status, _, data = request(bridge, "POST", "/print", body=b"G28\n",
                               headers={"X-Filename": "part.gcode", "X-Confirm-Start": "true"})
+    assert status == 423
+    assert not any(c[0] == "print_local_file" for c in calls)
+    monkeypatch.setattr(bridge, "verify_released_machine_bytes",
+                        lambda name, raw: {"machine_file_sha256": "test-approved"})
+    status, _, data = request(bridge, "POST", "/print", body=b"G28\n",
+                              headers={"X-Filename": "part.gcode", "X-Confirm-Start": "true"})
     assert status == 200 and data["started"] is True
     assert ("print_local_file", "part.gcode", True) in calls
     # wrong file type still refused

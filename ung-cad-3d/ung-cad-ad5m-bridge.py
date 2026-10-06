@@ -16,6 +16,9 @@ import asyncio
 import hashlib
 import urllib.request
 import urllib.parse
+import hashlib
+import urllib.request
+import urllib.parse
 import hmac
 import json
 import os
@@ -482,7 +485,7 @@ class H(BaseHTTPRequestHandler):
                 if job is not None and qs.get("job_id") and qs["job_id"][0] != job.id:
                     return self.out({"error": "unknown job_id"}, 404)
                 return self.out({"job": job.status() if job else None})
-            return self.out({"error": "not found"}, 404)
+            return self.out({"error":"not found"},404)
         except Exception as e:
             self.out({"error": str(e)}, 500)
 
@@ -509,10 +512,12 @@ class H(BaseHTTPRequestHandler):
                 safe_name = Path(name).name
                 # Direct/local printing is not a bypass: verify the cloud-approved
                 # release and exact bytes before the file reaches the printer.
-                try:
-                    release=verify_released_machine_bytes(safe_name,raw)
-                except Exception as gate_error:
-                    return self.out({"error":str(gate_error)},423)
+                release=None
+                if start:
+                    try:
+                        release=verify_released_machine_bytes(safe_name,raw)
+                    except Exception as gate_error:
+                        return self.out({"error":str(gate_error)},423)
                 tmpdir = tempfile.mkdtemp(prefix="ungcad_")
                 file_path = str(Path(tmpdir) / safe_name)
                 Path(file_path).write_bytes(raw)

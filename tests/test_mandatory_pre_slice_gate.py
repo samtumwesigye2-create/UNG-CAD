@@ -21,7 +21,8 @@ def test_supplied_production_manifest_is_still_enforced():
     block=_slice_block()
     assert "evaluate_production_manifest(manifest)" in block
     assert "Production readiness gate is not PASS for the supplied manifest." in block
-    assert block.index("evaluate_production_manifest(manifest)") < block.index("slice_stl(")
+    slice_entry="_run_3d_slice(" if "_run_3d_slice(" in block else "slice_stl("
+    assert block.index("evaluate_production_manifest(manifest)") < block.index(slice_entry)
 
 
 def test_draco_package_failure_is_still_hard_locked():

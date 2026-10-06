@@ -23,4 +23,4 @@ def test_bridge_safety_contract():
     src=(ROOT/"ung-cad-ad5m-bridge.py").read_text(encoding="utf-8")
     assert 'start_print=False' in src
     assert 'print_local_file' in src
-    assert 'HOST="127.0.0.1"' in src
+    assert 'HOST="127.0.0.1"' in src or 'HOST = "127.0.0.1"' in src

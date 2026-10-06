@@ -38,9 +38,11 @@ endsolid tetra
 """
 
 def test_standalone_stl_slices_without_production_manifest(monkeypatch):
-    monkeypatch.setattr(main,"slice_stl",lambda data,name,layer_height:(
-        b"; generated test gcode\n",
-        {"layers":1,"infill_percent":15,"wall_count":2,"support_layers":0,"material_g":1.0,"estimated_minutes":1,"validation":"PASS"},
+    monkeypatch.setattr(main,"_run_3d_slice",lambda data,name,submitted_by,layer_height,material,xy_hole_comp_mm,elephant_foot_mm:(
+        {"job_id":1,"target":main.GENERATED_DIR/"mock_AD5M.gcode",
+         "stats":{"layers":1,"wall_count":2,"material":material},
+         "report":{"warnings":[],"errors":[]}},
+        None,
     ))
     monkeypatch.setattr(main,"sign_machine_file",lambda path,release:{
         "machine_file_sha256":"test",
