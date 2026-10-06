@@ -1,9 +1,10 @@
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
-from conftest import APP_DIR
+APP_DIR = Path(__file__).resolve().parent.parent
 
 JS_FILES = ["drafting_cnc_section.js", "public/ung-auth.js", "public/preview_viewer.js"]
 node = shutil.which("node")
