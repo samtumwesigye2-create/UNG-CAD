@@ -4,6 +4,7 @@ ROOT=Path(__file__).resolve().parents[1]
 MAIN=ROOT/"ung-cad-3d"/"main.py"
 BRIDGE=ROOT/"ung-cad-3d"/"ung-cad-ad5m-bridge.py"
 TEST_BRIDGE=ROOT/"ung-cad-3d"/"tests"/"test_bridge.py"
+ROOT_GATE_TEST=ROOT/"tests"/"test_mandatory_pre_slice_gate.py"
 
 # Keep the hardened app self-contained when tests/recovery copy only ung-cad-3d.
 main=MAIN.read_text(encoding="utf-8")
@@ -90,3 +91,14 @@ new_test='''    calls.clear()
 if old_test in test:
     test=test.replace(old_test,new_test,1)
 TEST_BRIDGE.write_text(test,encoding="utf-8")
+
+# Preserve the original safety invariant while accepting the hardened slicer's new entry point.
+gate_test=ROOT_GATE_TEST.read_text(encoding="utf-8")
+old_assert='''    assert block.index("evaluate_production_manifest(manifest)") < block.index("slice_stl(")
+'''
+new_assert='''    slice_entry="_run_3d_slice(" if "_run_3d_slice(" in block else "slice_stl("
+    assert block.index("evaluate_production_manifest(manifest)") < block.index(slice_entry)
+'''
+if old_assert in gate_test:
+    gate_test=gate_test.replace(old_assert,new_assert,1)
+ROOT_GATE_TEST.write_text(gate_test,encoding="utf-8")
