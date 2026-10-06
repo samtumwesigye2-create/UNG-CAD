@@ -478,7 +478,38 @@ async function selectAndPreview(n,rowEl){
   console.error('selectAndPreview failed before reaching STL load:', outerErr);
  }
 }
-async function handleChosenFiles(fileList,sourceLabel='files'){if(!fileList||!fileList.length)return;const chosen=[...fileList];parts.innerHTML='';part.innerHTML='';status.textContent='Preparing selected '+sourceLabel+'…';previewStats.textContent='No part selected yet.';
+// ---- Convert GLB / GLTF / OBJ to STL in the browser (the server only accepts STL/3MF/G-code) ----
+function __stlFromTriangles(tris){const buf=new ArrayBuffer(84+50*tris.length),dv=new DataView(buf);dv.setUint32(80,tris.length,true);let o=84;
+ for(const t of tris){const [a,b,c]=t;const ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2],vx=c[0]-a[0],vy=c[1]-a[1],vz=c[2]-a[2];let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const l=Math.hypot(nx,ny,nz)||1;
+  for(const v of [nx/l,ny/l,nz/l,...a,...b,...c]){dv.setFloat32(o,v,true);o+=4;} o+=2;}
+ return buf;}
+function __trisFromOBJ(text){const V=[],T=[];for(const line of text.split(/\r?\n/)){const p=line.trim().split(/\s+/);
+  if(p[0]==='v')V.push([+p[1],+p[2],+p[3]]);
+  else if(p[0]==='f'){const idx=p.slice(1).map(x=>{const i=parseInt(x.split('/')[0],10);return i<0?V.length+i:i-1;});for(let k=1;k+1<idx.length;k++)T.push([V[idx[0]],V[idx[k]],V[idx[k+1]]]);}}
+ return T.filter(t=>t.every(Boolean));}
+async function __trisFromGLTF(file){
+ const THREE=await import('three');const {GLTFLoader}=await import('https://cdn.jsdelivr.net/npm/three@0.140.0/examples/jsm/loaders/GLTFLoader.js');
+ const data=/\.glb$/i.test(file.name)?await file.arrayBuffer():await file.text();
+ const gltf=await new Promise((res,rej)=>new GLTFLoader().parse(data,'',res,e=>rej(new Error('Could not read '+file.name+(e&&e.message?' — '+e.message:'')))));
+ const T=[],v=new THREE.Vector3();gltf.scene.updateMatrixWorld(true);
+ gltf.scene.traverse(m=>{if(!m.isMesh||!m.geometry?.attributes?.position)return;const pos=m.geometry.attributes.position,ix=m.geometry.index;
+  const P=i=>{v.fromBufferAttribute(pos,i).applyMatrix4(m.matrixWorld);return [v.x,-v.z,v.y];};   // glTF is Y-up; printers are Z-up
+  const n=ix?ix.count:pos.count;for(let k=0;k+2<n;k+=3){const a=ix?ix.getX(k):k,b=ix?ix.getX(k+1):k+1,c=ix?ix.getX(k+2):k+2;T.push([P(a),P(b),P(c)]);}});
+ // glTF uses metres; if the model is tiny, treat it as metres and convert to millimetres
+ let mx=0;for(const t of T)for(const p of t)mx=Math.max(mx,Math.abs(p[0]),Math.abs(p[1]),Math.abs(p[2]));
+ if(mx>0&&mx<2)for(const t of T)for(const p of t){p[0]*=1000;p[1]*=1000;p[2]*=1000;}
+ return T;}
+async function __toPrintableFile(file){
+ const low=file.name.toLowerCase();
+ if(/\.(stl|3mf|gcode|gx|zip)$/.test(low)||low.endsWith('.gcode.3mf'))return file;
+ let tris;
+ if(low.endsWith('.obj'))tris=__trisFromOBJ(await file.text());
+ else if(/\.(glb|gltf)$/.test(low))tris=await __trisFromGLTF(file);
+ else throw new Error(file.name+' is not a 3D model this page can use. Choose an STL, 3MF, OBJ, GLB or GLTF file.');
+ if(!tris.length)throw new Error('No geometry found in '+file.name);
+ return new File([__stlFromTriangles(tris)],file.name.replace(/\.[^.]+$/,'')+'.stl',{type:'model/stl'});}
+function __showPreviewError(msg){const ph=document.getElementById('previewPlaceholder');if(ph){ph.style.display='flex';ph.textContent=msg;}previewStats.textContent=msg;}
+async function handleChosenFiles(fileList,sourceLabel='files'){if(!fileList||!fileList.length)return;let chosen=[...fileList];try{chosen=await Promise.all(chosen.map(__toPrintableFile));}catch(e){parts.innerHTML='';part.innerHTML='<option>Select package first</option>';status.textContent='FAILED — '+e.message;__showPreviewError(e.message);return;}parts.innerHTML='';part.innerHTML='';status.textContent='Preparing selected '+sourceLabel+'…';previewStats.textContent='No part selected yet.';
  // Manufacturing must preview STL locally even if Railway inspection is unavailable.
  if(chosen.length===1&&/\.stl$/i.test(chosen[0].name)){
    selectedFile=chosen[0];
@@ -506,7 +537,7 @@ if(j.parts.length)await selectAndPreview(j.parts[0],firstRow);
  if(selectedFile&&/\.stl$/i.test(selectedFile.name)){
    status.textContent='Geometry loaded locally. Server inspection unavailable — '+e.message;
    if(typeof window.__previewSTL==='function') await selectAndPreview(selectedFile.name,document.querySelector('.part'));
- }else status.textContent='FAILED — '+e.message;
+ }else{status.textContent='FAILED — '+e.message;__showPreviewError('Could not load this file — '+e.message);}
 }}
 async function receiveStudioModel(){
  try{
