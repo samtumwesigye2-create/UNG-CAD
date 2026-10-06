@@ -5,6 +5,7 @@ on:
     branches: ["test/ung-cad-fixes-2026-10-06"]
     paths:
       - ".integration/restore_release_gates.py"
+      - ".github/workflows/restore-release-gates.yml"
 
 permissions:
   contents: write
@@ -19,6 +20,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install targeted test dependency
+        run: python -m pip install pytest
       - name: Restore production release gates into integrated implementation
         run: python .integration/restore_release_gates.py
       - name: Parse check restored Python
