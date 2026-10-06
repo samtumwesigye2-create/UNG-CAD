@@ -4,7 +4,7 @@ on:
   push:
     branches: ["test/ung-cad-fixes-2026-10-06"]
     paths:
-      - ".integration/core_fixes.b64.part10"
+      - ".integration/core_fixes.b64.part*"
       - ".github/workflows/apply-ung-cad-fixes.yml"
 
 permissions:
