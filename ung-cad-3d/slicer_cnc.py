@@ -36,20 +36,24 @@ MAX_PASSES = 200
 
 DEFAULTS = {
     "mode": "laser",
-    "feed_rate": 800.0,
-    "plunge_rate": 200.0,
-    "rapid_rate": 3000.0,
-    "safe_z": 5.0,
-    "cut_depth_per_pass": 1.0,
-    "spindle_speed": 12000,
-    "laser_power_percent": 80.0,
-    "max_s": 1000,
+    "feed_rate": 800.0,          # mm/min, cutting moves
+    "plunge_rate": 200.0,        # mm/min, CNC Z plunges
+    "rapid_rate": 3000.0,        # mm/min, only used for the time estimate of G0 moves
+    "safe_z": 5.0,               # mm, CNC only
+    "cut_depth_per_pass": 1.0,   # mm, CNC only
+    "spindle_speed": 12000,      # rpm, CNC only
+    "laser_power_percent": 80.0, # 0-100, laser only
+    "max_s": 1000,               # S value that means 100 % (GRBL $30)
     "scale_mm_per_px": 1.0,
 }
 
 
 def resolve_settings(settings):
-    """Single source of truth for defaults + validation."""
+    """
+    Single source of truth for defaults + validation, shared by generate_gcode
+    and the time estimate so they can never disagree.
+    Raises ValueError with a readable message for bad input.
+    """
     s = dict(DEFAULTS)
     s.update({k: v for k, v in (settings or {}).items() if v is not None})
     mode = s["mode"]
@@ -113,6 +117,13 @@ def _circle_points(shape, resolution=48):
 
 
 def shapes_to_paths(shapes, scale_mm_per_px: float):
+    """
+    Converts drafting.js shapes (canvas pixels, Y down) into toolpaths in mm (Y up).
+    The drawing's bounding box is moved so its bottom-left corner is X0 Y0:
+        x_mm = (x_px - min_x_px) * scale
+        y_mm = (max_y_px - y_px) * scale
+    Returns a list of paths, each a list of (x, y) points in mm.
+    """
     px_paths = []
     for s in shapes:
         t = s.get("t")
@@ -123,7 +134,7 @@ def shapes_to_paths(shapes, scale_mm_per_px: float):
         elif t == "circle":
             pts = _circle_points(s)
         else:
-            continue
+            continue    # dim, label - not physical geometry
         px_paths.append([(float(x), float(y)) for x, y in pts])
     if not px_paths:
         return []
@@ -136,6 +147,14 @@ def shapes_to_paths(shapes, scale_mm_per_px: float):
 
 
 def generate_gcode(paths, settings: dict) -> str:
+    """
+    settings:
+        mode: 'cnc' or 'laser'
+        feed_rate (mm/min), plunge_rate (mm/min), safe_z (mm, cnc),
+        cut_depth_per_pass (mm, cnc), total_depth (mm, cnc; default = one pass),
+        spindle_speed (cnc, 1000-30000 rpm) or laser_power_percent (laser, 0-100),
+        max_s (S value for 100 %, default 1000 = GRBL $30 default)
+    """
     s = resolve_settings(settings)
     mode = s["mode"]
     feed = s["feed_rate"]
@@ -178,6 +197,11 @@ def generate_gcode(paths, settings: dict) -> str:
 
 
 def estimate_seconds(paths, settings: dict) -> int:
+    """
+    Rough job time using the SAME resolved settings as generate_gcode:
+    cutting moves at feed_rate, CNC plunges at plunge_rate, rapids (travels and
+    CNC retracts) at rapid_rate. Ignores acceleration.
+    """
     s = resolve_settings(settings)
     seconds = 0.0
     pos = (0.0, 0.0)
@@ -190,13 +214,17 @@ def estimate_seconds(paths, settings: dict) -> int:
             seconds += cut_len / s["feed_rate"] * 60
             if s["mode"] == "cnc":
                 depth = min((p + 1) * s["cut_depth_per_pass"], s["total_depth"])
-                seconds += (s["safe_z"] + depth) / s["plunge_rate"] * 60
-                seconds += (s["safe_z"] + depth) / s["rapid_rate"] * 60
+                seconds += (s["safe_z"] + depth) / s["plunge_rate"] * 60   # plunge
+                seconds += (s["safe_z"] + depth) / s["rapid_rate"] * 60    # retract
             pos = path[-1]
     return int(round(seconds))
 
 
 def slice_shapes_to_gcode(shapes: list, settings: dict):
+    """
+    Full pipeline: shapes (px) -> paths (mm) -> G-code.
+    Returns (gcode_str, path_count, estimated_seconds)
+    """
     s = resolve_settings(settings)
     paths = shapes_to_paths(shapes, s["scale_mm_per_px"])
     if not paths:

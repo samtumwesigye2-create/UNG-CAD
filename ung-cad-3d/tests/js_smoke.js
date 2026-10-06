@@ -43,6 +43,7 @@ async function testPreviewViewer() {
     ],
   };
   const cells = ctx.UNGPreview.crossSection(data, 'y', 0);
+  // layer 1: the ring crosses Y=0 twice; layer 2: the infill line runs along the plane
   assert.strictEqual(cells.length, 3);
   assert.ok(cells.some((c) => c.type === 'infill' && c.to - c.from > 8));
   const host = fakeElement('host');
@@ -83,7 +84,7 @@ async function testAuthHelper() {
   assert.ok(calls.some((c) => c.url === '/api/login'));
   calls.length = 0;
   await win.fetch('https://other.example/api/jobs');
-  assert.strictEqual(calls[0].headers.get('Authorization'), null);
+  assert.strictEqual(calls[0].headers.get('Authorization'), null);   // never leak the token cross-origin
   await win.fetch('/health');
   assert.strictEqual(calls[1].headers.get('Authorization'), null);
   const b = await win.UNG.bridgeFetch('/serial/ports');
@@ -141,12 +142,13 @@ async function testDraftingSection() {
   assert.strictEqual(confirms.length, 1);
   const send = bridgeCalls.find((c) => c.p === '/serial/send');
   assert.ok(send && send.init.headers['X-Port'] === 'COM3' && send.init.headers['X-Machine-Mode'] === 'laser');
-  assert.strictEqual(timers.length, 1);
+  assert.strictEqual(timers.length, 1);           // status polling started
   await timers[0]();
   assert.ok(bridgeCalls.some((c) => c.p.startsWith('/serial/status?job_id=j1')));
   await els['cnc-stop'].onclick();
   assert.ok(bridgeCalls.some((c) => c.p === '/serial/stop'));
   assert.ok(els['cnc-send-status'].textContent.startsWith('STOPPED'));
+  // declining the confirm sends nothing
   win.confirm = () => false;
   const before = bridgeCalls.length;
   await els['cnc-send'].onclick();

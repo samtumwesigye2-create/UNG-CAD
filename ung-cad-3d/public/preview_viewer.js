@@ -50,8 +50,8 @@
   function crossSection(data, axis, pos) {
     var lw = data.line_width || 0.45;
     var cells = [];
-    var a = axis === 'x' ? 0 : 1;
-    var b = axis === 'x' ? 1 : 0;
+    var a = axis === 'x' ? 0 : 1;   // coordinate compared with the plane
+    var b = axis === 'x' ? 1 : 0;   // coordinate drawn horizontally
     data.layers.forEach(function (layer) {
       layer.paths.forEach(function (p) {
         if (p.type === 'travel') {
@@ -61,6 +61,7 @@
           var p0 = p.points[i - 1], p1 = p.points[i];
           var d0 = p0[a] - pos, d1 = p1[a] - pos;
           if (Math.abs(d0) < lw / 2 && Math.abs(d1) < lw / 2) {
+            // segment runs along the plane: draw its whole span
             cells.push({ from: Math.min(p0[b], p1[b]) - lw / 2, to: Math.max(p0[b], p1[b]) + lw / 2,
                          z: layer.z, h: layer.thickness, type: p.type });
           } else if (d0 * d1 <= 0 && d0 !== d1) {
@@ -200,6 +201,7 @@
         drawLayer(ctx, layers[state.layer - 1], tf, 0.2);
       }
       drawLayer(ctx, layers[state.layer], tf, 1);
+      // cut plane marker
       var b = state.bounds;
       ctx.setLineDash([4, 4]);
       ctx.strokeStyle = '#facc15';

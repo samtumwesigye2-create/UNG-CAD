@@ -3,7 +3,7 @@ import pytest
 import slicer_cnc
 
 RECT = {"t": "rect", "a": {"x": 100, "y": 50}, "b": {"x": 300, "y": 150}}
-LINE_DOWN = {"t": "line", "a": {"x": 100, "y": 50}, "b": {"x": 100, "y": 150}}
+LINE_DOWN = {"t": "line", "a": {"x": 100, "y": 50}, "b": {"x": 100, "y": 150}}   # canvas: top -> bottom
 LABEL = {"t": "label", "a": {"x": 0, "y": 0}, "text": "x"}
 
 
@@ -16,9 +16,10 @@ def test_y_flip_and_origin_bottom_left():
     allpts = [p for path in paths for p in path]
     assert min(x for x, _ in allpts) == pytest.approx(0)
     assert min(y for _, y in allpts) == pytest.approx(0)
-    assert max(x for x, _ in allpts) == pytest.approx(100)
-    assert max(y for _, y in allpts) == pytest.approx(50)
+    assert max(x for x, _ in allpts) == pytest.approx(100)    # (300-100)*0.5
+    assert max(y for _, y in allpts) == pytest.approx(50)     # (150-50)*0.5
     line = paths[1]
+    # canvas point a (y=50, top) becomes the HIGHER Y in machine coordinates
     assert line[0] == pytest.approx((0, 50))
     assert line[1] == pytest.approx((0, 0))
 
@@ -67,19 +68,21 @@ def test_validation(settings, message):
 
 
 def test_laser_settings_ignore_spindle_range():
+    # the UI always sends both fields; spindle is only validated in CNC mode
     slicer_cnc.slice_shapes_to_gcode([RECT], {"mode": "laser", "spindle_speed": 0})
 
 
 def test_time_estimate_consistent_with_gcode_defaults_and_plunges():
     paths = slicer_cnc.shapes_to_paths([RECT], 1.0)
+    # no total_depth -> one pass in both generate_gcode and the estimate
     base = {"mode": "cnc", "cut_depth_per_pass": 1.5}
     gcode = slicer_cnc.generate_gcode(paths, base)
     assert len([l for l in gcode.splitlines() if l.startswith("G1 Z")]) == 1
     one = slicer_cnc.estimate_seconds(paths, base)
-    cut = 600 / 800 * 60
-    plunge = (5 + 1.5) / 200 * 60
+    cut = 600 / 800 * 60                     # 600 mm perimeter at 800 mm/min
+    plunge = (5 + 1.5) / 200 * 60            # safe_z -> depth at plunge rate
     assert one >= cut + plunge - 1
     three = slicer_cnc.estimate_seconds(paths, {**base, "total_depth": 4.5})
     assert three > 2.9 * one
     laser = slicer_cnc.estimate_seconds(paths, {"mode": "laser"})
-    assert laser < one
+    assert laser < one                       # laser has no plunges
