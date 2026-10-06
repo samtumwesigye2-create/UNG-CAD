@@ -682,6 +682,102 @@ async def preview_part(file: UploadFile = File(...), selected: str = Form(...), 
         return _slice_failure(e, Path(source_name).name, "dashboard", log=False)
 
 
+def _mesh_checks(data: bytes):
+    """Raw (pre-repair) mesh facts for the Manufacturing page's Server validation panel."""
+    import numpy as np
+    import trimesh
+    mesh = trimesh.load_mesh(io.BytesIO(data), file_type="stl")
+    if not isinstance(mesh, trimesh.Trimesh) or len(mesh.faces) == 0:
+        return None, None
+    edges = mesh.edges_sorted
+    if len(edges):
+        _, counts = np.unique(edges, axis=0, return_counts=True)
+        boundary = int((counts == 1).sum())
+        nonmanifold = int((counts > 2).sum())
+    else:
+        boundary = nonmanifold = 0
+    try:
+        components = len(mesh.split(only_watertight=False))
+    except Exception:
+        components = None
+    n = mesh.face_normals
+    a = mesh.area_faces
+    zmin = float(mesh.bounds[0][2])
+    tri_z = mesh.triangles[:, :, 2]
+    on_bed = tri_z.max(axis=1) < zmin + 0.05
+    down = n[:, 2] < -0.999
+    edge_len = mesh.edges_unique_length
+    facts = {
+        "dimensions": [round(float(v), 3) for v in mesh.extents],
+        "triangle_count": int(len(mesh.faces)),
+        "connected_components": components,
+        "boundary_edges": boundary,
+        "nonmanifold_edges": nonmanifold,
+        "degenerate_faces": int((~mesh.nondegenerate_faces()).sum()),
+        "watertight": bool(mesh.is_watertight),
+    }
+    print_facts = {
+        "bed_contact_area_mm2": round(float(a[on_bed & down].sum()), 2),
+        "bridge_candidate_face_count": int((down & ~on_bed).sum()),
+        "min_mesh_edge_mm": round(float(edge_len.min()), 4) if len(edge_len) else None,
+    }
+    return facts, print_facts
+
+
+@app.post("/api/manufacturing/validate-upload")
+async def validate_upload(file: UploadFile = File(...), selected: str = Form(...),
+                          require_watertight: str = Form("false"),
+                          build_x: float = Form(220.0), build_y: float = Form(220.0), build_z: float = Form(220.0),
+                          clearance: float = Form(0.0), nozzle_diameter: float = Form(0.4),
+                          layer_height: float = Form(0.20), overhang_limit_deg: float = Form(45.0),
+                          minimum_feature: float = Form(0.4)):
+    """Pre-slice check used by Manufacturing Preflight. Runs the same validation the slicer runs,
+    so a PASS/WARNING here means Auto Prepare will accept the part."""
+    from slicer import SliceValidationError as _SVE, validate_and_prepare
+    source_name, data = await read_selected(file, selected)
+    low = source_name.lower()
+    if low.endswith((".gcode", ".gx", ".gcode.3mf")):
+        return {"status": "PASS", "machine_ready": True, "source": Path(source_name).name}
+    if not low.endswith(".stl"):
+        raise HTTPException(400, "Server validation supports STL geometry (or machine-ready G-code)")
+    try:
+        lh = float(layer_height)
+        if not (0.08 <= lh <= 0.4):
+            lh = 0.20
+        try:
+            _mesh, report = validate_and_prepare(data, layer_height=lh, nozzle=float(nozzle_diameter or 0.4))
+        except _SVE as e:
+            report = e.report
+        facts, print_facts = _mesh_checks(data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(422, f"Could not read STL: {e}")
+    facts = facts or {}
+    print_facts = print_facts or {}
+    errors = [x.get("message", str(x)) if isinstance(x, dict) else str(x) for x in report.get("errors", [])]
+    warnings = [x.get("message", str(x)) for x in report.get("warnings", []) if isinstance(x, dict) and x.get("code") != "overhang"]
+    p_warnings = [x.get("message", str(x)) for x in report.get("warnings", []) if isinstance(x, dict) and x.get("code") == "overhang"]
+    dims = facts.get("dimensions") or report.get("checks", {}).get("model_size_mm") or [0, 0, 0]
+    c = max(0.0, float(clearance or 0))
+    fits = bool(dims[0] <= build_x - 2 * c and dims[1] <= build_y - 2 * c and dims[2] <= build_z)
+    if str(require_watertight).lower() == "true" and not report.get("checks", {}).get("watertight", facts.get("watertight")):
+        errors.append("Mesh is not watertight")
+    status = "FAIL" if errors or not fits else ("WARNING" if warnings or p_warnings else "PASS")
+    return {
+        "status": status,
+        "machine_ready": False,
+        "source": Path(source_name).name,
+        "validation": {**facts, "errors": errors, "warnings": warnings,
+                       "repairs": report.get("repairs", [])},
+        "build_volume": {"fits": fits, "build_mm": [build_x, build_y, build_z], "clearance_mm": c},
+        "printability": {**print_facts,
+                         "overhang_area_percent": report.get("checks", {}).get("overhang_percent"),
+                         "overhang_face_count": None,
+                         "warnings": p_warnings, "notes": []},
+    }
+
+
 @app.get("/api/manufacturing/download/{name}")
 def download_machine_file(name: str):
     safe = Path(name).name

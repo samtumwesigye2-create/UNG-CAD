@@ -379,7 +379,7 @@ window.__previewSTL=function(label,arrayBuffer){
    let cv=document.getElementById('fallbackPreviewCanvas');if(!cv){cv=document.createElement('canvas');cv.id='fallbackPreviewCanvas';cv.style.cssText='width:100%;height:100%;display:block;touch-action:none';host.appendChild(cv);__installFallbackInteraction(cv);}
    __fallbackPreview.tris=tris;__drawFallbackSTL();
   }
-  previewStats.textContent=label+'\\n\\nDimensions (W × D × H):\\n'+b.size.x.toFixed(1)+' × '+b.size.y.toFixed(1)+' × '+b.size.z.toFixed(1)+' mm\\nTriangles: '+tris.length+'\\n\\nInteractive preview — drag to orbit · scroll/pinch browser gesture to zoom.';
+  previewStats.textContent=label+'\n\nDimensions (W × D × H):\n'+b.size.x.toFixed(1)+' × '+b.size.y.toFixed(1)+' × '+b.size.z.toFixed(1)+' mm\nTriangles: '+tris.length+'\n\nInteractive preview — drag to orbit · scroll/pinch browser gesture to zoom.';
   if(!window.UNGAnalyze.fitsBed(tris)){setPreflight('BLOCKED','model exceeds the Adventurer 5M 220 × 220 × 220 mm build volume.');return;}
   setPreflight('PASS','3D geometry loaded and fits the Adventurer 5M build volume.');
  }catch(e){host.classList.remove('loaded');if(ph){ph.style.display='flex';ph.textContent='Preview failed: '+e.message;}previewStats.textContent='Preview failed — '+e.message;setPreflight('BLOCKED','preview could not validate 3D geometry: '+e.message);}
