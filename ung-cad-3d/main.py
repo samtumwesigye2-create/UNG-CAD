@@ -778,6 +778,177 @@ async def validate_upload(file: UploadFile = File(...), selected: str = Form(...
     }
 
 
+# ---------- AD5M print queue: browser -> Railway -> AD5M agent on the computer next to the printer ----------
+# Jobs live in memory (one Railway instance). The agent polls /api/bridge/jobs/next, downloads the
+# machine file with a one-time token, checks its SHA-256, uploads it to the printer and starts it.
+PRINT_JOBS: dict = {}
+PRINT_JOB_TTL_SECONDS = 6 * 3600
+JOB_POLLS: dict = {}            # printer_id -> last time an agent asked for work (agents that can print)
+JOB_POLL_FRESH_SECONDS = 30
+BRIDGE_STATE_MESSAGES = {
+    "READY": "Printer agent online — AD5M connected and ready",
+    "PAIRING_ERROR": "Printer agent is running, but the AD5M rejected the Access Code",
+    "PRINTER_UNREACHABLE": "Printer agent is running, but it can't find the AD5M on your Wi-Fi",
+    "BRIDGE_ONLINE_PRINTER_OFFLINE": "Printer agent is running, but the AD5M isn't answering",
+    "BRIDGE_OFFLINE": "Printer agent is not running on the computer next to the printer",
+    "AGENT_UPDATE_NEEDED": "Printer agent is running but is an old version that can't print from this page — "
+                           "run the one-time update below",
+}
+
+
+def _now_unix() -> float:
+    import time as _time
+    return _time.time()
+
+
+def _prune_print_jobs():
+    cutoff = _now_unix() - PRINT_JOB_TTL_SECONDS
+    for jid in [k for k, v in PRINT_JOBS.items() if v["created_at"] < cutoff]:
+        PRINT_JOBS.pop(jid, None)
+
+
+def _check_printer_id(printer_id: str) -> str:
+    printer_id = (printer_id or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", printer_id):
+        raise HTTPException(422, "Invalid printer_id")
+    return printer_id
+
+
+def _public_job(job: dict) -> dict:
+    return {k: job[k] for k in ("id", "printer_id", "machine_file", "status", "created_at",
+                                "claimed_at", "finished_at", "result")}
+
+
+@app.get("/api/manufacturing/bridge-status")
+def manufacturing_bridge_status(printer_id: str):
+    printer_id = _check_printer_id(printer_id)
+    try:
+        from production_readiness_api import bridge_status as _bridge_status
+        status = dict(_bridge_status(printer_id))
+    except ImportError:
+        status = {"printer_id": printer_id, "state": "BRIDGE_OFFLINE", "fresh": False, "error": None}
+    state = status.get("state") or "BRIDGE_OFFLINE"
+    agent_connected = bool(status.get("fresh"))
+    can_print = _now_unix() - JOB_POLLS.get(printer_id, 0) <= JOB_POLL_FRESH_SECONDS
+    if not agent_connected:
+        state = "BRIDGE_OFFLINE"
+    elif not can_print:
+        state = "AGENT_UPDATE_NEEDED"
+    message = BRIDGE_STATE_MESSAGES.get(state, state)
+    if state not in ("READY", "BRIDGE_OFFLINE") and status.get("error"):
+        message += " (" + str(status["error"])[:160] + ")"
+    status.update({"state": state, "online": state == "READY", "agent_connected": agent_connected,
+                   "agent_can_print": can_print, "message": message})
+    return status
+
+
+class PrintJobIn(BaseModel):
+    printer_id: str
+    machine_file: str
+
+
+@app.post("/api/manufacturing/jobs")
+def create_print_job(body: PrintJobIn):
+    _prune_print_jobs()
+    printer_id = _check_printer_id(body.printer_id)
+    name = Path(body.machine_file or "").name
+    target = (GENERATED_DIR / name).resolve()
+    if not name or target.parent != GENERATED_DIR.resolve() or not target.is_file():
+        raise HTTPException(404, "Machine file not found — run Auto Prepare again")
+    if verify_machine_file is not None:
+        ok, message, _meta = verify_machine_file(target)
+        if not ok:
+            raise HTTPException(423, message)
+    if any(j["printer_id"] == printer_id and j["status"] in ("queued", "claimed") for j in PRINT_JOBS.values()):
+        raise HTTPException(409, "A print is already waiting for this printer")
+    job = {"id": secrets.token_hex(8), "printer_id": printer_id, "machine_file": name,
+           "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+           "file_token": secrets.token_urlsafe(24), "status": "queued", "created_at": _now_unix(),
+           "claimed_at": None, "finished_at": None, "result": None}
+    PRINT_JOBS[job["id"]] = job
+    return {"ok": True, "job_id": job["id"], "status": job["status"]}
+
+
+@app.get("/api/manufacturing/jobs/{job_id}")
+def get_print_job(job_id: str):
+    job = PRINT_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Print job not found")
+    # a claimed job the agent never finished (agent restarted, Wi-Fi dropped) is reported as failed
+    if job["status"] == "claimed" and _now_unix() - (job["claimed_at"] or 0) > 15 * 60:
+        job.update(status="failed", finished_at=_now_unix(),
+                   result={"error": "The printer agent picked up the job but never reported back"})
+    return _public_job(job)
+
+
+@app.get("/api/bridge/jobs/next")
+def bridge_next_job(printer_id: str):
+    printer_id = _check_printer_id(printer_id)
+    JOB_POLLS[printer_id] = _now_unix()
+    queued = sorted((j for j in PRINT_JOBS.values() if j["printer_id"] == printer_id and j["status"] == "queued"),
+                    key=lambda j: j["created_at"])
+    if not queued:
+        return {"job": None}
+    job = queued[0]
+    job.update(status="claimed", claimed_at=_now_unix())
+    return {"job": {"id": job["id"], "machine_file": job["machine_file"], "sha256": job["sha256"],
+                    "download": f"/api/bridge/jobs/{job['id']}/file?t={job['file_token']}"}}
+
+
+@app.get("/api/bridge/jobs/{job_id}/file")
+def bridge_job_file(job_id: str, t: str = ""):
+    job = PRINT_JOBS.get(job_id)
+    if not job or job["status"] != "claimed" or not hmac.compare_digest(t.encode(), job["file_token"].encode()):
+        raise HTTPException(404, "Job file not found")
+    target = GENERATED_DIR / job["machine_file"]
+    if not target.is_file():
+        raise HTTPException(404, "Machine file no longer on the server — run Auto Prepare again")
+    return FileResponse(target, media_type="application/octet-stream", filename=job["machine_file"])
+
+
+class JobCompleteIn(BaseModel):
+    ok: bool
+    result: Optional[dict] = None
+    error: Optional[str] = None
+
+
+@app.post("/api/bridge/jobs/{job_id}/complete")
+def bridge_job_complete(job_id: str, body: JobCompleteIn):
+    job = PRINT_JOBS.get(job_id)
+    if not job or job["status"] != "claimed":
+        raise HTTPException(404, "Job not found or not in progress")
+    result = dict(body.result or {})
+    if not body.ok:
+        result["error"] = (body.error or "Printer agent reported a failure")[:500]
+    job.update(status="completed" if body.ok else "failed", finished_at=_now_unix(), result=result)
+    return {"ok": True}
+
+
+def _installer_response(filename: str, media_type: str):
+    path = BASE_DIR / filename
+    if not path.is_file():
+        raise HTTPException(404, "Installer not found")
+    return FileResponse(path, media_type=media_type, filename=filename)
+
+
+@app.get("/install-ad5m-agent.command")
+def install_agent_mac():
+    return _installer_response("install-ad5m-agent.command", "text/x-shellscript")
+
+
+@app.get("/install-ad5m-agent.sh")
+def install_agent_mac_sh():
+    path = BASE_DIR / "install-ad5m-agent.command"
+    if not path.is_file():
+        raise HTTPException(404, "Installer not found")
+    return PlainTextResponse(path.read_text(encoding="utf-8"), media_type="text/x-shellscript")
+
+
+@app.get("/install-ad5m-agent.bat")
+def install_agent_windows():
+    return _installer_response("install-ad5m-agent.bat", "application/octet-stream")
+
+
 @app.get("/api/manufacturing/download/{name}")
 def download_machine_file(name: str):
     safe = Path(name).name

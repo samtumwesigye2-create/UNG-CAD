@@ -124,7 +124,7 @@ addEventListener('DOMContentLoaded',()=>{
 <div class="machine"><div class="an-row" style="margin:0 0 12px"><button class="btn" id="jumpPrepare" type="button" style="background:#1677ff;color:#fff">↑ Auto Prepare & Slice</button><span class="small">Prepare the selected model before printing.</span></div><b>AD5M printer bridge</b><div class="small">Send the prepared job to your Adventurer 5M. UNG-CAD queues it securely on Railway; the local AD5M bridge picks it up and starts the printer.</div>
 <div class="controls">
 <div class="field"><label>Printer</label><input id="printer" value="a51a5435" readonly></div>
-<div class="small">Your AD5M bridge connects to Railway automatically. <b id="bridgeState">Checking printer agent…</b><div id="agentInstall" style="display:none;margin-top:10px"><a class="btn" href="/install-ad5m-agent.command">Install printer agent on Mac</a></div></div>
+<div class="small">Your AD5M bridge connects to Railway automatically. <b id="bridgeState">Checking printer agent…</b><div id="agentInstall" style="display:none;margin-top:10px"><div>On the Mac next to the printer: open <b>Terminal</b>, paste this line, press Return. It installs or updates the printer agent and keeps your saved Access Code.</div><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><code id="agentCmd" style="flex:1;min-width:240px;padding:10px;border:1px solid #354150;border-radius:8px;background:#080d14;color:#e6ebf2;font-size:12px;word-break:break-all"></code><button class="btn" type="button" id="copyAgentCmd">Copy</button></div><div style="margin-top:6px">Windows: <a class="link" href="/install-ad5m-agent.bat">download the Windows installer</a>.</div></div></div>
 <button class="btn" id="send" disabled>Print</button>
 </div><div id="status" class="status"></div></div>
 
@@ -637,11 +637,15 @@ async function refreshBridge(){
  try{const id=document.getElementById('printer').value.trim();const r=await fetch(api('/api/manufacturing/bridge-status?printer_id='+encodeURIComponent(id)),{cache:'no-store'}),j=await r.json();const el=document.getElementById('bridgeState');
  const install=document.getElementById('agentInstall');
  bridgeOnline=!!j.online;
- if(j.online){el.textContent='● Printer agent online';sendBtn.textContent='Print';sendBtn.disabled=!lastMachineUrl;sendBtn.title='';install.style.display='none';}
- else{el.textContent='○ Printer agent offline — printer agent must be installed/running on the computer beside the AD5M';sendBtn.textContent='Printer Offline';sendBtn.disabled=true;sendBtn.title='Printer agent offline';install.style.display='block';}
+ if(!r.ok){el.textContent='○ Could not check the printer agent ('+(j.detail||('HTTP '+r.status))+')';sendBtn.disabled=true;return;}
+ if(j.online){el.textContent='● '+(j.message||'Printer agent online');sendBtn.textContent='Print';sendBtn.disabled=!lastMachineFile;sendBtn.title='';install.style.display='none';}
+ else{el.textContent='○ '+(j.message||'Printer agent offline');sendBtn.textContent=j.agent_connected?'Printer Not Ready':'Printer Offline';sendBtn.disabled=true;sendBtn.title=j.message||'';
+  const showInstall=!j.agent_connected||j.state==='AGENT_UPDATE_NEEDED';install.style.display=showInstall?'block':'none';
+  const cmd=document.getElementById('agentCmd');if(cmd&&!cmd.textContent)cmd.textContent='curl -fsSL '+location.origin+'/install-ad5m-agent.sh | bash';}
  }catch(e){}
 }
 setInterval(refreshBridge,5000);refreshBridge();
+document.getElementById('copyAgentCmd')?.addEventListener('click',async()=>{const c=document.getElementById('agentCmd').textContent;const b=document.getElementById('copyAgentCmd');try{await navigator.clipboard.writeText(c);b.textContent='Copied';}catch(e){const r=document.createRange();r.selectNodeContents(document.getElementById('agentCmd'));const s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected — press ⌘C';}setTimeout(()=>b.textContent='Copy',2500);});
 
 async function pollJob(id){for(let i=0;i<180;i++){await new Promise(r=>setTimeout(r,2000));const r=await fetch(api('/api/manufacturing/jobs/'+id),{cache:'no-store'}),j=await r.json();if(j.status==='completed'){status.textContent='PRINT STARTED — AD5M bridge accepted '+j.machine_file;return}if(j.status==='failed'){status.textContent='PRINT FAILED — '+((j.result&&j.result.error)||'printer bridge failed');return}status.textContent='PRINT QUEUED — waiting for the AD5M bridge ('+j.status+')';}status.textContent='PRINT QUEUED — bridge has not picked it up yet.'}
 sendBtn.onclick=async()=>{if(!preflightPassed){status.textContent='PRINT BLOCKED — Manufacturing Preflight has not passed.';return}if(!lastMachineFile){status.textContent='NO PREPARED FILE — tap Auto Prepare first.';return}if(!bridgeOnline){status.textContent='PRINTER OFFLINE — no print job was created.';return}sendBtn.disabled=true;try{const machine=lastMachineFile;const r=await fetch(api('/api/manufacturing/jobs'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_id:document.getElementById('printer').value.trim(),machine_file:machine})});const j=await r.json();if(!r.ok)throw Error(j.detail||'Could not queue print');status.textContent='PRINT QUEUED FOR AD5M — '+j.job_id;await pollJob(j.job_id)}catch(e){status.textContent='PRINT FAILED — '+e.message}finally{sendBtn.disabled=!lastMachineFile||!bridgeOnline}};
