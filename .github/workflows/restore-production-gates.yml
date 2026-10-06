@@ -43,7 +43,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ung-cad-3d/main.py ung-cad-3d/ung-cad-ad5m-bridge.py ung-cad-3d/tests/test_bridge.py
+          git add ung-cad-3d/main.py ung-cad-3d/ung-cad-ad5m-bridge.py ung-cad-3d/tests/test_bridge.py tests/test_mandatory_pre_slice_gate.py
           git rm -f .integration/restore_production_gates.py
           git rm -f .integration/restore_gate_compat.py
           git rm -f .github/workflows/restore-production-gates.yml
