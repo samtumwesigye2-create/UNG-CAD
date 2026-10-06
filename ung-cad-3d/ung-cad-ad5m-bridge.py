@@ -13,6 +13,9 @@ Security model (this process can move real machines, so it is locked down):
   * /serial/send runs as a background job with /serial/status and /serial/stop.
 """
 import asyncio
+import hashlib
+import urllib.request
+import urllib.parse
 import hmac
 import json
 import os
@@ -28,6 +31,9 @@ from urllib.parse import parse_qs, urlparse
 
 HOST = "127.0.0.1"
 PORT = 8765
+CLOUD = os.getenv("UNG_CAD_CLOUD", "https://ung-cad-3d-production.up.railway.app").rstrip("/")
+PRINTER_ID = os.getenv("UNG_CAD_PRINTER_ID", "a51a5435")
+CHECK_CODE = os.getenv("UNG_CAD_CHECK_CODE", "").strip()
 BRIDGE_VERSION = "2026-09-20-3"   # kept the same as before: studio.html checks this exact string
 BRIDGE_API = 2                    # new: token + confirm-start + background serial jobs
 STATE = {"printer": None, "check_code": None}
@@ -150,6 +156,73 @@ async def print_file(path, level=True, start=False):
         if not started:
             raise RuntimeError("File uploaded but printer rejected explicit start command")
         return {"uploaded": True, "started": True, "file": Path(path).name, "mode": "upload_then_explicit_start"}
+
+
+def cloud_json(path, method="GET", body=None):
+    data = None if body is None else json.dumps(body).encode()
+    req = urllib.request.Request(CLOUD + path, data=data, method=method,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=30) as response:
+        return json.loads(response.read() or b"{}")
+
+
+def verify_released_machine_bytes(name, raw):
+    """Hard lock: cloud release metadata and exact local bytes must both match."""
+    safe_name = Path(name).name
+    verify = cloud_json("/api/manufacturing/readiness/machine-file/" + urllib.parse.quote(safe_name))
+    if not verify.get("ok"):
+        raise RuntimeError("PRODUCTION HARD LOCK: " + str(verify.get("message") or "release verification failed"))
+    metadata = verify.get("metadata") or {}
+    expected = str(metadata.get("machine_file_sha256") or "").lower()
+    actual = hashlib.sha256(raw).hexdigest().lower()
+    if not expected or actual != expected:
+        raise RuntimeError("PRODUCTION HARD LOCK: machine file hash does not match approved release")
+    return metadata
+
+
+def ensure_paired():
+    if STATE["check_code"]:
+        return True
+    if not CHECK_CODE:
+        return False
+    try:
+        asyncio.run(connect(CHECK_CODE))
+        return True
+    except Exception as exc:
+        print("Cloud queue auto-pair failed:", exc)
+        return False
+
+
+def cloud_worker():
+    """Optional cloud queue worker; every downloaded machine file is release-verified before printing."""
+    while True:
+        try:
+            if not ensure_paired():
+                time.sleep(5)
+                continue
+            q = urllib.parse.urlencode({"printer_id": PRINTER_ID})
+            j = cloud_json("/api/bridge/jobs/next?" + q).get("job")
+            if j:
+                tmpdir = tempfile.mkdtemp(prefix="ungcad_cloud_")
+                path = str(Path(tmpdir) / Path(j["machine_file"]).name)
+                try:
+                    urllib.request.urlretrieve(CLOUD + j["download"], path)
+                    if not Path(path).exists() or Path(path).stat().st_size < 32:
+                        raise RuntimeError("Downloaded machine file is empty or incomplete")
+                    verify_released_machine_bytes(j["machine_file"],Path(path).read_bytes())
+                    result = asyncio.run(print_file(path, True, start=True))
+                    cloud_json("/api/bridge/jobs/" + j["id"] + "/complete", "POST", {"ok": True, "result": result})
+                except Exception as exc:
+                    cloud_json("/api/bridge/jobs/" + j["id"] + "/complete", "POST", {"ok": False, "error": str(exc)})
+                finally:
+                    try:
+                        os.unlink(path)
+                        os.rmdir(tmpdir)
+                    except OSError:
+                        pass
+        except Exception as exc:
+            print("Cloud queue:", exc)
+        time.sleep(3)
 
 
 # ---------- CNC / laser over USB serial (GRBL-style controllers) ----------
@@ -424,7 +497,7 @@ class H(BaseHTTPRequestHandler):
                 if not code:
                     return self.out({"error": "Printer ID required"}, 400)
                 return self.out({"paired": True, "printer": asyncio.run(connect(code))})
-            if path == "/print":
+            if self.path=="/print":
                 name = self.headers.get("X-Filename", "print.gcode")
                 if not name.lower().endswith((".gcode", ".gx", ".3mf")):
                     return self.out({"error": "File must already be sliced (.gcode/.gx/.3mf)"}, 400)
@@ -434,11 +507,20 @@ class H(BaseHTTPRequestHandler):
                 start = (self.headers.get("X-Confirm-Start") or "").strip().lower() == "true"
                 level = (self.headers.get("X-Level") or "true").lower() == "true"
                 safe_name = Path(name).name
+                # Direct/local printing is not a bypass: verify the cloud-approved
+                # release and exact bytes before the file reaches the printer.
+                try:
+                    release=verify_released_machine_bytes(safe_name,raw)
+                except Exception as gate_error:
+                    return self.out({"error":str(gate_error)},423)
                 tmpdir = tempfile.mkdtemp(prefix="ungcad_")
                 file_path = str(Path(tmpdir) / safe_name)
                 Path(file_path).write_bytes(raw)
                 try:
-                    return self.out(asyncio.run(print_file(file_path, level, start=start)))
+                    result = asyncio.run(print_file(file_path, level, start=start))
+                    if isinstance(result, dict):
+                        result["production_release"] = release
+                    return self.out(result)
                 finally:
                     try:
                         os.unlink(file_path)
@@ -477,7 +559,7 @@ class H(BaseHTTPRequestHandler):
                     return self.out(stop_serial_job(self.headers.get("X-Port"), baud))
                 except ImportError:
                     return self.out({"error": "pyserial not installed — run: pip install pyserial"}, 500)
-            return self.out({"error": "not found"}, 404)
+            return self.out({"error":"not found"},404)
         except Exception as e:
             self.out({"error": str(e)}, 500)
 
@@ -500,4 +582,7 @@ if __name__ == "__main__":
     if DEFAULT_RAILWAY_ORIGIN in ALLOWED_ORIGINS and "YOUR-APP" in DEFAULT_RAILWAY_ORIGIN:
         print("WARNING: the Railway origin is still a placeholder. Set UNG_CAD_ALLOWED_ORIGINS,")
         print("         e.g. UNG_CAD_ALLOWED_ORIGINS=https://your-app.up.railway.app")
+    if os.getenv("UNG_CAD_ENABLE_CLOUD_QUEUE", "").strip().lower() in ("1", "true", "yes"):
+        threading.Thread(target=cloud_worker, name="ungcad-cloud-worker", daemon=True).start()
+        print("Cloud queue worker enabled; every machine file is release-verified before print.")
     make_server().serve_forever()
