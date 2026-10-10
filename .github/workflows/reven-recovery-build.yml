@@ -20,12 +20,18 @@ jobs:
           from pathlib import Path
           p = Path('firmware/reven-recovery/REVEN_RECOVERY_BOOTSTRAP/REVEN_RECOVERY_BOOTSTRAP.ino')
           s = p.read_text()
-          assert 'REVEN BOOT' in s
-          assert 'WiFi.softAP(WIFI_NAME, WIFI_PASS' in s
-          assert 'WEB READY http://192.168.4.1' in s
+          required = [
+              'REVEN BOOT', '#include <Preferences.h>',
+              'prefs.getString("ssid"', 'prefs.putString("ssid"',
+              'server.on("/save"', 'WiFi.begin(', 'WL_CONNECTED',
+              'WiFi.softAP(', 'SETUP AP READY', 'WIFI CONNECTED',
+              'WEB READY http://192.168.4.1'
+          ]
+          missing = [x for x in required if x not in s]
+          assert not missing, f'missing recovery/provisioning features: {missing}'
           assert 'usb_host_install' not in s
           assert 'fcusb::begin' not in s
-          print('recovery source checks passed')
+          print('recovery provisioning source checks passed')
           PY
 
       - name: Install Arduino CLI
