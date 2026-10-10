@@ -35,6 +35,7 @@ jobs:
           set -euo pipefail
           node ung-cad-3d/tests/rib-geometry-factory.test.js
           node ung-cad-3d/tests/analyze-engine.test.js
+          node ung-cad-3d/tests/strength-engine.test.js
           node ung-cad-3d/tests/analytic-workflow.test.js
           node ung-cad-3d/tests/engineering-math.test.js
           node ung-cad-3d/tests/fourd-geometry-playback.test.js

@@ -53,7 +53,7 @@ addEventListener('DOMContentLoaded',()=>{
    e.textContent=coreMissing.length?(' ERROR — required engines missing: '+coreMissing.join(', ')+'.'):(' READY — slicing available; optional analytics unavailable: '+missing.join(', ')+'.');
  }
 });</script><div class="top"><button onclick="location.href='./studio.html'">Home</button><button onclick="location.href='./viewer.html'">3D</button><button onclick="location.href='./hyper.html'">4D/5D</button></div>
-<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-10-01.2</div>
+<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-10-10.1</div>
 
 <h2><span class="step">1</span>Choose model</h2>
 <label class="btn" style="display:inline-flex;position:relative;align-items:center;overflow:hidden;cursor:pointer">Choose model or project<input id="pkg" type="file" multiple style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"></label>
@@ -96,7 +96,7 @@ addEventListener('DOMContentLoaded',()=>{
 <div id="analyzeBox" class="analyze">
 <b>Analyze</b>
 <div class="an-tabs">
-<button data-an="measure" class="active">Measure</button><button data-an="estimate">Print estimate</button><button data-an="rotate">Rotate & scale</button><button data-an="support">Support check</button><button data-an="best">Best position</button><button data-an="frames">Frames & assembly</button>
+<button data-an="measure" class="active">Measure</button><button data-an="estimate">Print estimate</button><button data-an="rotate">Rotate & scale</button><button data-an="support">Support check</button><button data-an="stress">Stress check</button><button data-an="best">Best position</button><button data-an="frames">Frames & assembly</button>
 </div>
 <div id="an-measure" class="an-panel active"><div class="an-row"><button class="btn" id="measureToggle">Start measuring</button><button class="btn" id="measureClear">Clear</button></div><div id="measureOut" class="an-out">Tap two points on the 3D part.</div></div>
 <div id="an-estimate" class="an-panel"><div id="estimateOut" class="an-out">Preview a part to calculate an estimate.</div><div class="an-row"><button class="btn" id="estimateAll">Estimate all parts</button></div><div class="small">Rough guide only; the final numbers come from Auto Prepare.</div></div>
@@ -106,6 +106,12 @@ addEventListener('DOMContentLoaded',()=>{
 <div class="an-row">Size <input id="scalePct" type="number" value="100" min="1"> % <button class="btn" id="resizePart">Resize</button></div>
 <div class="an-row"><button class="btn" id="mirrorX">Left–right</button><button class="btn" id="mirrorY">Front–back</button></div><div id="rotateOut" class="an-out"></div></div>
 <div id="an-support" class="an-panel"><div class="an-row"><button class="btn" id="checkSupports">Check supports</button><button class="btn" id="hideRed">Hide red</button></div><div id="supportOut" class="an-out"></div></div>
+<div id="an-stress" class="an-panel">
+<div class="small">One end is held (screwed, clamped or glued); the load pushes on the other end. Shows the weakest spot in red and whether the part will hold.</div>
+<div class="an-row">Load <input id="stLoad" type="number" value="1" min="0" step="0.1"><select id="stUnit"><option value="kg">kg</option><option value="N">N (newtons)</option></select>Material <select id="stMat"><option>PLA</option><option>PETG</option><option>ABS</option></select></div>
+<div class="an-row">Length runs along <select id="stAxis"><option value="auto">Longest side</option><option value="x">X</option><option value="y">Y</option><option value="z">Z (upright)</option></select>Held end <select id="stFixed"><option value="min">Start</option><option value="max">End</option></select>Load pushes <select id="stDir"><option value="auto">Down</option><option value="x">Along X</option><option value="y">Along Y</option><option value="z">Along Z</option></select></div>
+<div class="an-row"><button class="btn" id="stRun">Check strength</button></div>
+<div id="stressOut" class="an-out">Enter the load the part has to carry, then press Check strength.</div></div>
 <div id="an-best" class="an-panel"><div class="an-row"><button class="btn" id="bestPos">Best position</button></div><div id="bestOut" class="an-out"></div></div>
 <div id="an-frames" class="an-panel">
 <div class="small">Point converter</div>
@@ -115,7 +121,7 @@ addEventListener('DOMContentLoaded',()=>{
 <div class="an-row"><select id="frameDir"><option value="to">Point is in M → find it in F</option><option value="from">Point is in F → find it in M</option></select><button class="btn" id="convertPoint">Convert</button></div>
 <div class="an-row"><button class="btn" id="lessonTrans">Pure translation</button><button class="btn" id="lessonRot">Pure rotation</button><button class="btn" id="lessonBoth">Rotation + translation</button></div>
 <canvas id="frameCanvas" width="330" height="220" style="background:#fff;border-radius:6px;max-width:100%"></canvas><div id="frameOut" class="an-out"></div>
-<details><summary>Assembly placement</summary><div id="assemblyRows"></div><div class="an-row"><button class="btn" id="showAssembly">Show assembly</button><button class="btn" id="checkClashes">Quick clash check</button><button class="btn" id="checkGeometryClashes">Geometry clash check</button><input id="clearanceMm" type="number" min="0" step="0.05" value="0.40" title="Minimum clearance in mm"><button class="btn" id="checkClearance">Clearance check</button><button class="btn" id="fitReport">Full fit report</button><button class="btn" id="downloadFitCsv" disabled>Download CSV</button><button class="btn" id="backSingle">Back to single part</button></div></details><div id="clashOut" class="an-out">Show the assembly, then check for possible overlaps.</div>
+<details><summary>Assembly placement</summary><div id="assemblyRows"></div><div class="an-row"><button class="btn" id="showAssembly">Show assembly</button><button class="btn" id="checkClashes">Quick clash check</button><button class="btn" id="checkGeometryClashes">Geometry clash check</button><input id="clearanceMm" type="number" min="0" step="0.05" value="0.40" title="Minimum clearance in mm"><button class="btn" id="checkClearance">Clearance check</button><button class="btn" id="fitReport">Full fit report</button><button class="btn" id="downloadFitCsv" disabled>Download CSV</button><button class="btn" id="backSingle">Back to single part</button></div><div class="an-row">Exploded view <input id="explodeRange" type="range" min="0" max="150" value="0" style="max-width:220px;height:auto"><span id="explodeState" class="small">Assembled</span></div></details><div id="clashOut" class="an-out">Show the assembly, then check for possible overlaps.</div>
 </div>
 <div id="changedBar" class="changedbar">This part has been changed. Printing still uses the original until you save. <button class="btn" id="saveVersion">Use this version for printing</button> <button class="btn" id="undoChanges">Undo all changes</button></div>
 </div>
@@ -181,7 +187,7 @@ addEventListener('DOMContentLoaded',()=>{
 </div></div>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script src="./csg-engine.js"></script><script src="./analyze-engine.js"></script>
+<script src="./csg-engine.js"></script><script src="./analyze-engine.js"></script><script src="./strength-engine.js?v=20261010-1"></script>
 <script>
 const f=document.getElementById('pkg'),meta=document.getElementById('meta'),parts=document.getElementById('parts'),status=document.getElementById('status'),part=document.getElementById('part'),sliceBtn=document.getElementById('slice'),sendBtn=document.getElementById('send'),previewStats=document.getElementById('previewStats');
 const jumpPrepare=document.getElementById('jumpPrepare'); if(jumpPrepare) jumpPrepare.onclick=()=>{sliceBtn.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>sliceBtn.focus(),350);};
@@ -650,6 +656,7 @@ document.getElementById('copyAgentCmd')?.addEventListener('click',async()=>{cons
 async function pollJob(id){for(let i=0;i<180;i++){await new Promise(r=>setTimeout(r,2000));const r=await fetch(api('/api/manufacturing/jobs/'+id),{cache:'no-store'}),j=await r.json();if(j.status==='completed'){status.textContent='PRINT STARTED — AD5M bridge accepted '+j.machine_file;return}if(j.status==='failed'){status.textContent='PRINT FAILED — '+((j.result&&j.result.error)||'printer bridge failed');return}status.textContent='PRINT QUEUED — waiting for the AD5M bridge ('+j.status+')';}status.textContent='PRINT QUEUED — bridge has not picked it up yet.'}
 sendBtn.onclick=async()=>{if(!preflightPassed){status.textContent='PRINT BLOCKED — Manufacturing Preflight has not passed.';return}if(!lastMachineFile){status.textContent='NO PREPARED FILE — tap Auto Prepare first.';return}if(!bridgeOnline){status.textContent='PRINTER OFFLINE — no print job was created.';return}sendBtn.disabled=true;try{const machine=lastMachineFile;const r=await fetch(api('/api/manufacturing/jobs'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_id:document.getElementById('printer').value.trim(),machine_file:machine})});const j=await r.json();if(!r.ok)throw Error(j.detail||'Could not queue print');status.textContent='PRINT QUEUED FOR AD5M — '+j.job_id;await pollJob(j.job_id)}catch(e){status.textContent='PRINT FAILED — '+e.message}finally{sendBtn.disabled=!lastMachineFile||!bridgeOnline}};
 </script>
+<script src="./analyze-panel.js?v=20261010-1"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.140.0/build/three.module.js"}}</script>
-<script type="module" src="./manufacturing-preview.js?v=20260926-2"></script>
+<script type="module" src="./manufacturing-preview.js?v=20261010-1"></script>
 </body></html>
