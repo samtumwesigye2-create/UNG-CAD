@@ -1,0 +1,80 @@
+name: REVEN Recovery Firmware
+
+on:
+  push:
+    branches: [feature/reven-recovery-firmware]
+    paths:
+      - 'firmware/reven-recovery/**'
+      - '.github/workflows/reven-recovery-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Static recovery checks
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('firmware/reven-recovery/REVEN_RECOVERY_BOOTSTRAP/REVEN_RECOVERY_BOOTSTRAP.ino')
+          s = p.read_text()
+          assert 'REVEN BOOT' in s
+          assert 'WiFi.softAP(WIFI_NAME, WIFI_PASS' in s
+          assert 'WEB READY http://192.168.4.1' in s
+          assert 'usb_host_install' not in s
+          assert 'fcusb::begin' not in s
+          print('recovery source checks passed')
+          PY
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP32 core
+        run: |
+          arduino-cli config init --overwrite
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+          arduino-cli board details --fqbn esp32:esp32:XIAO_ESP32S3 || true
+
+      - name: Compile recovery firmware
+        run: |
+          mkdir -p build
+          arduino-cli compile \
+            --fqbn 'esp32:esp32:XIAO_ESP32S3:CDCOnBoot=cdc,USBMode=hwcdc' \
+            --export-binaries \
+            --output-dir build \
+            firmware/reven-recovery/REVEN_RECOVERY_BOOTSTRAP
+          ls -lah build
+
+      - name: Install esptool
+        run: python3 -m pip install --disable-pip-version-check esptool
+
+      - name: Build merged 0x0 image
+        run: |
+          set -euxo pipefail
+          APP=$(find build -maxdepth 1 -name '*.ino.bin' | head -1)
+          BOOT=$(find build -maxdepth 1 -name '*.bootloader.bin' | head -1)
+          PART=$(find build -maxdepth 1 -name '*.partitions.bin' | head -1)
+          BOOTAPP=$(find build -maxdepth 1 -name 'boot_app0.bin' | head -1 || true)
+          echo "APP=$APP"
+          echo "BOOT=$BOOT"
+          echo "PART=$PART"
+          echo "BOOTAPP=$BOOTAPP"
+          if [ -n "$BOOTAPP" ]; then
+            python3 -m esptool --chip esp32s3 merge-bin -o build/REVEN_RECOVERY_BOOTSTRAP_full.bin \
+              0x0 "$BOOT" 0x8000 "$PART" 0xe000 "$BOOTAPP" 0x10000 "$APP"
+          else
+            python3 -m esptool --chip esp32s3 merge-bin -o build/REVEN_RECOVERY_BOOTSTRAP_full.bin \
+              0x0 "$BOOT" 0x8000 "$PART" 0x10000 "$APP"
+          fi
+          sha256sum build/REVEN_RECOVERY_BOOTSTRAP_full.bin > build/SHA256.txt
+
+      - name: Upload recovery binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: reven-recovery-firmware
+          path: |
+            build/*
+          if-no-files-found: error
