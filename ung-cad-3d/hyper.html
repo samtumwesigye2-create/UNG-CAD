@@ -32,6 +32,9 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .btn{flex:1;min-width:120px;background:#1e2530;color:var(--ink);border:1px solid var(--line);border-radius:9px;height:42px;font-size:15px;cursor:pointer}
 .btn.main{background:var(--ok);border-color:var(--ok);color:#06210f;font-weight:700}
 .btn:disabled{opacity:.5;cursor:wait}
+.filebtn{display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.filebtn input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.importbox{padding:10px;border:1px solid var(--line);border-radius:10px;background:#0e131b;margin:10px 0 4px}
 .note{font-size:13px;line-height:1.45;color:var(--muted);margin:6px 0}
 #status{font-size:13px;margin-top:8px;min-height:18px}
 details summary{cursor:pointer;color:var(--muted);font-size:13px;margin-top:6px}
@@ -58,6 +61,15 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px;margin-top:6px}
  <aside>
   <h1>Hyper: print 4D &amp; 5D shapes</h1>
   <p class="sub">A printer only moves in 3 directions, so a 4D or 5D shape is printed as its <b>shadow</b> (projected into 3D, like a cube's shadow on a wall) or as a <b>slice</b> (cut with a flat 3D knife). Turning it in the extra directions <span style="color:var(--accent2)">W</span> and <span style="color:var(--accent2)">V</span> gives a different printable shape every time.</p>
+
+  <div class="importbox">
+   <h2 style="margin-top:0">Import &amp; render a 3D file</h2>
+   <div class="row">
+    <label class="btn main filebtn">Import 3D File<input id="import3d" type="file" accept=".stl,.obj,.glb,.gltf"></label>
+    <button class="btn" id="returnHyper" hidden>Return to Hyper Shape</button>
+   </div>
+   <p class="note" id="importInfo">STL, OBJ, GLB and GLTF files render directly here. Drag to rotate and pinch to zoom.</p>
+  </div>
 
   <h2>1 · Shape</h2>
   <select id="shape"></select>
@@ -89,9 +101,12 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px;margin-top:6px}
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 const H = window.HyperEngine;
 const $ = id => document.getElementById(id);
-const st = { shape:'cube', n:4, mode:'shadow', angles:{}, offs:[0,0], strut:2.4, size:60, persp:true, spin:false };
+const st = { shape:'cube', n:4, mode:'shadow', angles:{}, offs:[0,0], strut:2.4, size:60, persp:true, spin:false, imported:false };
 
 // ---------- three.js view ----------
 const cv=$('c'), renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
@@ -111,9 +126,17 @@ new ResizeObserver(resize).observe(cv.parentElement); resize();
 
 const cylGeo=new THREE.CylinderGeometry(1,1,1,12,1); cylGeo.rotateX(Math.PI/2);
 const sphGeo=new THREE.SphereGeometry(1,18,12);
-function clearGroup(){ group.traverse(o=>{ if(o.geometry&&o.geometry!==cylGeo&&o.geometry!==sphGeo) o.geometry.dispose(); }); scene.remove(group); group=new THREE.Group(); scene.add(group); }
+function clearGroup(){
+  group.traverse(o=>{
+    if(o.geometry&&o.geometry!==cylGeo&&o.geometry!==sphGeo) o.geometry.dispose();
+    if(o.material&&!Array.isArray(o.material)&&![matA,matN,matS].includes(o.material)) o.material.dispose?.();
+    if(Array.isArray(o.material)) o.material.forEach(m=>m.dispose?.());
+  });
+  scene.remove(group); group=new THREE.Group(); scene.add(group);
+}
 
 function build(){
+  if(st.imported) return true;
   clearGroup();
   const n=st.n;
   if(st.mode==='shadow'){
@@ -143,6 +166,78 @@ function build(){
   return true;
 }
 const fmt=v=>v.toFixed(1), name=()=>H.SHAPES.find(s=>s.id===st.shape).name.toLowerCase();
+
+// ---------- local 3D import ----------
+function fitImportedModel(object){
+  object.updateMatrixWorld(true);
+  let box=new THREE.Box3().setFromObject(object);
+  if(box.isEmpty()) throw new Error('This file does not contain renderable 3D geometry.');
+  const center=box.getCenter(new THREE.Vector3());
+  object.position.x-=center.x;
+  object.position.y-=center.y;
+  object.position.z-=box.min.z;
+  object.updateMatrixWorld(true);
+  box=new THREE.Box3().setFromObject(object);
+  const size=box.getSize(new THREE.Vector3());
+  const maxDim=Math.max(size.x,size.y,size.z,1);
+  const fov=THREE.MathUtils.degToRad(cam.fov);
+  const dist=(maxDim/(2*Math.tan(fov/2)))*1.65;
+  const targetZ=size.z*0.45;
+  ctl.target.set(0,0,targetZ);
+  cam.position.set(dist*.82,-dist,Math.max(dist*.72,targetZ+maxDim*.55));
+  cam.near=Math.max(.01,dist/1000);
+  cam.far=Math.max(5000,dist*20);
+  cam.updateProjectionMatrix();
+  ctl.update();
+  return size;
+}
+
+async function renderImportedFile(file){
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  if(!['stl','obj','glb','gltf'].includes(ext)) throw new Error('Choose an STL, OBJ, GLB or GLTF file.');
+  let object;
+  if(ext==='stl'){
+    const geometry=new STLLoader().parse(await file.arrayBuffer());
+    geometry.computeVertexNormals();
+    object=new THREE.Mesh(geometry,matS.clone());
+  }else if(ext==='obj'){
+    object=new OBJLoader().parse(await file.text());
+    object.traverse(o=>{ if(o.isMesh&&!o.material) o.material=matS.clone(); });
+  }else{
+    const data=ext==='glb'?await file.arrayBuffer():await file.text();
+    const gltf=await new Promise((resolve,reject)=>new GLTFLoader().parse(data,'',resolve,reject));
+    object=gltf.scene;
+  }
+  clearGroup();
+  group.add(object);
+  const size=fitImportedModel(object);
+  st.imported=true;
+  st.spin=false;
+  $('spin').textContent='▶ Animate';
+  $('returnHyper').hidden=false;
+  $('export').disabled=true;
+  $('hudL').textContent=`${file.name} · ${ext.toUpperCase()} · ${fmt(size.x)}×${fmt(size.y)}×${fmt(size.z)} mm`;
+  $('importInfo').textContent=`Rendering ${file.name}. Drag to rotate and pinch to zoom. Use Return to Hyper Shape to switch back.`;
+  $('status').style.color='var(--ok)';
+  $('status').textContent=`Imported ${file.name}`;
+}
+
+$('import3d').onchange=async e=>{
+  const file=e.target.files&&e.target.files[0];
+  if(!file) return;
+  $('importInfo').textContent=`Loading ${file.name}…`;
+  try{ await renderImportedFile(file); }
+  catch(err){ $('importInfo').textContent=err.message||String(err); $('status').style.color='#ff7a7a'; $('status').textContent='Import failed.'; }
+  finally{ e.target.value=''; }
+};
+$('returnHyper').onclick=()=>{
+  st.imported=false;
+  $('returnHyper').hidden=true;
+  $('export').disabled=false;
+  $('importInfo').textContent='STL, OBJ, GLB and GLTF files render directly here. Drag to rotate and pinch to zoom.';
+  $('status').textContent='';
+  build();
+};
 
 // ---------- controls ----------
 H.SHAPES.forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.name;$('shape').appendChild(o);});
@@ -179,7 +274,7 @@ $('size').oninput=e=>{st.size=+e.target.value;$('sizeO').textContent=st.size+' m
 $('reset').onclick=()=>{st.angles={};st.offs=[0,0];makeSliders();build();};
 $('rand').onclick=()=>{st.angles={};for(const p of H.rotationPlanes(st.n)) if(p.extra) st.angles[p.label]=Math.round(Math.random()*120-60);
   st.offs=[+(Math.random()*.3-.15).toFixed(2),+(Math.random()*.2-.1).toFixed(2)]; makeSliders(); build();};
-$('spin').onclick=()=>{st.spin=!st.spin;$('spin').textContent=st.spin?'■ Stop':'▶ Animate';};
+$('spin').onclick=()=>{if(st.imported)return;st.spin=!st.spin;$('spin').textContent=st.spin?'■ Stop':'▶ Animate';};
 
 // ---------- export ----------
 let wasm=null, wasmTried=false;
@@ -189,6 +284,7 @@ async function getWasm(){
   return wasm;
 }
 $('export').onclick=async()=>{
+  if(st.imported) return;
   const btn=$('export'); btn.disabled=true; const s=$('status'); s.style.color='';
   try{
     let tris, note='';
@@ -215,11 +311,11 @@ $('export').onclick=async()=>{
 // ---------- loop ----------
 let last=performance.now();
 (function loop(now){
-  if(st.spin){ const dt=Math.min(.05,(now-last)/1000); const key=st.n===5?['XW','YV']:['XW','ZW'];
+  if(st.spin&&!st.imported){ const dt=Math.min(.05,(now-last)/1000); const key=st.n===5?['XW','YV']:['XW','ZW'];
     key.forEach((k,i)=>{st.angles[k]=(((st.angles[k]||0)+dt*(i?14:22)+180)%360)-180; rotSliders[k]&&rotSliders[k].set(Math.round(st.angles[k]));}); build(); }
   last=now; ctl.update(); renderer.render(scene,cam); requestAnimationFrame(loop);
 })(performance.now());
 syncUI(); makeSliders(); build();
-window.__hyper={st,build};
+window.__hyper={st,build,renderImportedFile,fitImportedModel};
 </script>
 </body></html>
