@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UNG Office Workspace</title><script src="/static/ung-auth.js"></script>
+<style>
+:root{color-scheme:dark}body{margin:0;background:#111b49;color:#f3f6ff;font:16px system-ui,sans-serif}main{max-width:1050px;margin:auto;padding:28px}a{color:#8ce4f4}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:15px}.tile{padding:22px;border:1px solid #53639e;border-radius:14px;background:#26376b}h1{margin-bottom:8px}p{line-height:1.5}input{width:100%;margin-top:8px}small{color:#cbd5f7}code{overflow-wrap:anywhere}button{padding:10px;border:0;border-radius:8px;background:#7bd7e9;color:#111b49;font-weight:bold;cursor:pointer}</style>
+</head><body><main><p><a href="studio.html">← UNG-CAD Studio</a></p><h1>UNG Office Workspace</h1><p>Document routing for WordCraft, GridCraft, DeckCraft and Microsoft Office. Browser access cannot launch local Mac apps directly; use the verified local adapter.</p>
+<section class="grid">
+<div class="tile"><h2>Documents</h2><p>WordCraft or Microsoft Word</p><small>DOC, DOCX, ODT</small></div>
+<div class="tile"><h2>Spreadsheets</h2><p>GridCraft or Microsoft Excel</p><small>XLS, XLSX, ODS</small></div>
+<div class="tile"><h2>Presentations</h2><p>DeckCraft or Microsoft PowerPoint</p><small>PPT, PPTX, ODP</small></div>
+<div class="tile"><h2>PDF</h2><p>PdfCraft or Preview</p><small>PDF</small></div>
+</section>
+<h2>Identify a document</h2><p>Select a local file to see the correct application route. Your file stays on this device; it is not uploaded to UNG.</p><input id="file" type="file" accept=".doc,.docx,.odt,.xls,.xlsx,.ods,.ppt,.pptx,.odp,.pdf"><p id="result" role="status">No document selected.</p>
+<h2>Mac integration</h2><p>After checking out the integration branch, use Terminal:</p><code>bash integrations/artcraft/ung-office-open-mac.sh "$HOME/Documents/example.docx"</code><p><small>Do not use production documents until file compatibility and round-trip save have been tested. The manufacturing gate remains mandatory for CAD outputs.</small></p>
+</main><script>
+const routes={doc:"WordCraft → Microsoft Word",docx:"WordCraft → Microsoft Word",odt:"WordCraft → Microsoft Word",xls:"GridCraft → Microsoft Excel",xlsx:"GridCraft → Microsoft Excel",ods:"GridCraft → Microsoft Excel",ppt:"DeckCraft → Microsoft PowerPoint",pptx:"DeckCraft → Microsoft PowerPoint",odp:"DeckCraft → Microsoft PowerPoint",pdf:"PdfCraft → Preview"};
+document.getElementById("file").addEventListener("change",e=>{const f=e.target.files[0],out=document.getElementById("result");if(!f){out.textContent="No document selected.";return}const ext=f.name.split(".").pop().toLowerCase();out.textContent=(routes[ext]||"Unsupported format")+" — "+f.name+" (routing only; not opened or uploaded)";});
+</script></body></html>
