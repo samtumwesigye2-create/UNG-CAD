@@ -175,3 +175,54 @@ def derive_compensation_profile(
         outer_dimension_error_mm=outer_offset,clearance_error_mm=clearance_error,
         source=source,calibrated=count>0,
     )
+
+
+# --- Printable kit measurement sheet -------------------------------------
+# Each row of the sheet maps one caliper measurement to the feedback group
+# that derive_compensation_profile() expects, so a filled-in sheet can be
+# turned straight into a profile without retyping numbers.
+
+MEASUREMENT_COLUMNS=("group","piece_id","feature","nominal_mm","measured_mm")
+_GROUPS=("outer_samples","xy_scale_samples","z_scale_samples",
+         "hole_samples","slot_samples","clearance_samples")
+
+
+def measurement_template_rows(manifest:dict)->list[dict]:
+    """Blank measurement rows (measured_mm empty) for a coupon manifest."""
+    rows=[]
+    for piece in manifest.get("pieces",()):
+        pid=piece["id"];kind=piece["type"]
+        if kind=="outer_block":
+            rows.append({"group":"xy_scale_samples","piece_id":pid,"feature":"block length X","nominal_mm":piece["nominal_x_mm"]})
+            rows.append({"group":"xy_scale_samples","piece_id":pid,"feature":"block width Y","nominal_mm":piece["nominal_y_mm"]})
+        elif kind=="height_block":
+            rows.append({"group":"z_scale_samples","piece_id":pid,"feature":"tower height Z","nominal_mm":piece["nominal_z_mm"]})
+        elif kind=="hole_ring":
+            rows.append({"group":"hole_samples","piece_id":pid,"feature":"ring inside diameter","nominal_mm":piece["nominal_hole_diameter_mm"]})
+        elif kind=="pin":
+            rows.append({"group":"outer_samples","piece_id":pid,"feature":"pin outside diameter","nominal_mm":piece["nominal_pin_diameter_mm"]})
+    for r in rows:
+        r["nominal_mm"]=float(r["nominal_mm"]);r["measured_mm"]=""
+    return rows
+
+
+def feedback_from_measurement_rows(rows:Iterable[dict])->dict[str,list[dict]]:
+    """Group a filled-in measurement sheet into derive_compensation_profile() kwargs.
+
+    Rows left blank are skipped (not treated as zero). Unknown groups and
+    non-numeric values are rejected so a typo never becomes a silent correction.
+    """
+    out:dict[str,list[dict]]={g:[] for g in _GROUPS}
+    for i,row in enumerate(rows,start=2):  # row 1 is the CSV header
+        measured=str(row.get("measured_mm") or "").strip()
+        if not measured: continue
+        group=str(row.get("group") or "").strip()
+        if group not in out: raise ValueError(f"row {i}: unknown group '{group}'")
+        try:
+            n=float(str(row.get("nominal_mm")).strip());m=float(measured)
+        except ValueError:
+            raise ValueError(f"row {i}: nominal_mm and measured_mm must be numbers")
+        if n<=0 or m<=0: raise ValueError(f"row {i}: dimensions must be positive")
+        out[group].append({"nominal_mm":n,"measured_mm":m,"piece_id":row.get("piece_id","")})
+    if not any(out.values()): raise ValueError("no measured values found in the sheet")
+    return out

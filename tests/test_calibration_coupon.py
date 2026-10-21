@@ -42,3 +42,37 @@ def test_no_measurements_stays_uncalibrated_and_neutral():
     assert not p.calibrated
     assert p.xy_scale_error_fraction==0
     assert p.hole_diameter_error_mm==0
+
+
+def test_measurement_sheet_covers_every_coupon_piece():
+    from cad_core.calibration_coupon import measurement_template_rows
+    _,manifest=generate_calibration_coupon(CalibrationCouponSpec(radial_segments=32))
+    rows=measurement_template_rows(manifest)
+    assert {r["piece_id"] for r in rows}=={p["id"] for p in manifest["pieces"]}
+    assert all(r["measured_mm"]=="" for r in rows)
+    groups={r["group"] for r in rows}
+    assert groups=={"xy_scale_samples","z_scale_samples","hole_samples","outer_samples"}
+
+
+def test_filled_sheet_feeds_profile_and_skips_blank_rows():
+    from cad_core.calibration_coupon import measurement_template_rows, feedback_from_measurement_rows
+    _,manifest=generate_calibration_coupon(CalibrationCouponSpec(radial_segments=32))
+    rows=measurement_template_rows(manifest)
+    for r in rows:
+        if r["group"]=="hole_samples": r["measured_mm"]=str(r["nominal_mm"]-0.2)
+    groups=feedback_from_measurement_rows(rows)
+    assert len(groups["hole_samples"])==4
+    assert groups["xy_scale_samples"]==[]  # blank, not zero
+    profile=derive_compensation_profile(name="kit",**{k:v for k,v in groups.items()})
+    assert profile.calibrated
+    assert profile.hole_diameter_error_mm==pytest.approx(-0.2)
+
+
+def test_sheet_rejects_typos_instead_of_guessing():
+    from cad_core.calibration_coupon import feedback_from_measurement_rows
+    with pytest.raises(ValueError, match="unknown group"):
+        feedback_from_measurement_rows([{"group":"holes","nominal_mm":"5","measured_mm":"4.8"}])
+    with pytest.raises(ValueError, match="must be numbers"):
+        feedback_from_measurement_rows([{"group":"hole_samples","nominal_mm":"5","measured_mm":"4,8"}])
+    with pytest.raises(ValueError, match="no measured values"):
+        feedback_from_measurement_rows([{"group":"hole_samples","nominal_mm":"5","measured_mm":""}])
