@@ -9,6 +9,8 @@ jobs:
     defaults:
       run:
         working-directory: ung-cad-3d
+    env:
+      PYTHONPATH: ${{ github.workspace }}/ung-cad-3d/tests:${{ github.workspace }}/ung-cad-3d
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

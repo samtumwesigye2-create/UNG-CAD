@@ -4,9 +4,20 @@ DIR="$HOME/.ung-cad"
 mkdir -p "$DIR"
 PY="$(command -v python3 || true)"
 if [ -z "$PY" ]; then echo "Python 3 is required"; exit 1; fi
-"$PY" -m pip install --user --upgrade flashforge-python-api
+"$PY" -m pip install --user --upgrade flashforge-python-api \
+  || "$PY" -m pip install --user --upgrade --break-system-packages flashforge-python-api \
+  || echo "Note: could not update flashforge-python-api; keeping the installed copy."
 curl -fsSL "https://ung-cad-3d-production.up.railway.app/ung-cad-ad5m-bridge.py" -o "$DIR/ung-cad-ad5m-bridge.py"
-read -r -p "Enter the AD5M Access / Check Code once: " CODE
+curl -fsSL "https://ung-cad-3d-production.up.railway.app/ung-cad-ad5m-agent.py" -o "$DIR/ung-cad-ad5m-agent.py"
+CODE=""
+if [ -f "$DIR/agent.env" ]; then
+  CODE="$(sed -n 's/^UNG_CAD_CHECK_CODE=//p' "$DIR/agent.env" | head -n 1)"
+fi
+if [ -z "$CODE" ]; then
+  read -r -p "Enter the AD5M Access / Check Code once: " CODE < /dev/tty
+else
+  echo "Using the Access Code saved last time."
+fi
 cat > "$DIR/agent.env" <<EOF
 UNG_CAD_PRINTER_ID=a51a5435
 UNG_CAD_CHECK_CODE=$CODE
@@ -20,7 +31,7 @@ cat > "$PLIST" <<EOF
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>Label</key><string>com.ung.cad.ad5m</string>
-<key>ProgramArguments</key><array><string>/bin/bash</string><string>-lc</string><string>set -a; source "$DIR/agent.env"; set +a; exec "$PY" "$DIR/ung-cad-ad5m-bridge.py"</string></array>
+<key>ProgramArguments</key><array><string>/bin/bash</string><string>-lc</string><string>set -a; source "$DIR/agent.env"; set +a; exec "$PY" "$DIR/ung-cad-ad5m-agent.py"</string></array>
 <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
 <key>StandardOutPath</key><string>$DIR/agent.log</string><key>StandardErrorPath</key><string>$DIR/agent-error.log</string>
 </dict></plist>
