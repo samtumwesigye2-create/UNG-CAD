@@ -7,6 +7,7 @@ from cad_core.fit_analysis import (
     compensate_target_dimension,
     predicted_printed_dimension,
     wall_from_opposed_planes,
+    compensate_primitive_params,
 )
 
 
@@ -55,3 +56,36 @@ def test_compensated_fit_preserves_requested_target_when_profile_model_matches()
 def test_exact_brep_helpers():
     assert wall_from_opposed_planes(1.2,3.7)==pytest.approx(2.5)
     assert bore_diameter_from_cylinder_radius(4.25)==pytest.approx(8.5)
+
+
+def test_hole_primitive_compensation_adjusts_diameter_and_depth():
+    p=PrinterCompensationProfile(
+        name="measured",
+        hole_diameter_error_mm=-.2,
+        z_scale_error_fraction=-.01,
+        calibrated=True,
+    )
+    out=compensate_primitive_params("hole",{"radius":3.0,"depth":10.0},profile=p)
+    assert out["diameter"]==pytest.approx(6.2)
+    assert out["radius"]==pytest.approx(3.1)
+    assert out["depth"]==pytest.approx(10/0.99)
+
+
+def test_cylinder_primitive_compensation_adjusts_outer_and_height():
+    p=PrinterCompensationProfile(
+        name="measured",
+        xy_scale_error_fraction=.01,
+        outer_dimension_error_mm=.1,
+        z_scale_error_fraction=.02,
+        calibrated=True,
+    )
+    out=compensate_primitive_params("cylinder",{"diameter":20.0,"height":10.0},profile=p)
+    assert out["diameter"]==pytest.approx((20.0-.1)/1.01)
+    assert out["radius"]==pytest.approx(out["diameter"]/2)
+    assert out["height"]==pytest.approx(10/1.02)
+
+
+def test_complex_primitive_compensation_refuses_ambiguous_mapping():
+    p=PrinterCompensationProfile(name="measured",calibrated=True)
+    with pytest.raises(ValueError):
+        compensate_primitive_params("sphere",{"radius":5},profile=p)

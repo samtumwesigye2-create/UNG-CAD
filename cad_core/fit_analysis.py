@@ -163,3 +163,65 @@ def bore_diameter_from_cylinder_radius(radius_mm: float) -> float:
     if r <= 0:
         raise ValueError("radius_mm must be positive")
     return 2.0*r
+
+
+def compensate_primitive_params(
+    primitive_type: str,
+    params: dict,
+    *,
+    profile: PrinterCompensationProfile,
+) -> dict:
+    """Return CAD params compensated from requested finished dimensions.
+
+    Compensation is intentionally limited to dimensions that map unambiguously
+    to the simple calibration model:
+      * hole: diameter/radius and depth
+      * cylinder/circle: outside diameter/radius and height/thickness
+      * extrusion: height only
+
+    Complex profiles, spheres and revolves need directional/B-rep compensation
+    and are left unchanged here rather than applying a misleading correction.
+    """
+    typ=str(primitive_type).strip().lower()
+    out=dict(params)
+
+    if typ=="hole":
+        if "diameter" in out:
+            target=float(out["diameter"])
+        elif "radius" in out:
+            target=2.0*float(out["radius"])
+        else:
+            raise ValueError("hole compensation requires radius or diameter")
+        cad=compensate_target_dimension(target,feature="hole",profile=profile)
+        out["diameter"]=cad
+        out["radius"]=cad/2.0
+        if "depth" in out:
+            out["depth"]=compensate_target_dimension(float(out["depth"]),feature="depth",profile=profile)
+        return out
+
+    if typ in {"cylinder","circle"}:
+        if "diameter" in out:
+            target=float(out["diameter"])
+        elif "radius" in out:
+            target=2.0*float(out["radius"])
+        else:
+            raise ValueError(f"{typ} compensation requires radius or diameter")
+        cad=compensate_target_dimension(target,feature="outer",profile=profile)
+        out["diameter"]=cad
+        out["radius"]=cad/2.0
+        if "height" in out:
+            out["height"]=compensate_target_dimension(float(out["height"]),feature="height",profile=profile)
+        if "thickness" in out:
+            out["thickness"]=compensate_target_dimension(float(out["thickness"]),feature="height",profile=profile)
+        return out
+
+    if typ=="extrusion":
+        if "height" not in out:
+            raise ValueError("extrusion compensation requires height")
+        out["height"]=compensate_target_dimension(float(out["height"]),feature="height",profile=profile)
+        return out
+
+    raise ValueError(
+        f"Automatic compensation is not defined for primitive type '{typ}'. "
+        "Use exact/B-rep feature compensation for directional geometry."
+    )

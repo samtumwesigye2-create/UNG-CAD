@@ -15,6 +15,10 @@ from typing import Optional
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from cad_core.draco_release_gate import RELEASE_MANIFEST, parse_release_manifest, evaluate_package, is_draco_name
+from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, ParametricArc, ParametricCylinder, ParametricSphere, ParametricHole, ParametricExtrusion, ParametricRevolve, UNGCadFeatureTimeline, ToleranceExceededError, tessellated_surface_triangles, sphere_manufacturing_triangles, FeatureNode, ParametricDependencyGraph
+from cad_core.geometry_validation import validate_triangle_mesh, bed_fit
+from cad_core.fit_analysis import PrinterCompensationProfile, analyze_compensated_fit, wall_from_opposed_planes, bore_diameter_from_cylinder_radius, compensate_primitive_params
+from cad_core.calibration_coupon import CalibrationCouponSpec, generate_calibration_coupon, derive_compensation_profile
 try:
     from production_readiness_api import router as production_readiness_router
     from cad_core.production_readiness import evaluate_manifest as evaluate_production_manifest, sign_machine_file, verify_machine_file
@@ -164,6 +168,7 @@ def init_db():
         created_at TEXT NOT NULL,
         revoked_at TEXT
     )""")
+    c.execute("CREATE TABLE IF NOT EXISTS printer_compensation_profiles (profile_name TEXT PRIMARY KEY, printer_id TEXT NOT NULL, profile_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
     c.commit()
     c.close()
 
@@ -182,6 +187,372 @@ def startup():
         )
     if not os.getenv("UNG_CAD_ADMIN_TOKEN"):
         logger.warning("UNG_CAD_ADMIN_TOKEN is not set: API key management endpoints are disabled.")
+
+
+feature_timeline_core=UNGCadFeatureTimeline()
+feature_dependency_graph=ParametricDependencyGraph()
+
+def _load_compensation_profile(profile_name:str|None):
+    if not profile_name:
+        return None
+    c=get_connection()
+    row=c.execute("SELECT profile_json FROM printer_compensation_profiles WHERE profile_name=?",(profile_name,)).fetchone()
+    c.close()
+    if not row:
+        raise HTTPException(404,f"Calibration profile '{profile_name}' not found")
+    try:
+        profile=PrinterCompensationProfile(**json.loads(row["profile_json"]))
+    except Exception as e:
+        raise HTTPException(422,f"Calibration profile '{profile_name}' is invalid: {e}")
+    if not profile.calibrated:
+        raise HTTPException(422,f"Calibration profile '{profile_name}' has no measured calibration data")
+    return profile
+
+def _apply_requested_compensation(primitive_type:str,params:dict,profile_name:str|None):
+    target=dict(params)
+    profile=_load_compensation_profile(profile_name)
+    if profile is None:
+        return target,None
+    try:
+        compensated=compensate_primitive_params(primitive_type,target,profile=profile)
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+    return compensated,{
+        "applied":True,
+        "profile_name":profile.name,
+        "profile_source":profile.source,
+        "target_params":target,
+        "cad_params":compensated,
+    }
+
+class ParametricCircleIn(BaseModel):
+    entity_id:str
+    center:list[float]=[0.0,0.0,0.0]
+    radius:float
+    normal:list[float]=[0.0,0.0,1.0]
+
+class ParametricActionIn(BaseModel):
+    action:str
+    value:float
+    target_quality:str="ui"
+
+@app.post("/api/cad/parametric/circle")
+def create_parametric_circle(body:ParametricCircleIn):
+    if len(body.center)!=3 or len(body.normal)!=3: raise HTTPException(400,"center and normal must contain exactly 3 values")
+    try:
+        circle=ParametricCircle(Point3D(*body.center),body.radius,Vector3D(*body.normal))
+        feature_timeline_core.add_circle(body.entity_id,circle)
+        return {"entity_id":body.entity_id,"status":"created","meta":{"radius":circle.radius,"center":circle.center.to_array(),"normal":[circle.normal.x,circle.normal.y,circle.normal.z]}}
+    except (ValueError,KeyError) as e: raise HTTPException(400,str(e))
+
+@app.post("/api/cad/parametric/{entity_id}/action")
+def parametric_action(entity_id:str,body:ParametricActionIn):
+    try: return feature_timeline_core.process_api_action(entity_id,body.action,body.value,body.target_quality)
+    except KeyError as e: raise HTTPException(404,str(e))
+    except (ValueError,NotImplementedError,ToleranceExceededError) as e: raise HTTPException(422,str(e))
+
+class ParametricPrimitiveIn(BaseModel):
+    entity_id:str
+    primitive_type:str
+    params:dict={}
+    target_quality:str="ui"
+    compensation_profile_name:str|None=None
+
+@app.post("/api/cad/parametric/primitive")
+def create_parametric_primitive(body:ParametricPrimitiveIn):
+    tol=UNGCadFeatureTimeline.QUALITY_TOLERANCES.get(body.target_quality)
+    if tol is None: raise HTTPException(400,"target_quality must be ui or export")
+    p,compensation=_apply_requested_compensation(body.primitive_type,body.params,body.compensation_profile_name)
+    try:
+        center=Point3D(*p.get("center",[0,0,0])); typ=body.primitive_type
+        if typ=="arc": obj=ParametricArc(center,float(p["radius"]),float(p.get("start_deg",0)),float(p.get("end_deg",90)),Vector3D(*p.get("normal",[0,0,1]))); data={"vertices":obj.tessellate(tol)}
+        elif typ=="cylinder": obj=ParametricCylinder(center,float(p["radius"]),float(p["height"])); s=obj.tessellate(tol); data={"triangles":tessellated_surface_triangles(s)}
+        elif typ=="sphere": obj=ParametricSphere(center,float(p["radius"])); data={"triangles":sphere_manufacturing_triangles(obj,tol)}
+        elif typ=="hole": obj=ParametricHole(center,float(p["radius"]),float(p["depth"])); s=obj.tessellate(tol); data={"triangles":tessellated_surface_triangles(s),"operation":"subtract"}
+        elif typ=="extrusion": obj=ParametricExtrusion(tuple(tuple(x) for x in p["profile"]),float(p["height"])); data={"triangles":tessellated_surface_triangles(obj.tessellate())}
+        elif typ=="revolve": obj=ParametricRevolve(tuple(tuple(x) for x in p["profile"]),float(p.get("angle_deg",360))); data={"triangles":tessellated_surface_triangles(obj.tessellate())}
+        else: raise ValueError("primitive_type must be arc, cylinder, sphere, hole, extrusion, or revolve")
+        return {"entity_id":body.entity_id,"type":typ,"quality":body.target_quality,
+                "compensation":compensation,**data}
+    except (KeyError,ValueError,ToleranceExceededError) as e: raise HTTPException(422,str(e))
+
+class FeatureNodeIn(BaseModel):
+    id:str
+    kind:str
+    entity_id:str
+    params:dict={}
+    parents:list[str]=[]
+
+class FeatureUpdateIn(BaseModel):
+    params:dict
+
+@app.post("/api/cad/features")
+def add_feature_node(body:FeatureNodeIn):
+    try:
+        n=feature_dependency_graph.add(FeatureNode(body.id,body.kind,body.entity_id,body.params,tuple(body.parents)))
+        return {"status":"created","feature":{"id":n.id,"kind":n.kind,"entity_id":n.entity_id,"params":n.params,"parents":list(n.parents),"revision":n.revision}}
+    except (KeyError,ValueError) as e: raise HTTPException(422,str(e))
+
+@app.get("/api/cad/features")
+def list_feature_nodes():
+    return {"features":feature_dependency_graph.serialize()}
+
+@app.put("/api/cad/features/{feature_id}")
+def update_feature_node(feature_id:str,body:FeatureUpdateIn):
+    try:
+        order=feature_dependency_graph.replace(feature_id,body.params)
+        return {"status":"updated","feature_id":feature_id,"regeneration_order":order,"features":feature_dependency_graph.serialize()}
+    except KeyError as e: raise HTTPException(404,str(e))
+
+class ParametricExportIn(BaseModel):
+    primitive_type:str
+    params:dict={}
+    target_quality:str="export"
+    filename:str="UNG_parametric.stl"
+    compensation_profile_name:str|None=None
+
+class MeshValidationIn(BaseModel):
+    triangles:list
+    require_watertight:bool=False
+    tolerance:float=1e-9
+    build_volume_mm:list[float]|None=None
+    bed_clearance_mm:float=0.0
+
+class CompensationProfileIn(BaseModel):
+    name:str="uncalibrated"
+    nozzle_diameter_mm:float=0.4
+    xy_scale_error_fraction:float=0.0
+    z_scale_error_fraction:float=0.0
+    hole_diameter_error_mm:float=0.0
+    slot_width_error_mm:float=0.0
+    outer_dimension_error_mm:float=0.0
+    clearance_error_mm:float=0.0
+    source:str="neutral-default"
+    calibrated:bool=False
+
+class FitAnalysisIn(BaseModel):
+    target_hole_mm:float
+    target_insert_mm:float
+    transition_band_mm:float=0.05
+    profile:CompensationProfileIn=CompensationProfileIn()
+
+@app.post("/api/manufacturing/fit-analysis")
+def manufacturing_fit_analysis(body:FitAnalysisIn):
+    try:
+        profile=PrinterCompensationProfile(**body.profile.model_dump())
+        return {
+            "ok":True,
+            "analysis":analyze_compensated_fit(
+                target_hole_mm=body.target_hole_mm,
+                target_insert_mm=body.target_insert_mm,
+                profile=profile,
+                transition_band_mm=body.transition_band_mm,
+            ),
+        }
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+
+class ExactBRepFeatureIn(BaseModel):
+    kind:str
+    values:list[float]
+
+@app.post("/api/cad/exact-feature")
+def exact_brep_feature(body:ExactBRepFeatureIn):
+    try:
+        kind=body.kind.strip().lower()
+        if kind=="parallel_wall":
+            if len(body.values)!=2: raise ValueError("parallel_wall requires two plane offsets")
+            return {"ok":True,"kind":kind,"wall_thickness_mm":wall_from_opposed_planes(body.values[0],body.values[1])}
+        if kind=="cylindrical_bore":
+            if len(body.values)!=1: raise ValueError("cylindrical_bore requires one radius")
+            return {"ok":True,"kind":kind,"bore_diameter_mm":bore_diameter_from_cylinder_radius(body.values[0])}
+        raise ValueError("kind must be parallel_wall or cylindrical_bore")
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+
+class CalibrationCouponIn(BaseModel):
+    outer_x_mm:float=40.0
+    outer_y_mm:float=20.0
+    base_height_mm:float=4.0
+    z_tower_height_mm:float=20.0
+    z_tower_size_mm:float=10.0
+    hole_diameters_mm:list[float]=[3.0,4.0,5.0,6.0]
+    pin_diameters_mm:list[float]=[3.0,4.0,5.0,6.0]
+    ring_wall_mm:float=2.0
+    spacing_mm:float=8.0
+    radial_segments:int=64
+    filename:str="UNG_AD5M_calibration_coupon.stl"
+
+class CalibrationFeedbackIn(BaseModel):
+    profile_name:str
+    printer_id:str="AD5M"
+    nozzle_diameter_mm:float=0.4
+    outer_samples:list[dict]=[]
+    xy_scale_samples:list[dict]=[]
+    z_scale_samples:list[dict]=[]
+    hole_samples:list[dict]=[]
+    slot_samples:list[dict]=[]
+    clearance_samples:list[dict]=[]
+    source:str="measured calibration coupon"
+    save:bool=True
+
+@app.post("/api/manufacturing/calibration/coupon")
+def manufacturing_calibration_coupon(body:CalibrationCouponIn):
+    try:
+        spec=CalibrationCouponSpec(
+            outer_x_mm=body.outer_x_mm,outer_y_mm=body.outer_y_mm,
+            base_height_mm=body.base_height_mm,z_tower_height_mm=body.z_tower_height_mm,
+            z_tower_size_mm=body.z_tower_size_mm,
+            hole_diameters_mm=tuple(body.hole_diameters_mm),
+            pin_diameters_mm=tuple(body.pin_diameters_mm),
+            ring_wall_mm=body.ring_wall_mm,spacing_mm=body.spacing_mm,
+            radial_segments=body.radial_segments,
+        )
+        triangles,manifest=generate_calibration_coupon(spec)
+        report=validate_triangle_mesh(triangles)
+        fit=bed_fit(report.dimensions,(220.0,220.0,220.0)) if report.dimensions else None
+        if not report.valid or not fit or not fit["fits"]:
+            raise HTTPException(422,{"message":"Generated calibration coupon failed manufacturing validation",
+                                     "validation":report.to_dict(),"build_volume":fit})
+        mesh_triangles=[
+            [{"x":p[0],"y":p[1],"z":p[2]} for p in tri]
+            for tri in triangles
+        ]
+        safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(body.filename).stem)+".stl"
+        out=BASE_DIR/"generated";out.mkdir(exist_ok=True);target=out/safe
+        target.write_bytes(_triangles_to_ascii_stl(mesh_triangles,Path(safe).stem))
+        return {"ok":True,"status":"generated","file":safe,
+                "download":f"/api/manufacturing/download/{safe}",
+                "manifest":manifest,"validation":report.to_dict(),"build_volume":fit,
+                "measurement_guide":{
+                    "outer_xy":"Measure the 40 × 20 mm block in X and Y with calipers.",
+                    "z_tower":"Measure tower height for Z-scale error.",
+                    "hole_rings":"Measure each inside diameter; enter nominal and measured values.",
+                    "pins":"Measure each outside diameter; use as outer-dimension/fit samples."
+                }}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+
+@app.post("/api/manufacturing/calibration/feedback")
+def manufacturing_calibration_feedback(body:CalibrationFeedbackIn):
+    try:
+        profile=derive_compensation_profile(
+            name=body.profile_name,
+            outer_samples=body.outer_samples,
+            xy_scale_samples=body.xy_scale_samples,
+            z_scale_samples=body.z_scale_samples,
+            hole_samples=body.hole_samples,
+            slot_samples=body.slot_samples,
+            clearance_samples=body.clearance_samples,
+            nozzle_diameter_mm=body.nozzle_diameter_mm,
+            source=body.source,
+        )
+        saved=False
+        if body.save:
+            ts=now_iso(); payload=json.dumps(profile.to_dict(),sort_keys=True)
+            c=get_connection()
+            c.execute("""INSERT INTO printer_compensation_profiles(profile_name,printer_id,profile_json,created_at,updated_at)
+                         VALUES(?,?,?,?,?) ON CONFLICT(profile_name) DO UPDATE SET
+                         printer_id=excluded.printer_id,profile_json=excluded.profile_json,updated_at=excluded.updated_at""",
+                      (profile.name,body.printer_id,payload,ts,ts))
+            c.commit();c.close();saved=True
+        return {"ok":True,"saved":saved,"printer_id":body.printer_id,"profile":profile.to_dict()}
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+
+@app.get("/api/manufacturing/calibration/profiles")
+def manufacturing_calibration_profiles(printer_id:str=""):
+    c=get_connection()
+    if printer_id:
+        rows=c.execute("SELECT * FROM printer_compensation_profiles WHERE printer_id=? ORDER BY updated_at DESC",(printer_id,)).fetchall()
+    else:
+        rows=c.execute("SELECT * FROM printer_compensation_profiles ORDER BY updated_at DESC").fetchall()
+    c.close()
+    return [{"profile_name":r["profile_name"],"printer_id":r["printer_id"],
+             "profile":json.loads(r["profile_json"]),"created_at":r["created_at"],"updated_at":r["updated_at"]} for r in rows]
+
+@app.get("/api/manufacturing/calibration/profiles/{profile_name}")
+def manufacturing_calibration_profile(profile_name:str):
+    c=get_connection();r=c.execute("SELECT * FROM printer_compensation_profiles WHERE profile_name=?",(profile_name,)).fetchone();c.close()
+    if not r: raise HTTPException(404,"Calibration profile not found")
+    return {"profile_name":r["profile_name"],"printer_id":r["printer_id"],
+            "profile":json.loads(r["profile_json"]),"created_at":r["created_at"],"updated_at":r["updated_at"]}
+
+@app.post("/api/manufacturing/validate-mesh")
+def validate_mesh(body:MeshValidationIn):
+    try:
+        report=validate_triangle_mesh(
+            body.triangles,
+            tolerance=body.tolerance,
+            require_watertight=body.require_watertight,
+        )
+        fit=None
+        if body.build_volume_mm is not None:
+            if report.dimensions is None:
+                raise ValueError("Cannot evaluate build-volume fit for an empty mesh.")
+            fit=bed_fit(report.dimensions,body.build_volume_mm,clearance=body.bed_clearance_mm)
+        status="PASS" if report.valid and (fit is None or fit["fits"]) and not report.warnings else (
+            "WARNING" if report.valid and (fit is None or fit["fits"]) else "FAIL"
+        )
+        return {"ok":report.valid and (fit is None or fit["fits"]),
+                "status":status,
+                "validation":report.to_dict(),
+                "build_volume":fit}
+    except (TypeError,ValueError,KeyError) as e:
+        raise HTTPException(422,str(e))
+
+def _triangles_to_ascii_stl(triangles,name="UNG_PARAMETRIC"):
+    def normal(a,b,c):
+        ux,uy,uz=b["x"]-a["x"],b["y"]-a["y"],b["z"]-a["z"]; vx,vy,vz=c["x"]-a["x"],c["y"]-a["y"],c["z"]-a["z"]
+        nx,ny,nz=uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx; mag=(nx*nx+ny*ny+nz*nz)**.5
+        return (nx/mag,ny/mag,nz/mag) if mag>1e-15 else (0.,0.,0.)
+    out=["solid "+name]
+    for a,b,c in triangles:
+        n=normal(a,b,c);out.append(f" facet normal {n[0]:.9g} {n[1]:.9g} {n[2]:.9g}\n  outer loop")
+        for p in (a,b,c):out.append(f"   vertex {p['x']:.9g} {p['y']:.9g} {p['z']:.9g}")
+        out.append("  endloop\n endfacet")
+    out.append("endsolid "+name);return ("\n".join(out)+"\n").encode()
+
+def _parametric_triangles(typ,p,tol):
+    """Manufacturing-authoritative curved primitive exporter.
+
+    Curved solids must be tessellated from their analytic parameters here.
+    Never substitute width/height bounding boxes for circles or cylinders.
+    """
+    typ=str(typ).strip().lower()
+    center=Point3D(*p.get("center",[0,0,0]))
+    if typ in {"cylinder","circle"}:
+        # A printable circle is a cylindrical solid; require an explicit height
+        # instead of silently turning its XY bounds into a rectangular panel.
+        radius=float(p.get("radius",float(p["diameter"])/2 if "diameter" in p else 0))
+        height=float(p.get("height",p.get("thickness",0)))
+        if radius<=0 or height<=0:
+            raise ValueError("circle/cylinder STL export requires positive radius (or diameter) and height (or thickness)")
+        return tessellated_surface_triangles(ParametricCylinder(center,radius,height).tessellate(tol))
+    if typ=="sphere": return sphere_manufacturing_triangles(ParametricSphere(center,float(p["radius"])),tol)
+    if typ=="extrusion": return tessellated_surface_triangles(ParametricExtrusion(tuple(tuple(x) for x in p["profile"]),float(p["height"])).tessellate())
+    if typ=="revolve": return tessellated_surface_triangles(ParametricRevolve(tuple(tuple(x) for x in p["profile"]),float(p.get("angle_deg",360))).tessellate())
+    raise ValueError("STL export supports circle/cylinder, sphere, extrusion, and revolve; curves require a solid operation first")
+
+@app.post("/api/cad/parametric/export-stl")
+def export_parametric_stl(body:ParametricExportIn):
+    tol=UNGCadFeatureTimeline.QUALITY_TOLERANCES.get(body.target_quality)
+    if tol is None: raise HTTPException(400,"target_quality must be ui or export")
+    p,compensation=_apply_requested_compensation(body.primitive_type,body.params,body.compensation_profile_name)
+    try: triangles=_parametric_triangles(body.primitive_type,p,tol)
+    except (KeyError,ValueError,ToleranceExceededError) as e: raise HTTPException(422,str(e))
+    if not triangles: raise HTTPException(422,"No printable triangles generated")
+    report=validate_triangle_mesh(triangles)
+    if not report.valid:
+        raise HTTPException(422,{"message":"Generated mesh failed manufacturing validation","validation":report.to_dict()})
+    safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(body.filename).stem)+".stl"
+    out=BASE_DIR/"generated";out.mkdir(exist_ok=True);target=out/safe
+    target.write_bytes(_triangles_to_ascii_stl(triangles,Path(safe).stem))
+    return {"ok":True,"status":"exported","machine_source":safe,"triangles":len(triangles),
+            "validation":report.to_dict(),"compensation":compensation,
+            "download":f"/api/manufacturing/download/{safe}","next":"/api/manufacturing/slice"}
 
 
 class SceneIn(BaseModel):
