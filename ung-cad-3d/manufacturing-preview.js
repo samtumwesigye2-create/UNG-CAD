@@ -28,7 +28,7 @@ function frameCurrent(){
  const b=A.bounds(current.tris),d=Math.max(b.size.x,b.size.y,b.size.z,10)*1.8;camera.position.set(d,-d,d);controls.target.set(0,0,b.size.z/2);controls.update();
 }
 function redraw(red=false){
- if(!current.tris)return;clearMesh(current.mesh);const set=red&&current.overhangs?new Set(current.overhangs.indices):null;current.mesh=meshFromTris(current.tris,set);scene.add(current.mesh);previewStats.textContent=statsText(current.label,current.tris);if(window.__refreshAnalyzeEstimate)window.__refreshAnalyzeEstimate();resize();
+ if(!current.tris)return;if(typeof clearWeakMarker==='function')clearWeakMarker();clearMesh(current.mesh);const set=red&&current.overhangs?new Set(current.overhangs.indices):null;current.mesh=meshFromTris(current.tris,set);scene.add(current.mesh);previewStats.textContent=statsText(current.label,current.tris);if(window.__refreshAnalyzeEstimate)window.__refreshAnalyzeEstimate();resize();
 }
 function setCurrent(label,tris,remember=true){if(remember)current.original=tris.map(t=>({a:{...t.a},b:{...t.b},c:{...t.c}}));current.label=label;current.tris=A.placeOnBed(tris);current.changed=false;current.overhangs=null;placeholder.style.display='none';redraw();frameCurrent();runManufacturingPreflight();if(window.__analyzeReady)window.__analyzeReady();}
 function runManufacturingPreflight(){
@@ -62,7 +62,7 @@ let pointerDown=null;renderer.domElement.addEventListener('pointerdown',e=>point
 renderer.domElement.addEventListener('pointerup',e=>{if(!measureMode||!pointerDown||Math.hypot(e.clientX-pointerDown.x,e.clientY-pointerDown.y)>6)return;const rect=renderer.domElement.getBoundingClientRect(),mouse=new THREE.Vector2((e.clientX-rect.left)/rect.width*2-1,-((e.clientY-rect.top)/rect.height)*2+1),ray=new THREE.Raycaster();ray.setFromCamera(mouse,camera);const targets=assemblyMode?assemblyMeshes:(current.mesh?[current.mesh]:[]),hit=ray.intersectObjects(targets,false)[0];if(!hit)return;picks.push(hit.point.clone());const dotg=new THREE.SphereGeometry(1.5,12,8),mat=new THREE.MeshBasicMaterial({color:0xfacc15}),dm=new THREE.Mesh(dotg,mat);dm.position.copy(hit.point);scene.add(dm);measureObjects.push(dm);if(picks.length===2){const pts=[picks[0],picks[1]],g=new THREE.BufferGeometry().setFromPoints(pts),line=new THREE.Line(g,new THREE.LineBasicMaterial({color:0xfacc15}));scene.add(line);measureObjects.push(line);const r=A.measure({x:pts[0].x,y:pts[0].y,z:pts[0].z},{x:pts[1].x,y:pts[1].y,z:pts[1].z});if(window.__measureResult)window.__measureResult(r);picks=[];}});
 
 window.__showAssembly=async function(parts,frames){
- assemblyMode=true;const gate=window.__setManufacturingPreflight;if(gate)gate('RUNNING','validating complete assembly for collisions and minimum clearance…');clearMesh(current.mesh);current.mesh=null;for(const m of assemblyMeshes)clearMesh(m);assemblyMeshes=[];assemblyParts=[];clearMeasure();
+ assemblyMode=true;clearWeakMarker();const gate=window.__setManufacturingPreflight;if(gate)gate('RUNNING','validating complete assembly for collisions and minimum clearance…');clearMesh(current.mesh);current.mesh=null;for(const m of assemblyMeshes)clearMesh(m);assemblyMeshes=[];assemblyParts=[];clearMeasure();
  let all=[];for(let i=0;i<parts.length;i++){const p=parts[i],polys=window.CSGEngine.parseSTL(p.bytes),tris=A.trianglesFromPolygons(polys),M=A.worldMatrix(frames,p.name),world=A.applyMatrix(tris,M),m=meshFromTris(world,null,palette[i%palette.length]);scene.add(m);assemblyMeshes.push(m);assemblyParts.push({name:p.name,tris:world,mesh:m});all=all.concat(world);}
  const b=A.bounds(all),d=Math.max(b.size.x,b.size.y,b.size.z,10)*1.6;camera.position.set(d,-d,d);controls.target.set((b.min.x+b.max.x)/2,(b.min.y+b.max.y)/2,(b.min.z+b.max.z)/2);controls.update();previewStats.textContent='Assembly view\n\nOverall size:\n'+b.size.x.toFixed(1)+' × '+b.size.y.toFixed(1)+' × '+b.size.z.toFixed(1)+' mm\n\n'+parts.map((p,i)=>'● '+p.name).join('\n');resize();const threshold=Math.max(0,Number(document.getElementById('clearanceMm')?.value)||0.40);const result=window.__runAssemblyManufacturingPreflight?window.__runAssemblyManufacturingPreflight(threshold):null;return {...b,preflight:result};
 };
@@ -84,7 +84,8 @@ window.__checkAssemblyClearance=function(threshold){
  assemblyParts.forEach((part,i)=>{part.mesh.material.color.setHex(hitNames.has(part.name)?0xfacc15:palette[i%palette.length]);});
  return hits;
 };
-window.__assemblyFitReport=function(){return A.pairwiseDistances(assemblyParts);};\nwindow.__assemblyEstimate=function(options={}){if(!assemblyMode||!assemblyParts.length)return null;return A.assemblyEstimate(assemblyParts,options);};
+window.__assemblyFitReport=function(){return A.pairwiseDistances(assemblyParts);};
+window.__assemblyEstimate=function(options={}){if(!assemblyMode||!assemblyParts.length)return null;return A.assemblyEstimate(assemblyParts,options);};
 window.__runAssemblyManufacturingPreflight=function(threshold=0.40){
  const gate=window.__setManufacturingPreflight;
  if(!gate)return{pass:false,reason:'Manufacturing gate unavailable'};
@@ -126,3 +127,8 @@ window.__runAssemblyManufacturingPreflight=function(threshold=0.40){
 };
 window.__backSingle=function(){assemblyMode=false;for(const m of assemblyMeshes)clearMesh(m);assemblyMeshes=[];assemblyParts=[];if(current.tris)redraw();};
 resize();
+// Stress check: colour the weakest section red. Exploded view: slide parts apart.
+let weakMarker=null;
+function clearWeakMarker(){if(weakMarker){scene.remove(weakMarker);weakMarker.geometry.dispose();weakMarker.material.dispose();weakMarker=null;}}
+window.__analyzeMarkSection=function(axis,coord){clearWeakMarker();if(!current.tris||assemblyMode||axis==null)return;const b=A.bounds(current.tris),pad=3,t=Math.max(1,b.size[axis]*.02),size={x:b.size.x+pad,y:b.size.y+pad,z:b.size.z+pad};size[axis]=t;const c={x:(b.min.x+b.max.x)/2,y:(b.min.y+b.max.y)/2,z:(b.min.z+b.max.z)/2};c[axis]=coord;weakMarker=new THREE.Mesh(new THREE.BoxGeometry(size.x,size.y,size.z),new THREE.MeshBasicMaterial({color:0xef4444,transparent:true,opacity:.55,depthWrite:false}));weakMarker.position.set(c.x,c.y,c.z);scene.add(weakMarker);};
+window.__explodeAssembly=function(factor){const S=window.UNGStrength;if(!assemblyMode||!S||!assemblyParts.length)return null;const o=S.explodeOffsets(assemblyParts,factor);assemblyParts.forEach((p,i)=>p.mesh.position.set(o[i].x,o[i].y,o[i].z));return o;};

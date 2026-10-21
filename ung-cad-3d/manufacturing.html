@@ -1,6 +1,6 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>UNG-CAD Manufacturing</title>
+<html><head><script src="/static/ung-auth.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UNG-CAD Manufacturing</title>\n<!-- Build 2026-09-28.1 -->
 <style>
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#080d14;color:#e7edf6}
 body{padding-top:64px}.top{position:fixed;top:0;left:0;right:0;height:64px;z-index:50;display:flex;align-items:center;gap:10px;padding:10px 14px;background:#151a22;border-bottom:1px solid #303946}.top:before{content:"UNG-CAD STUDIO";font-weight:800;letter-spacing:3px;margin-right:8px}.top button{width:auto;min-height:42px;padding:0 18px;border:1px solid #354150;border-radius:10px;background:#202731;color:#e6ebf2;font-size:15px}.top:after{content:"Manufacturing";display:flex;align-items:center;min-height:42px;padding:0 18px;border:1px solid #18a8ff;border-radius:10px;background:#29485f;color:#fff;box-shadow:inset 0 0 0 1px #18a8ff}
@@ -50,10 +50,10 @@ addEventListener('DOMContentLoaded',()=>{
  if(!missing.length)e.textContent=' READY — all manufacturing analytic engines loaded.';
  else {
    const coreMissing=missing.filter(n=>n!=='electrical/wave');
-   e.textContent=(coreMissing.length?' ERROR — required engines missing: ':' DEGRADED — optional engine missing: ')+missing.join(', ')+'.';
+   e.textContent=coreMissing.length?(' ERROR — required engines missing: '+coreMissing.join(', ')+'.'):(' READY — slicing available; optional analytics unavailable: '+missing.join(', ')+'.');
  }
-});</script><div class="top"><button onclick="location.href='./studio.html'">Home</button><button onclick="location.href='./viewer.html'">3D</button></div>
-<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-28.1</div>
+});</script><div class="top"><button onclick="location.href='./studio.html'">Home</button><button onclick="location.href='./viewer.html'">3D</button><button onclick="location.href='./hyper.html'">4D/5D</button></div>
+<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-10-10.1</div>
 
 <h2><span class="step">1</span>Choose model</h2>
 <label class="btn" style="display:inline-flex;position:relative;align-items:center;overflow:hidden;cursor:pointer">Choose model or project<input id="pkg" type="file" multiple style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"></label>
@@ -96,7 +96,7 @@ addEventListener('DOMContentLoaded',()=>{
 <div id="analyzeBox" class="analyze">
 <b>Analyze</b>
 <div class="an-tabs">
-<button data-an="measure" class="active">Measure</button><button data-an="estimate">Print estimate</button><button data-an="rotate">Rotate & scale</button><button data-an="support">Support check</button><button data-an="best">Best position</button><button data-an="frames">Frames & assembly</button>
+<button data-an="measure" class="active">Measure</button><button data-an="estimate">Print estimate</button><button data-an="rotate">Rotate & scale</button><button data-an="support">Support check</button><button data-an="stress">Stress check</button><button data-an="best">Best position</button><button data-an="frames">Frames & assembly</button>
 </div>
 <div id="an-measure" class="an-panel active"><div class="an-row"><button class="btn" id="measureToggle">Start measuring</button><button class="btn" id="measureClear">Clear</button></div><div id="measureOut" class="an-out">Tap two points on the 3D part.</div></div>
 <div id="an-estimate" class="an-panel"><div id="estimateOut" class="an-out">Preview a part to calculate an estimate.</div><div class="an-row"><button class="btn" id="estimateAll">Estimate all parts</button></div><div class="small">Rough guide only; the final numbers come from Auto Prepare.</div></div>
@@ -106,6 +106,12 @@ addEventListener('DOMContentLoaded',()=>{
 <div class="an-row">Size <input id="scalePct" type="number" value="100" min="1"> % <button class="btn" id="resizePart">Resize</button></div>
 <div class="an-row"><button class="btn" id="mirrorX">Left–right</button><button class="btn" id="mirrorY">Front–back</button></div><div id="rotateOut" class="an-out"></div></div>
 <div id="an-support" class="an-panel"><div class="an-row"><button class="btn" id="checkSupports">Check supports</button><button class="btn" id="hideRed">Hide red</button></div><div id="supportOut" class="an-out"></div></div>
+<div id="an-stress" class="an-panel">
+<div class="small">One end is held (screwed, clamped or glued); the load pushes on the other end. Shows the weakest spot in red and whether the part will hold.</div>
+<div class="an-row">Load <input id="stLoad" type="number" value="1" min="0" step="0.1"><select id="stUnit"><option value="kg">kg</option><option value="N">N (newtons)</option></select>Material <select id="stMat"><option>PLA</option><option>PETG</option><option>ABS</option></select></div>
+<div class="an-row">Length runs along <select id="stAxis"><option value="auto">Longest side</option><option value="x">X</option><option value="y">Y</option><option value="z">Z (upright)</option></select>Held end <select id="stFixed"><option value="min">Start</option><option value="max">End</option></select>Load pushes <select id="stDir"><option value="auto">Down</option><option value="x">Along X</option><option value="y">Along Y</option><option value="z">Along Z</option></select></div>
+<div class="an-row"><button class="btn" id="stRun">Check strength</button></div>
+<div id="stressOut" class="an-out">Enter the load the part has to carry, then press Check strength.</div></div>
 <div id="an-best" class="an-panel"><div class="an-row"><button class="btn" id="bestPos">Best position</button></div><div id="bestOut" class="an-out"></div></div>
 <div id="an-frames" class="an-panel">
 <div class="small">Point converter</div>
@@ -115,7 +121,7 @@ addEventListener('DOMContentLoaded',()=>{
 <div class="an-row"><select id="frameDir"><option value="to">Point is in M → find it in F</option><option value="from">Point is in F → find it in M</option></select><button class="btn" id="convertPoint">Convert</button></div>
 <div class="an-row"><button class="btn" id="lessonTrans">Pure translation</button><button class="btn" id="lessonRot">Pure rotation</button><button class="btn" id="lessonBoth">Rotation + translation</button></div>
 <canvas id="frameCanvas" width="330" height="220" style="background:#fff;border-radius:6px;max-width:100%"></canvas><div id="frameOut" class="an-out"></div>
-<details><summary>Assembly placement</summary><div id="assemblyRows"></div><div class="an-row"><button class="btn" id="showAssembly">Show assembly</button><button class="btn" id="checkClashes">Quick clash check</button><button class="btn" id="checkGeometryClashes">Geometry clash check</button><input id="clearanceMm" type="number" min="0" step="0.05" value="0.40" title="Minimum clearance in mm"><button class="btn" id="checkClearance">Clearance check</button><button class="btn" id="fitReport">Full fit report</button><button class="btn" id="downloadFitCsv" disabled>Download CSV</button><button class="btn" id="backSingle">Back to single part</button></div></details><div id="clashOut" class="an-out">Show the assembly, then check for possible overlaps.</div>
+<details><summary>Assembly placement</summary><div id="assemblyRows"></div><div class="an-row"><button class="btn" id="showAssembly">Show assembly</button><button class="btn" id="checkClashes">Quick clash check</button><button class="btn" id="checkGeometryClashes">Geometry clash check</button><input id="clearanceMm" type="number" min="0" step="0.05" value="0.40" title="Minimum clearance in mm"><button class="btn" id="checkClearance">Clearance check</button><button class="btn" id="fitReport">Full fit report</button><button class="btn" id="downloadFitCsv" disabled>Download CSV</button><button class="btn" id="backSingle">Back to single part</button></div><div class="an-row">Exploded view <input id="explodeRange" type="range" min="0" max="150" value="0" style="max-width:220px;height:auto"><span id="explodeState" class="small">Assembled</span></div></details><div id="clashOut" class="an-out">Show the assembly, then check for possible overlaps.</div>
 </div>
 <div id="changedBar" class="changedbar">This part has been changed. Printing still uses the original until you save. <button class="btn" id="saveVersion">Use this version for printing</button> <button class="btn" id="undoChanges">Undo all changes</button></div>
 </div>
@@ -124,7 +130,7 @@ addEventListener('DOMContentLoaded',()=>{
 <div class="machine"><div class="an-row" style="margin:0 0 12px"><button class="btn" id="jumpPrepare" type="button" style="background:#1677ff;color:#fff">↑ Auto Prepare & Slice</button><span class="small">Prepare the selected model before printing.</span></div><b>AD5M printer bridge</b><div class="small">Send the prepared job to your Adventurer 5M. UNG-CAD queues it securely on Railway; the local AD5M bridge picks it up and starts the printer.</div>
 <div class="controls">
 <div class="field"><label>Printer</label><input id="printer" value="a51a5435" readonly></div>
-<div class="small">Your AD5M bridge connects to Railway automatically. <b id="bridgeState">Checking printer agent…</b><div id="agentInstall" style="display:none;margin-top:10px"><a class="btn" href="/install-ad5m-agent.command">Install printer agent on Mac</a></div></div>
+<div class="small">Your AD5M bridge connects to Railway automatically. <b id="bridgeState">Checking printer agent…</b><div id="agentInstall" style="display:none;margin-top:10px"><div>On the Mac next to the printer: open <b>Terminal</b>, paste this line, press Return. It installs or updates the printer agent and keeps your saved Access Code.</div><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><code id="agentCmd" style="flex:1;min-width:240px;padding:10px;border:1px solid #354150;border-radius:8px;background:#080d14;color:#e6ebf2;font-size:12px;word-break:break-all"></code><button class="btn" type="button" id="copyAgentCmd">Copy</button></div><div style="margin-top:6px">Windows: <a class="link" href="/install-ad5m-agent.bat">download the Windows installer</a>.</div></div></div>
 <button class="btn" id="send" disabled>Print</button>
 </div><div id="status" class="status"></div></div>
 
@@ -181,7 +187,7 @@ addEventListener('DOMContentLoaded',()=>{
 </div></div>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script src="./csg-engine.js"></script><script src="./analyze-engine.js"></script>
+<script src="./csg-engine.js"></script><script src="./analyze-engine.js"></script><script src="./strength-engine.js?v=20261010-1"></script>
 <script>
 const f=document.getElementById('pkg'),meta=document.getElementById('meta'),parts=document.getElementById('parts'),status=document.getElementById('status'),part=document.getElementById('part'),sliceBtn=document.getElementById('slice'),sendBtn=document.getElementById('send'),previewStats=document.getElementById('previewStats');
 const jumpPrepare=document.getElementById('jumpPrepare'); if(jumpPrepare) jumpPrepare.onclick=()=>{sliceBtn.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>sliceBtn.focus(),350);};
@@ -379,7 +385,7 @@ window.__previewSTL=function(label,arrayBuffer){
    let cv=document.getElementById('fallbackPreviewCanvas');if(!cv){cv=document.createElement('canvas');cv.id='fallbackPreviewCanvas';cv.style.cssText='width:100%;height:100%;display:block;touch-action:none';host.appendChild(cv);__installFallbackInteraction(cv);}
    __fallbackPreview.tris=tris;__drawFallbackSTL();
   }
-  previewStats.textContent=label+'\\n\\nDimensions (W × D × H):\\n'+b.size.x.toFixed(1)+' × '+b.size.y.toFixed(1)+' × '+b.size.z.toFixed(1)+' mm\\nTriangles: '+tris.length+'\\n\\nInteractive preview — drag to orbit · scroll/pinch browser gesture to zoom.';
+  previewStats.textContent=label+'\n\nDimensions (W × D × H):\n'+b.size.x.toFixed(1)+' × '+b.size.y.toFixed(1)+' × '+b.size.z.toFixed(1)+' mm\nTriangles: '+tris.length+'\n\nInteractive preview — drag to orbit · scroll/pinch browser gesture to zoom.';
   if(!window.UNGAnalyze.fitsBed(tris)){setPreflight('BLOCKED','model exceeds the Adventurer 5M 220 × 220 × 220 mm build volume.');return;}
   setPreflight('PASS','3D geometry loaded and fits the Adventurer 5M build volume.');
  }catch(e){host.classList.remove('loaded');if(ph){ph.style.display='flex';ph.textContent='Preview failed: '+e.message;}previewStats.textContent='Preview failed — '+e.message;setPreflight('BLOCKED','preview could not validate 3D geometry: '+e.message);}
@@ -478,7 +484,38 @@ async function selectAndPreview(n,rowEl){
   console.error('selectAndPreview failed before reaching STL load:', outerErr);
  }
 }
-async function handleChosenFiles(fileList,sourceLabel='files'){if(!fileList||!fileList.length)return;const chosen=[...fileList];parts.innerHTML='';part.innerHTML='';status.textContent='Preparing selected '+sourceLabel+'…';previewStats.textContent='No part selected yet.';
+// ---- Convert GLB / GLTF / OBJ to STL in the browser (the server only accepts STL/3MF/G-code) ----
+function __stlFromTriangles(tris){const buf=new ArrayBuffer(84+50*tris.length),dv=new DataView(buf);dv.setUint32(80,tris.length,true);let o=84;
+ for(const t of tris){const [a,b,c]=t;const ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2],vx=c[0]-a[0],vy=c[1]-a[1],vz=c[2]-a[2];let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const l=Math.hypot(nx,ny,nz)||1;
+  for(const v of [nx/l,ny/l,nz/l,...a,...b,...c]){dv.setFloat32(o,v,true);o+=4;} o+=2;}
+ return buf;}
+function __trisFromOBJ(text){const V=[],T=[];for(const line of text.split(/\r?\n/)){const p=line.trim().split(/\s+/);
+  if(p[0]==='v')V.push([+p[1],+p[2],+p[3]]);
+  else if(p[0]==='f'){const idx=p.slice(1).map(x=>{const i=parseInt(x.split('/')[0],10);return i<0?V.length+i:i-1;});for(let k=1;k+1<idx.length;k++)T.push([V[idx[0]],V[idx[k]],V[idx[k+1]]]);}}
+ return T.filter(t=>t.every(Boolean));}
+async function __trisFromGLTF(file){
+ const THREE=await import('three');const {GLTFLoader}=await import('https://cdn.jsdelivr.net/npm/three@0.140.0/examples/jsm/loaders/GLTFLoader.js');
+ const data=/\.glb$/i.test(file.name)?await file.arrayBuffer():await file.text();
+ const gltf=await new Promise((res,rej)=>new GLTFLoader().parse(data,'',res,e=>rej(new Error('Could not read '+file.name+(e&&e.message?' — '+e.message:'')))));
+ const T=[],v=new THREE.Vector3();gltf.scene.updateMatrixWorld(true);
+ gltf.scene.traverse(m=>{if(!m.isMesh||!m.geometry?.attributes?.position)return;const pos=m.geometry.attributes.position,ix=m.geometry.index;
+  const P=i=>{v.fromBufferAttribute(pos,i).applyMatrix4(m.matrixWorld);return [v.x,-v.z,v.y];};   // glTF is Y-up; printers are Z-up
+  const n=ix?ix.count:pos.count;for(let k=0;k+2<n;k+=3){const a=ix?ix.getX(k):k,b=ix?ix.getX(k+1):k+1,c=ix?ix.getX(k+2):k+2;T.push([P(a),P(b),P(c)]);}});
+ // glTF uses metres; if the model is tiny, treat it as metres and convert to millimetres
+ let mx=0;for(const t of T)for(const p of t)mx=Math.max(mx,Math.abs(p[0]),Math.abs(p[1]),Math.abs(p[2]));
+ if(mx>0&&mx<2)for(const t of T)for(const p of t){p[0]*=1000;p[1]*=1000;p[2]*=1000;}
+ return T;}
+async function __toPrintableFile(file){
+ const low=file.name.toLowerCase();
+ if(/\.(stl|3mf|gcode|gx|zip)$/.test(low)||low.endsWith('.gcode.3mf'))return file;
+ let tris;
+ if(low.endsWith('.obj'))tris=__trisFromOBJ(await file.text());
+ else if(/\.(glb|gltf)$/.test(low))tris=await __trisFromGLTF(file);
+ else throw new Error(file.name+' is not a 3D model this page can use. Choose an STL, 3MF, OBJ, GLB or GLTF file.');
+ if(!tris.length)throw new Error('No geometry found in '+file.name);
+ return new File([__stlFromTriangles(tris)],file.name.replace(/\.[^.]+$/,'')+'.stl',{type:'model/stl'});}
+function __showPreviewError(msg){const ph=document.getElementById('previewPlaceholder');if(ph){ph.style.display='flex';ph.textContent=msg;}previewStats.textContent=msg;}
+async function handleChosenFiles(fileList,sourceLabel='files'){if(!fileList||!fileList.length)return;let chosen=[...fileList];try{chosen=await Promise.all(chosen.map(__toPrintableFile));}catch(e){parts.innerHTML='';part.innerHTML='<option>Select package first</option>';status.textContent='FAILED — '+e.message;__showPreviewError(e.message);return;}parts.innerHTML='';part.innerHTML='';status.textContent='Preparing selected '+sourceLabel+'…';previewStats.textContent='No part selected yet.';
  // Manufacturing must preview STL locally even if Railway inspection is unavailable.
  if(chosen.length===1&&/\.stl$/i.test(chosen[0].name)){
    selectedFile=chosen[0];
@@ -506,7 +543,7 @@ if(j.parts.length)await selectAndPreview(j.parts[0],firstRow);
  if(selectedFile&&/\.stl$/i.test(selectedFile.name)){
    status.textContent='Geometry loaded locally. Server inspection unavailable — '+e.message;
    if(typeof window.__previewSTL==='function') await selectAndPreview(selectedFile.name,document.querySelector('.part'));
- }else status.textContent='FAILED — '+e.message;
+ }else{status.textContent='FAILED — '+e.message;__showPreviewError('Could not load this file — '+e.message);}
 }}
 async function receiveStudioModel(){
  try{
@@ -606,15 +643,20 @@ async function refreshBridge(){
  try{const id=document.getElementById('printer').value.trim();const r=await fetch(api('/api/manufacturing/bridge-status?printer_id='+encodeURIComponent(id)),{cache:'no-store'}),j=await r.json();const el=document.getElementById('bridgeState');
  const install=document.getElementById('agentInstall');
  bridgeOnline=!!j.online;
- if(j.online){el.textContent='● Printer agent online';sendBtn.textContent='Print';sendBtn.disabled=!lastMachineUrl;sendBtn.title='';install.style.display='none';}
- else{el.textContent='○ Printer agent offline — printer agent must be installed/running on the computer beside the AD5M';sendBtn.textContent='Printer Offline';sendBtn.disabled=true;sendBtn.title='Printer agent offline';install.style.display='block';}
+ if(!r.ok){el.textContent='○ Could not check the printer agent ('+(j.detail||('HTTP '+r.status))+')';sendBtn.disabled=true;return;}
+ if(j.online){el.textContent='● '+(j.message||'Printer agent online');sendBtn.textContent='Print';sendBtn.disabled=!lastMachineFile;sendBtn.title='';install.style.display='none';}
+ else{el.textContent='○ '+(j.message||'Printer agent offline');sendBtn.textContent=j.agent_connected?'Printer Not Ready':'Printer Offline';sendBtn.disabled=true;sendBtn.title=j.message||'';
+  const showInstall=!j.agent_connected||j.state==='AGENT_UPDATE_NEEDED';install.style.display=showInstall?'block':'none';
+  const cmd=document.getElementById('agentCmd');if(cmd&&!cmd.textContent)cmd.textContent='curl -fsSL '+location.origin+'/install-ad5m-agent.sh | bash';}
  }catch(e){}
 }
 setInterval(refreshBridge,5000);refreshBridge();
+document.getElementById('copyAgentCmd')?.addEventListener('click',async()=>{const c=document.getElementById('agentCmd').textContent;const b=document.getElementById('copyAgentCmd');try{await navigator.clipboard.writeText(c);b.textContent='Copied';}catch(e){const r=document.createRange();r.selectNodeContents(document.getElementById('agentCmd'));const s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected — press ⌘C';}setTimeout(()=>b.textContent='Copy',2500);});
 
 async function pollJob(id){for(let i=0;i<180;i++){await new Promise(r=>setTimeout(r,2000));const r=await fetch(api('/api/manufacturing/jobs/'+id),{cache:'no-store'}),j=await r.json();if(j.status==='completed'){status.textContent='PRINT STARTED — AD5M bridge accepted '+j.machine_file;return}if(j.status==='failed'){status.textContent='PRINT FAILED — '+((j.result&&j.result.error)||'printer bridge failed');return}status.textContent='PRINT QUEUED — waiting for the AD5M bridge ('+j.status+')';}status.textContent='PRINT QUEUED — bridge has not picked it up yet.'}
 sendBtn.onclick=async()=>{if(!preflightPassed){status.textContent='PRINT BLOCKED — Manufacturing Preflight has not passed.';return}if(!lastMachineFile){status.textContent='NO PREPARED FILE — tap Auto Prepare first.';return}if(!bridgeOnline){status.textContent='PRINTER OFFLINE — no print job was created.';return}sendBtn.disabled=true;try{const machine=lastMachineFile;const r=await fetch(api('/api/manufacturing/jobs'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_id:document.getElementById('printer').value.trim(),machine_file:machine})});const j=await r.json();if(!r.ok)throw Error(j.detail||'Could not queue print');status.textContent='PRINT QUEUED FOR AD5M — '+j.job_id;await pollJob(j.job_id)}catch(e){status.textContent='PRINT FAILED — '+e.message}finally{sendBtn.disabled=!lastMachineFile||!bridgeOnline}};
 </script>
+<script src="./analyze-panel.js?v=20261010-1"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.140.0/build/three.module.js"}}</script>
-<script type="module" src="./manufacturing-preview.js?v=20260926-2"></script>
+<script type="module" src="./manufacturing-preview.js?v=20261010-1"></script>
 </body></html>
