@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import csv
 import io
 import json
 import logging
@@ -18,7 +19,7 @@ from cad_core.draco_release_gate import RELEASE_MANIFEST, parse_release_manifest
 from cad_core.feature_timeline import Point3D, Vector3D, ParametricCircle, ParametricArc, ParametricCylinder, ParametricSphere, ParametricHole, ParametricExtrusion, ParametricRevolve, UNGCadFeatureTimeline, ToleranceExceededError, tessellated_surface_triangles, sphere_manufacturing_triangles, FeatureNode, ParametricDependencyGraph
 from cad_core.geometry_validation import validate_triangle_mesh, bed_fit
 from cad_core.fit_analysis import PrinterCompensationProfile, analyze_compensated_fit, wall_from_opposed_planes, bore_diameter_from_cylinder_radius, compensate_primitive_params
-from cad_core.calibration_coupon import CalibrationCouponSpec, generate_calibration_coupon, derive_compensation_profile
+from cad_core.calibration_coupon import CalibrationCouponSpec, generate_calibration_coupon, derive_compensation_profile, measurement_template_rows, feedback_from_measurement_rows, MEASUREMENT_COLUMNS
 try:
     from production_readiness_api import router as production_readiness_router
     from cad_core.production_readiness import evaluate_manifest as evaluate_production_manifest, sign_machine_file, verify_machine_file
@@ -396,44 +397,98 @@ class CalibrationFeedbackIn(BaseModel):
     source:str="measured calibration coupon"
     save:bool=True
 
+def _coupon_spec(body:"CalibrationCouponIn")->CalibrationCouponSpec:
+    return CalibrationCouponSpec(
+        outer_x_mm=body.outer_x_mm,outer_y_mm=body.outer_y_mm,
+        base_height_mm=body.base_height_mm,z_tower_height_mm=body.z_tower_height_mm,
+        z_tower_size_mm=body.z_tower_size_mm,
+        hole_diameters_mm=tuple(body.hole_diameters_mm),
+        pin_diameters_mm=tuple(body.pin_diameters_mm),
+        ring_wall_mm=body.ring_wall_mm,spacing_mm=body.spacing_mm,
+        radial_segments=body.radial_segments,
+    )
+
+def _build_validated_coupon(spec:CalibrationCouponSpec):
+    """Generate the coupon and refuse it unless it is a valid mesh that fits the AD5M bed."""
+    triangles,manifest=generate_calibration_coupon(spec)
+    report=validate_triangle_mesh(triangles)
+    fit=bed_fit(report.dimensions,(220.0,220.0,220.0)) if report.dimensions else None
+    if not report.valid or not fit or not fit["fits"]:
+        raise HTTPException(422,{"message":"Generated calibration coupon failed manufacturing validation",
+                                 "validation":report.to_dict(),"build_volume":fit})
+    mesh_triangles=[[{"x":p[0],"y":p[1],"z":p[2]} for p in tri] for tri in triangles]
+    return mesh_triangles,manifest,report,fit
+
+COUPON_MEASUREMENT_GUIDE={
+    "outer_xy":"Measure the 40 × 20 mm block in X and Y with calipers.",
+    "z_tower":"Measure tower height for Z-scale error.",
+    "hole_rings":"Measure each inside diameter; enter nominal and measured values.",
+    "pins":"Measure each outside diameter; use as outer-dimension/fit samples.",
+}
+
 @app.post("/api/manufacturing/calibration/coupon")
 def manufacturing_calibration_coupon(body:CalibrationCouponIn):
     try:
-        spec=CalibrationCouponSpec(
-            outer_x_mm=body.outer_x_mm,outer_y_mm=body.outer_y_mm,
-            base_height_mm=body.base_height_mm,z_tower_height_mm=body.z_tower_height_mm,
-            z_tower_size_mm=body.z_tower_size_mm,
-            hole_diameters_mm=tuple(body.hole_diameters_mm),
-            pin_diameters_mm=tuple(body.pin_diameters_mm),
-            ring_wall_mm=body.ring_wall_mm,spacing_mm=body.spacing_mm,
-            radial_segments=body.radial_segments,
-        )
-        triangles,manifest=generate_calibration_coupon(spec)
-        report=validate_triangle_mesh(triangles)
-        fit=bed_fit(report.dimensions,(220.0,220.0,220.0)) if report.dimensions else None
-        if not report.valid or not fit or not fit["fits"]:
-            raise HTTPException(422,{"message":"Generated calibration coupon failed manufacturing validation",
-                                     "validation":report.to_dict(),"build_volume":fit})
-        mesh_triangles=[
-            [{"x":p[0],"y":p[1],"z":p[2]} for p in tri]
-            for tri in triangles
-        ]
+        mesh_triangles,manifest,report,fit=_build_validated_coupon(_coupon_spec(body))
         safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(body.filename).stem)+".stl"
         out=BASE_DIR/"generated";out.mkdir(exist_ok=True);target=out/safe
         target.write_bytes(_triangles_to_ascii_stl(mesh_triangles,Path(safe).stem))
         return {"ok":True,"status":"generated","file":safe,
                 "download":f"/api/manufacturing/download/{safe}",
+                "kit_download":"/api/manufacturing/calibration/coupon-kit",
                 "manifest":manifest,"validation":report.to_dict(),"build_volume":fit,
-                "measurement_guide":{
-                    "outer_xy":"Measure the 40 × 20 mm block in X and Y with calipers.",
-                    "z_tower":"Measure tower height for Z-scale error.",
-                    "hole_rings":"Measure each inside diameter; enter nominal and measured values.",
-                    "pins":"Measure each outside diameter; use as outer-dimension/fit samples."
-                }}
+                "measurement_guide":COUPON_MEASUREMENT_GUIDE}
     except HTTPException:
         raise
     except ValueError as e:
         raise HTTPException(422,str(e))
+
+COUPON_KIT_README="""UNG-CAD printer calibration kit
+================================
+
+1. Print coupon.stl on the printer you want to calibrate, using the same
+   material and settings you normally use. Nothing is pre-corrected in it.
+2. Let it cool fully, then measure each feature with calipers.
+3. Open measurements.csv and type each reading into the measured_mm column.
+   Leave a cell empty if you could not measure it (empty is skipped, not zero).
+4. Upload the filled-in measurements.csv to
+   /api/manufacturing/calibration/feedback-csv with a profile name.
+   UNG-CAD works out the printer's error and saves it as a calibration profile.
+
+manifest.json lists every piece and its designed size.
+"""
+
+def _coupon_kit_zip(spec:CalibrationCouponSpec)->bytes:
+    mesh_triangles,manifest,report,fit=_build_validated_coupon(spec)
+    sheet=io.StringIO()
+    w=csv.DictWriter(sheet,fieldnames=list(MEASUREMENT_COLUMNS),lineterminator="\n")
+    w.writeheader()
+    for row in measurement_template_rows(manifest): w.writerow(row)
+    manifest=dict(manifest,validation=report.to_dict(),build_volume=fit,
+                  measurement_guide=COUPON_MEASUREMENT_GUIDE)
+    mem=io.BytesIO()
+    with zipfile.ZipFile(mem,"w",compression=zipfile.ZIP_DEFLATED) as z:
+        z.writestr("coupon.stl",_triangles_to_ascii_stl(mesh_triangles,"UNG_CALIBRATION_COUPON"))
+        z.writestr("manifest.json",json.dumps(manifest,indent=2))
+        z.writestr("measurements.csv",sheet.getvalue())
+        z.writestr("README.txt",COUPON_KIT_README)
+    return mem.getvalue()
+
+@app.get("/api/manufacturing/calibration/coupon-kit")
+def manufacturing_calibration_coupon_kit():
+    """Default AD5M calibration kit: coupon STL, manifest, blank measurement sheet, instructions."""
+    return Response(content=_coupon_kit_zip(CalibrationCouponSpec()),media_type="application/zip",
+                    headers={"Content-Disposition":"attachment; filename=UNG-CAD_calibration_kit.zip"})
+
+@app.post("/api/manufacturing/calibration/coupon-kit")
+def manufacturing_calibration_coupon_kit_custom(body:CalibrationCouponIn):
+    """Same kit for a custom coupon size."""
+    try:
+        data=_coupon_kit_zip(_coupon_spec(body))
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+    return Response(content=data,media_type="application/zip",
+                    headers={"Content-Disposition":"attachment; filename=UNG-CAD_calibration_kit.zip"})
 
 @app.post("/api/manufacturing/calibration/feedback")
 def manufacturing_calibration_feedback(body:CalibrationFeedbackIn):
@@ -461,6 +516,37 @@ def manufacturing_calibration_feedback(body:CalibrationFeedbackIn):
         return {"ok":True,"saved":saved,"printer_id":body.printer_id,"profile":profile.to_dict()}
     except ValueError as e:
         raise HTTPException(422,str(e))
+
+MAX_MEASUREMENT_SHEET_BYTES=256*1024
+
+@app.post("/api/manufacturing/calibration/feedback-csv")
+async def manufacturing_calibration_feedback_csv(
+    file:UploadFile=File(...),
+    profile_name:str=Form(...),
+    printer_id:str=Form("AD5M"),
+    nozzle_diameter_mm:float=Form(0.4),
+    save:bool=Form(True),
+):
+    """Accept the filled-in measurements.csv from the calibration kit."""
+    raw=await file.read(MAX_MEASUREMENT_SHEET_BYTES+1)
+    if len(raw)>MAX_MEASUREMENT_SHEET_BYTES: raise HTTPException(413,"measurement sheet is too large")
+    try:
+        text=raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(422,"measurement sheet must be a UTF-8 CSV file")
+    reader=csv.DictReader(io.StringIO(text))
+    missing=[c for c in MEASUREMENT_COLUMNS if c not in (reader.fieldnames or [])]
+    if missing: raise HTTPException(422,f"measurement sheet is missing columns: {', '.join(missing)}")
+    try:
+        groups=feedback_from_measurement_rows(reader)
+    except ValueError as e:
+        raise HTTPException(422,str(e))
+    body=CalibrationFeedbackIn(profile_name=profile_name,printer_id=printer_id,
+                               nozzle_diameter_mm=nozzle_diameter_mm,
+                               source="measured calibration kit sheet",save=save,**groups)
+    result=manufacturing_calibration_feedback(body)
+    result["measurements_used"]={g:len(v) for g,v in groups.items() if v}
+    return result
 
 @app.get("/api/manufacturing/calibration/profiles")
 def manufacturing_calibration_profiles(printer_id:str=""):
