@@ -1,0 +1,1 @@
+{"schema_version":1,"model_id":"DEMO-BUILDING-001","revision":"A","components":[{"id":"slab-01","system":"concrete","unit":"m3","quantity":45.5,"waste_fraction":0.05},{"id":"wall-01","system":"envelope","unit":"m2","quantity":297,"waste_fraction":0.1},{"id":"steel-01","system":"structural_steel","unit":"kg","quantity":8600,"waste_fraction":0.03}]}
