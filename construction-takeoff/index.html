@@ -1,0 +1,50 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>UNG-CAD | Construction Takeoff</title><style>
+:root{font-family:system-ui,sans-serif;background:#edf1f5;color:#142238}*{box-sizing:border-box}body{margin:0}header{background:#101d31;color:white;padding:18px}main{display:grid;grid-template-columns:minmax(210px,260px) minmax(300px,1fr) minmax(230px,300px);min-height:85vh}aside,article{padding:18px;border-right:1px solid #c7d2df}article{background:#dce5ee}h1{font-size:1.25rem;margin:0}h2{font-size:1rem}button,input,select{font:inherit}button{border:1px solid #7c91ac;background:white;border-radius:6px;padding:9px;cursor:pointer}button:focus-visible,input:focus-visible{outline:3px solid #2865ac}input[type=range]{width:100%}table{width:100%;border-collapse:collapse;font-size:.84rem}td,th{text-align:left;padding:8px 4px;border-bottom:1px solid #cad4df}svg{width:100%;height:auto;max-height:520px}.controls{display:flex;flex-wrap:wrap;gap:8px}.total{font-size:1.7rem;font-weight:750}small{color:#64748b}header small{color:#b4c7df}@media(max-width:850px){main{display:block}aside,article{border-bottom:1px solid #c7d2df}} </style></head><body>
+<header><h1>UNG-CAD / Construction Takeoff & Sequencing</h1><small>Concept demonstration · illustrative geometry and quantities · not a certified estimate</small></header>
+<main><aside><h2>Project estimate</h2><div class="total" id="total"></div><p><small>Sample 2-story commercial building · 2,400 ft² footprint</small></p><label>Cost multiplier <output id="multiplierValue">1.00×</output><input id="multiplier" type="range" min="0.7" max="1.5" step=".05" value="1"></label><h2>Systems</h2><div id="systems"></div></aside>
+<article><div class="controls"><button id="play">▶ Play</button><button id="prev">← Previous</button><button id="next">Next →</button><button id="all">Show all</button></div><h2 id="phase"></h2>
+<svg viewBox="0 0 740 560" role="img" aria-label="Exploded schematic of a building construction sequence">
+<defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#8db0d6" stroke-width="1"/></pattern></defs>
+<path d="M75 400L450 525L685 385L300 270Z" fill="#0b66b2"/><path d="M75 400L450 525L685 385L300 270Z" fill="url(#grid)"/>
+<g data-stage="1"><path d="M185 315L380 385L540 290L345 220Z" fill="#a4abb1" stroke="#445365" stroke-width="3"/></g>
+<g data-stage="2"><path d="M185 315L380 385L380 455L185 385Z" fill="#f7f5ec" stroke="#5a6570" stroke-width="3"/><path d="M380 385L540 290L540 360L380 455Z" fill="#dddcd4" stroke="#5a6570" stroke-width="3"/></g>
+<g data-stage="3"><path d="M185 315L380 385L540 290L345 220Z" fill="#e4e6e5" stroke="#5a6570" stroke-width="3"/></g>
+<g data-stage="4"><path d="M210 265L385 325L510 250L335 190Z" fill="none" stroke="#bb3e37" stroke-width="7"/><path d="M210 265V345M385 325V405M510 250V330M335 190V270" stroke="#bb3e37" stroke-width="6"/></g>
+<g data-stage="5"><path d="M185 210L380 280L540 185L345 115Z" fill="#9faab6" stroke="#46596c" stroke-width="3"/></g>
+<g data-stage="6"><path d="M185 175L380 245L540 150L345 80Z" fill="#f0f1ed" stroke="#2c3b4c" stroke-width="4"/></g>
+<g data-stage="7"><rect x="215" y="356" width="38" height="28" fill="#7ca8cf"/><rect x="278" y="378" width="38" height="28" fill="#7ca8cf"/><rect x="416" y="384" width="40" height="29" fill="#7ca8cf"/></g>
+<g data-stage="8"><circle cx="135" cy="397" r="20" fill="#4d9963"/><circle cx="585" cy="385" r="20" fill="#4d9963"/></g>
+</svg><label for="step">Construction stage: <output id="stageValue"></output></label><input id="step" type="range" min="1" max="8" step="1" value="8"><p><small>Diagram is schematic and not derived from an actual BIM/CAD model. Stage visibility illustrates sequencing, not structural engineering approval.</small></p></article>
+<aside><h2>Material takeoff</h2><table><thead><tr><th>System</th><th>Quantity</th><th>Estimated cost</th></tr></thead><tbody id="takeoff"></tbody></table><p><small>Illustrative unit rates only. Verify scope, waste, labor, local prices, codes, dimensions, and design before procurement.</small></p><button id="export">Export CSV</button></aside></main>
+<script>
+"use strict";
+const items=[
+{name:"Sitework",qty:2400,unit:"SF",rate:8.5,stage:1},
+{name:"Foundations",qty:70,unit:"CY",rate:650,stage:1},
+{name:"Ground floor",qty:2400,unit:"SF",rate:22,stage:2},
+{name:"Upper floor",qty:2400,unit:"SF",rate:25,stage:3},
+{name:"Structural steel",qty:9.5,unit:"TN",rate:11200,stage:4},
+{name:"Roof",qty:2600,unit:"SF",rate:34,stage:6},
+{name:"Envelope",qty:3200,unit:"SF",rate:49,stage:7},
+{name:"MEP allowance",qty:4800,unit:"SF",rate:70,stage:7},
+{name:"Landscape",qty:2400,unit:"SF",rate:7,stage:8}];
+const $=id=>document.getElementById(id);const usd=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(n);
+let stage=8,timer=null;const phases=["Sitework & foundations","Ground floor","Upper floor","Structural frame","Structural frame","Roof","Envelope & MEP","Site & landscape"];
+function render(){
+const m=Number($("multiplier").value);$("multiplierValue").textContent=m.toFixed(2)+"×";
+$("total").textContent=usd(items.reduce((s,x)=>s+x.qty*x.rate*m,0));
+$("phase").textContent="Stage "+stage+" — "+phases[stage-1];$("stageValue").textContent=String(stage);$("step").value=stage;
+document.querySelectorAll("[data-stage]").forEach(g=>g.style.display=Number(g.dataset.stage)<=stage?"":"none");
+$("takeoff").innerHTML=items.map(x=>'<tr><td>'+x.name+'</td><td>'+x.qty.toLocaleString()+' '+x.unit+'</td><td>'+usd(x.qty*x.rate*m)+'</td></tr>').join("");
+$("systems").innerHTML=items.map(x=>'<p><span style="color:'+(x.stage<=stage?"#167047":"#7c8999")+'">●</span> '+x.name+' <strong>'+usd(x.qty*x.rate*m)+'</strong></p>').join("");
+}
+function stop(){if(timer){clearInterval(timer);timer=null}$("play").textContent="▶ Play"}
+$("play").onclick=()=>{if(timer){stop();return}stage=1;render();$("play").textContent="■ Stop";timer=setInterval(()=>{if(stage===8){stop();return}stage++;render()},900)};
+$("prev").onclick=()=>{stop();stage=Math.max(1,stage-1);render()};
+$("next").onclick=()=>{stop();stage=Math.min(8,stage+1);render()};
+$("all").onclick=()=>{stop();stage=8;render()};
+$("step").oninput=e=>{stop();stage=Number(e.target.value);render()};
+$("multiplier").oninput=render;
+$("export").onclick=()=>{const m=Number($("multiplier").value),rows=[["System","Quantity","Unit","Unit rate USD","Estimated cost USD"],...items.map(x=>[x.name,x.qty,x.unit,(x.rate*m).toFixed(2),(x.qty*x.rate*m).toFixed(2)])];const csv=rows.map(r=>r.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(",")).join("\r\n");const a=document.createElement("a"),url=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.href=url;a.download="ung-cad-construction-takeoff-demo.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+render();
+</script></body></html>
