@@ -1,0 +1,37 @@
+name: CNC face review validation
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cad_core/cnc_face_assessment.py'
+      - 'tests/test_cnc_face_assessment.py'
+      - 'manufacturing/cnc-face-review.html'
+      - '.github/workflows/cnc-face-review.yml'
+  pull_request:
+    paths:
+      - 'cad_core/cnc_face_assessment.py'
+      - 'tests/test_cnc_face_assessment.py'
+      - 'manufacturing/cnc-face-review.html'
+      - '.github/workflows/cnc-face-review.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Unit tests
+        run: python -m unittest discover -s tests -p 'test_cnc_face_assessment.py' -v
+      - name: UI smoke check
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('manufacturing/cnc-face-review.html')
+          s=p.read_text()
+          assert '<html' in s and 'data-face' in s and 'review_required' in s
+          print('CNC UI source smoke check passed')
+          PY
