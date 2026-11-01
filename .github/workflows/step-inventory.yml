@@ -1,0 +1,26 @@
+name: STEP inventory validation
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cad_core/step_inventory.py'
+      - 'tests/test_step_inventory.py'
+      - '.github/workflows/step-inventory.yml'
+  pull_request:
+    paths:
+      - 'cad_core/step_inventory.py'
+      - 'tests/test_step_inventory.py'
+      - '.github/workflows/step-inventory.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: STEP inventory tests
+        run: python -m unittest discover -s tests -p 'test_step_inventory.py' -v
