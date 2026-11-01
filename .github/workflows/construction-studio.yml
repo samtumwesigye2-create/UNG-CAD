@@ -1,0 +1,41 @@
+name: Construction Studio validation
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'construction-takeoff/**'
+      - 'public/index.html'
+      - '.github/workflows/construction-studio.yml'
+  pull_request:
+    paths:
+      - 'construction-takeoff/**'
+      - 'public/index.html'
+      - '.github/workflows/construction-studio.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python regression tests
+        run: python -m unittest discover -s construction-takeoff/tests -p 'test_construction_engine.py' -v
+      - name: Syntax validation
+        run: python -m py_compile construction-takeoff/construction_engine.py
+      - name: Verify browser entrypoints and schema
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          base=Path('construction-takeoff')
+          for name in ['index.html','engineering-workspace.html']:
+              p=base/name
+              assert p.exists() and '<html' in p.read_text().lower()
+          schema=json.loads((base/'schemas/construction-project-v1.schema.json').read_text())
+          assert schema['properties']['schema_version']['const']=='1.0'
+          print('Construction Studio smoke checks passed')
+          PY
