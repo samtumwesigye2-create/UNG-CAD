@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UNG-CAD Construction Project Exchange v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "project_id",
+    "units",
+    "elements",
+    "tasks",
+    "rates"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "units": {
+      "type": "object",
+      "required": [
+        "length",
+        "currency"
+      ],
+      "properties": {
+        "length": {
+          "enum": [
+            "m",
+            "ft"
+          ]
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "system",
+          "quantity",
+          "unit"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "system": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_ref": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number",
+            "minimum": 0
+          },
+          "unit": {
+            "enum": [
+              "m",
+              "m2",
+              "m3",
+              "ft",
+              "sf",
+              "cf",
+              "ea",
+              "kg",
+              "lb",
+              "cy",
+              "ton"
+            ]
+          },
+          "geometry_ref": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "element_ids",
+          "start",
+          "finish"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "element_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "start": {
+            "type": "string",
+            "format": "date"
+          },
+          "finish": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "rates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "system",
+          "unit",
+          "material_rate",
+          "labor_rate"
+        ],
+        "properties": {
+          "system": {
+            "type": "string"
+          },
+          "unit": {
+            "enum": [
+              "m",
+              "m2",
+              "m3",
+              "ft",
+              "sf",
+              "cf",
+              "ea",
+              "kg",
+              "lb",
+              "cy",
+              "ton"
+            ]
+          },
+          "material_rate": {
+            "type": "number",
+            "minimum": 0
+          },
+          "labor_rate": {
+            "type": "number",
+            "minimum": 0
+          },
+          "equipment_rate": {
+            "type": "number",
+            "minimum": 0
+          },
+          "waste_fraction": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "source": {
+            "type": "string"
+          },
+          "effective_date": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
