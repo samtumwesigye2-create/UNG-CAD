@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UNG-CAD 2D Drafting</title>
+<style>
+:root{color-scheme:dark;font:15px system-ui}body{margin:0;background:#0b1524;color:#edf5ff}
+header{padding:15px 20px;background:#12233a;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+h1{font-size:20px;margin:0 16px 0 0}button,select,input{font:inherit;border:1px solid #45617d;background:#1b334e;color:white;border-radius:6px;padding:9px}
+button{cursor:pointer}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #63d4f5}
+main{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:14px;padding:14px}
+svg{width:100%;height:min(70vh,760px);min-height:400px;background:#101e30;border:1px solid #36516b;touch-action:none}
+aside{background:#14253a;padding:14px;border-radius:8px}aside p{line-height:1.5}
+@media(max-width:700px){main{grid-template-columns:1fr}aside{order:-1}svg{height:55vh;min-height:300px}}
+</style></head><body>
+<header><h1>UNG-CAD · Drafting</h1>
+<label>Tool <select id="tool"><option value="line">Line</option><option value="rectangle">Rectangle</option><option value="circle">Circle</option></select></label>
+<label>Layer <input id="layer" value="0" maxlength="64" size="9"></label>
+<button id="undo">Undo</button><button id="clear">Clear</button><button id="save">Export SVG</button><button id="dxf">Export DXF</button>
+</header>
+<main><svg id="canvas" viewBox="0 0 800 600" aria-label="CAD drawing canvas">
+<defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="#273a52" stroke-width=".7"/></pattern></defs>
+<rect width="800" height="600" fill="url(#grid)"/><g id="entities" fill="none" stroke="#5ed8ff" stroke-width="2"/><g id="preview" fill="none" stroke="#f4c95d" stroke-dasharray="5 5" stroke-width="2"/></svg>
+<aside><h2>Drawing inspector</h2><p id="status" role="status">Select a tool and click or tap two points.</p><p id="count">Entities: 0</p><p>Canvas coordinates use millimetres. Grid spacing: 20 mm. Exports are 2D SVG or DXF R12.</p><p>This editor is a standalone prototype; it is not yet wired into the production Studio.</p></aside></main>
+<script>
+"use strict";
+const NS="http://www.w3.org/2000/svg",svg=document.getElementById("canvas"),group=document.getElementById("entities"),preview=document.getElementById("preview");
+const entities=[];let start=null;
+const tool=document.getElementById("tool"),layer=document.getElementById("layer"),status=document.getElementById("status");
+function point(evt){const p=svg.createSVGPoint();p.x=evt.clientX;p.y=evt.clientY;const m=svg.getScreenCTM();if(!m)return null;const q=p.matrixTransform(m.inverse());return {x:Math.round(q.x),y:Math.round(q.y)}}
+function shape(e){let tag,attrs={};if(e.type==="line"){tag="line";attrs={x1:e.a.x,y1:e.a.y,x2:e.b.x,y2:e.b.y}}
+else if(e.type==="rectangle"){tag="rect";attrs={x:Math.min(e.a.x,e.b.x),y:Math.min(e.a.y,e.b.y),width:Math.abs(e.b.x-e.a.x),height:Math.abs(e.b.y-e.a.y)}}
+else{tag="circle";attrs={cx:e.a.x,cy:e.a.y,r:Math.hypot(e.b.x-e.a.x,e.b.y-e.a.y)}}
+const n=document.createElementNS(NS,tag);Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,v));n.setAttribute("data-layer",e.layer);return n}
+function draw(){group.replaceChildren(...entities.map(shape));document.getElementById("count").textContent="Entities: "+entities.length}
+function cancel(){start=null;preview.replaceChildren()}
+svg.addEventListener("pointerdown",evt=>{const p=point(evt);if(!p)return;if(!start){start=p;status.textContent="Select the second point."}else{const l=layer.value.trim()||"0";if(Math.hypot(p.x-start.x,p.y-start.y)>0){entities.push({type:tool.value,a:start,b:p,layer:l});draw();status.textContent="Entity added."}cancel()}});
+svg.addEventListener("pointermove",evt=>{if(!start)return;const p=point(evt);if(p)preview.replaceChildren(shape({type:tool.value,a:start,b:p,layer:layer.value}))});
+tool.addEventListener("change",cancel);
+document.getElementById("undo").onclick=()=>{entities.pop();cancel();draw()};
+document.getElementById("clear").onclick=()=>{if(confirm("Clear all drawing entities?")){entities.length=0;cancel();draw()}};
+function download(name,content,type){const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement("a");a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+document.getElementById("save").onclick=()=>{const out=svg.cloneNode(true);out.querySelector("#preview").remove();download("ung-cad-drawing.svg",new XMLSerializer().serializeToString(out),"image/svg+xml")};
+function pair(...args){let s="";for(let i=0;i<args.length;i+=2)s+=args[i]+"\n"+args[i+1]+"\n";return s}
+document.getElementById("dxf").onclick=()=>{let s=pair(0,"SECTION",2,"HEADER",9,"$INSUNITS",70,4,0,"ENDSEC",0,"SECTION",2,"ENTITIES");
+function line(a,b,l){return pair(0,"LINE",8,l,10,a.x,20,a.y,30,0,11,b.x,21,b.y,31,0)}
+for(const e of entities){if(e.type==="line")s+=line(e.a,e.b,e.layer);
+else if(e.type==="circle")s+=pair(0,"CIRCLE",8,e.layer,10,e.a.x,20,e.a.y,30,0,40,Math.hypot(e.b.x-e.a.x,e.b.y-e.a.y));
+else{const x=Math.min(e.a.x,e.b.x),y=Math.min(e.a.y,e.b.y),w=Math.abs(e.b.x-e.a.x),h=Math.abs(e.b.y-e.a.y);const p=[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}];for(let i=0;i<4;i++)s+=line(p[i],p[(i+1)%4],e.layer)}}
+s+=pair(0,"ENDSEC",0,"EOF");download("ung-cad-drawing.dxf",s,"application/dxf")};
+</script></body></html>
